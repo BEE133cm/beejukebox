@@ -112,7 +112,6 @@
 
                     <div class="flex justify-center gap-4">
                         <button onclick="togglePlayHost()" id="btn-host-play" class="bg-red-600 hover:bg-red-500 text-white p-3 rounded-full flex items-center justify-center w-12 h-12">
-                            <!-- 再生/停止アイコン（動的に切り替え） -->
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                         </button>
                         <button onclick="playNext(true)" class="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full flex items-center justify-center w-12 h-12">
@@ -143,7 +142,6 @@
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 h-48 flex flex-col">
                     <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3">🕒 再生履歴</h3>
                     <div id="host-history-list" class="flex-1 overflow-y-auto space-y-2 pr-2 text-sm text-gray-400">
-                        <!-- 履歴が入る -->
                     </div>
                 </div>
             </div>
@@ -154,7 +152,6 @@
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 h-64 flex flex-col">
                     <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3">📋 リクエストキュー</h3>
                     <div id="host-queue-list" class="flex-1 overflow-y-auto space-y-2 pr-2">
-                        <!-- キューが入る -->
                     </div>
                 </div>
 
@@ -173,14 +170,12 @@
                         </select>
                     </div>
                     <div id="host-bgm-list" class="space-y-2 max-h-24 overflow-y-auto text-sm">
-                        <!-- BGMリスト -->
                     </div>
                 </div>
 
                 <!-- URL共有 -->
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-3">
                     <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2">🔗 共有URL</h3>
-                    
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">🎧 リスナー招待用 URL</label>
                         <div class="flex gap-2">
@@ -229,7 +224,6 @@
             <button onclick="toggleListenerCamera()" id="btn-toggle-camera" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-all">
                 🔴 LIVE配信中！(タップして開く)
             </button>
-            
             <div id="listener-video-wrapper" class="hidden mt-3 relative bg-black rounded-lg overflow-hidden border border-gray-700 aspect-video shadow-inner">
                 <video id="listener-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
                 <div class="absolute bottom-3 right-3 flex gap-2">
@@ -271,9 +265,15 @@
             </div>
         </div>
 
-        <div>
-            <h3 class="text-sm font-bold text-gray-300 mb-3 border-b border-gray-700 pb-2">📋 順番待ち (<span id="listener-queue-count">0</span>曲)</h3>
-            <div id="listener-queue-list" class="space-y-2 max-h-48 overflow-y-auto"></div>
+        <div class="space-y-4">
+            <div>
+                <h3 class="text-sm font-bold text-gray-300 mb-3 border-b border-gray-700 pb-2">📋 順番待ち (<span id="listener-queue-count">0</span>曲)</h3>
+                <div id="listener-queue-list" class="space-y-2 max-h-40 overflow-y-auto"></div>
+            </div>
+            <div>
+                <h3 class="text-sm font-bold text-gray-300 mb-3 border-b border-gray-700 pb-2">🕒 再生履歴</h3>
+                <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
+            </div>
         </div>
         <p class="text-center text-xs text-gray-500 mt-6">v0.6</p>
     </div>
@@ -312,7 +312,7 @@
             </button>
         </div>
 
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3">
+        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
             <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">🎵 リクエスト追加</h3>
             <div class="flex gap-2">
                 <input type="text" id="remote-url" placeholder="YouTube URL" class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white">
@@ -320,8 +320,7 @@
             </div>
         </div>
 
-        <!-- 履歴エリア (リモコン) -->
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mt-6">
+        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3">
             <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">🕒 再生履歴</h3>
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
@@ -384,7 +383,7 @@
         let hostConnections = []; 
         let queue = [];
         let bgmQueue = [];
-        let historyQueue = []; // v0.6 履歴リスト
+        let historyQueue = []; 
         let currentSong = null;
         let player = null;
         let isLightMode = false;
@@ -404,7 +403,7 @@
         let isVideoOn = true;
         let audioContext, analyser, microphone, meterDrawId;
         let hostMediaConn = null; 
-        let camCall = null; // カメラ側からホストへのCall
+        let camCall = null;
 
         // --- 初期化 ---
         window.onload = () => {
@@ -486,8 +485,6 @@
             showView('host-view');
             document.getElementById('display-room-id').textContent = currentRoomId;
             isHost = true;
-
-            // 画面を開いた瞬間にURLを発行（確実化）
             generateURLs();
 
             peer = new Peer(`jukebox-${currentRoomId}`);
@@ -533,7 +530,6 @@
             });
         }
 
-        // v0.6 確実なタイトル取得
         async function fetchYouTubeTitle(videoId) {
             try {
                 const res = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
@@ -560,14 +556,12 @@
                 showToast(`${song.requester} からリクエスト！`);
                 updateUI();
                 
-                // タイトル非同期取得
                 fetchYouTubeTitle(song.videoId).then(title => {
                     song.title = title;
                     updateUI();
                     saveHostState();
                 });
                 
-                // v0.6: BGM再生中なら確実に割り込む！
                 if(!currentSong || currentSong.isBGM) {
                     if(player && typeof player.getPlayerState === 'function') {
                         playNext();
@@ -602,7 +596,7 @@
             const state = {
                 type: 'state',
                 queue: queue,
-                historyQueue: historyQueue, // 履歴も送る
+                historyQueue: historyQueue,
                 currentSong: currentSong,
                 isPlaying: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1) : false,
                 hostTheme: hostTheme
@@ -653,11 +647,9 @@
 
         function onPlayerStateChange(event) {
             broadcastState();
-            // 再生ボタンのトグル用
             updateUI(); 
 
             if (event.data === YT.PlayerState.PLAYING) {
-                // v0.6: 尺制限の適用
                 if(currentSong && !currentSong.isBGM && durationLimit > 0) {
                     if(durationCheckTimeout) clearTimeout(durationCheckTimeout);
                     durationCheckTimeout = setTimeout(() => {
@@ -683,14 +675,11 @@
         function playNext(forceSkip = false) {
             if (!player || typeof player.loadVideoById !== 'function') return;
 
-            // 履歴に保存 (BGM以外)
             if (currentSong && !currentSong.isBGM) {
-                // 完全に終わったかスキップされたら履歴の先頭に
                 historyQueue.unshift(currentSong);
-                if (historyQueue.length > 20) historyQueue.pop(); // 最大20件
+                if (historyQueue.length > 20) historyQueue.pop();
             }
 
-            // BGM割り込み時のレジューム保存
             if (currentSong && currentSong.isBGM && queue.length > 0 && !forceSkip) {
                 bgmResumeData = {
                     videoId: currentSong.videoId,
@@ -705,7 +694,6 @@
                 player.loadVideoById({videoId: currentSong.videoId});
             } 
             else if (bgmResumeData) {
-                // レジューム
                 currentSong = {
                     id: 'bgm-resumed',
                     videoId: bgmResumeData.videoId,
@@ -721,7 +709,7 @@
             }
             else if (bgmQueue.length > 0) {
                 let bgm = bgmQueue.shift();
-                bgmQueue.push(bgm); // ループ
+                bgmQueue.push(bgm); 
                 
                 if(bgm.isPlaylist) {
                     currentSong = {
@@ -818,20 +806,16 @@
                 document.getElementById('host-now-requester').textContent = "リクエスト待ち...";
             }
 
-            // v0.6: 再生ボタンの切り替え
             const playBtn = document.getElementById('btn-host-play');
             if(playBtn && player && typeof player.getPlayerState === 'function') {
                 const isPlaying = player.getPlayerState() === 1;
                 if(isPlaying) {
-                    // Pause (2本線)
                     playBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
                 } else {
-                    // Play (三角)
                     playBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
                 }
             }
 
-            // キュー描画
             const qList = document.getElementById('host-queue-list');
             qList.innerHTML = '';
             queue.forEach((q, idx) => {
@@ -850,7 +834,6 @@
                 qList.appendChild(div);
             });
 
-            // 履歴描画
             const hostHist = document.getElementById('host-history-list');
             if(hostHist) {
                 hostHist.innerHTML = '';
@@ -868,7 +851,6 @@
                 });
             }
 
-            // BGMリスト描画
             const bList = document.getElementById('host-bgm-list');
             bList.innerHTML = '';
             bgmQueue.forEach((b, idx) => {
@@ -951,7 +933,6 @@
         function broadcastStreamToListeners(stream) {
             currentStreamToListeners = stream;
             hostConnections.forEach(conn => {
-                // v0.6: 確実なオーディオリレーのためストリームをそのまま転送
                 const call = peer.call(conn.peer, stream);
                 listenerCalls.push(call);
                 if(conn.open) conn.send({type: 'camera_started'});
@@ -970,16 +951,14 @@
         }
 
         function initCamera() {
-            document.getElementById('camera-status').textContent = "カメラ/マイクの許可を待っています...";
+            document.getElementById('camera-status').textContent = "配信準備完了 (スタートボタンを押してください)";
+            document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-green-500');
             
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true })
                 .then(stream => {
                     cameraStream = stream;
                     document.getElementById('camera-preview').srcObject = stream;
                     
-                    document.getElementById('camera-status').textContent = "配信準備完了 (待機中)";
-                    document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-green-500');
-
                     try {
                         audioContext = new (window.AudioContext || window.webkitAudioContext)();
                         analyser = audioContext.createAnalyser();
@@ -997,7 +976,6 @@
                 });
         }
 
-        // v0.6: 手動で配信をスタートさせる
         function startCameraStream() {
             if(!cameraStream) return showToast("カメラの準備ができていません", "error");
 
@@ -1013,7 +991,6 @@
                     document.getElementById('camera-status').textContent = "🔴 映像＋音声 配信中！";
                     document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-red-500');
                     
-                    // UIの切り替え
                     document.getElementById('camera-setup-controls').classList.add('hidden');
                     document.getElementById('camera-active-controls').classList.remove('hidden');
                     
@@ -1026,7 +1003,7 @@
             if(camCall) { camCall.close(); camCall = null; }
             if(listenerConn && listenerConn.open) { listenerConn.send({type: 'camera_stop'}); }
             
-            if(peer) { peer.destroy(); peer = null; } // Peerを破棄して再利用可能に
+            if(peer) { peer.destroy(); peer = null; }
             
             document.getElementById('camera-status').textContent = "⏹️ 配信停止 (待機中)";
             document.getElementById('camera-status').classList.replace('text-red-500', 'text-green-500');
@@ -1127,7 +1104,9 @@
                 call.on('stream', (stream) => {
                     if(!isObs && !isRemote) {
                         document.getElementById('listener-live-container').classList.remove('hidden');
-                        document.getElementById('listener-video').srcObject = stream;
+                        const video = document.getElementById('listener-video');
+                        video.srcObject = stream;
+                        video.play().catch(e => console.log("Stream play error:", e));
                     }
                 });
             });
@@ -1140,7 +1119,6 @@
             
             if(isListenerVideoOpen) {
                 wrapper.classList.remove('hidden');
-                // iOSなどで自動再生させるためのハック
                 video.play().catch(e => console.log("Auto-play prevented", e));
             } else {
                 wrapper.classList.add('hidden');
@@ -1162,7 +1140,6 @@
             } else {
                 btn.innerHTML = "🔊 配信の音声ON (タップで消音)";
                 btn.classList.replace('bg-gray-800/80', 'bg-red-600');
-                // ミュート解除時に確実に再生を実行
                 video.play().catch(e => console.error("Video play failed:", e));
             }
         }
@@ -1255,7 +1232,7 @@
                 }
             }
 
-            // v0.6: リモコン用の履歴表示
+            // リモコン ＆ リスナーへの履歴描画
             if(isRemoteMode) {
                 const hList = document.getElementById('remote-history-list');
                 if(hList && historyQueue) {
@@ -1271,6 +1248,25 @@
                             </div>
                         `;
                         hList.appendChild(div);
+                    });
+                }
+            }
+
+            if(!isRemoteMode && !isObs) {
+                const listenerHist = document.getElementById('listener-history-list');
+                if(listenerHist && historyQueue) {
+                    listenerHist.innerHTML = '';
+                    historyQueue.forEach((q, idx) => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center gap-2 bg-gray-800 border border-gray-700 p-2 rounded text-sm";
+                        div.innerHTML = `
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                <p class="text-xs text-gray-500 truncate">👤 ${q.requesterReal}</p>
+                            </div>
+                        `;
+                        listenerHist.appendChild(div);
                     });
                 }
             }
