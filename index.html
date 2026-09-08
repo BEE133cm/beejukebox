@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v0.11.1</title>
+    <title>Remote Jukebox v1.0.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -84,7 +84,14 @@
                 部屋を作成する
             </button>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.11.1</p>
+        
+        <!-- 追加: ルーム履歴エリア -->
+        <div id="room-history-container" class="mt-8 border-t border-gray-700 pt-4 hidden">
+            <p class="text-sm text-gray-300 font-bold mb-3">🕒 過去に作成したルーム</p>
+            <div id="room-history-list" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+        </div>
+
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.0</p>
     </div>
 
     <!-- ================= 2. 配信者 (Host) 画面 ================= -->
@@ -257,7 +264,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v0.11.1</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.0</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -338,7 +345,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.11.1</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.0</div>
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -431,7 +438,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.11.1</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.0</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -511,7 +518,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.11.1</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.0</div>
     </div>
 
     <!-- 音声維持用のダミーオーディオ (カメラ中継時のミュート回避用) -->
@@ -599,10 +606,12 @@
                     initCamera();
                 } else {
                     showView('setup-view');
+                    renderRoomHistory();
                 }
             } catch(e) {
                 console.error("Initialization error:", e);
                 showView('setup-view');
+                renderRoomHistory();
             }
         };
 
@@ -652,12 +661,75 @@
                 const settingNameEl = document.getElementById('setting-host-name');
                 if(settingNameEl) settingNameEl.value = hostName;
                 
+                saveRoomHistory(currentRoomId, hostName);
+                
                 generateURLs();
                 updateMyListSelect();
                 initHost();
             } catch (err) {
                 showToast("エラーが発生しました: " + err.message, "error");
             }
+        }
+
+        function saveRoomHistory(roomId, name) {
+            try {
+                let history = JSON.parse(localStorage.getItem('jukebox_room_history')) || [];
+                history = history.filter(h => h.roomId !== roomId);
+                history.unshift({ roomId: roomId, hostName: name, time: Date.now() });
+                if(history.length > 10) history.pop(); // 最大10件保存
+                localStorage.setItem('jukebox_room_history', JSON.stringify(history));
+            } catch(e) {}
+        }
+
+        function renderRoomHistory() {
+            const container = document.getElementById('room-history-container');
+            const list = document.getElementById('room-history-list');
+            if(!container || !list) return;
+
+            try {
+                const history = JSON.parse(localStorage.getItem('jukebox_room_history')) || [];
+                if(history.length === 0) {
+                    container.classList.add('hidden');
+                    return;
+                }
+
+                container.classList.remove('hidden');
+                list.innerHTML = '';
+                history.forEach(h => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer group";
+                    div.onclick = () => resumeRoom(h.roomId, h.hostName);
+                    
+                    div.innerHTML = `
+                        <div class="flex-1 min-w-0 pr-2">
+                            <p class="text-sm text-gray-200 font-bold truncate">👑 ${h.hostName}</p>
+                            <p class="text-xs text-gray-500 font-mono truncate">ID: ${h.roomId}</p>
+                        </div>
+                        <div class="flex-shrink-0 flex items-center gap-2">
+                            <span class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded font-bold shadow transition-colors">再開</span>
+                            <button onclick="deleteRoomHistory('${h.roomId}', event)" class="text-gray-500 hover:text-red-500 p-1 transition-colors" title="履歴から削除">✖</button>
+                        </div>
+                    `;
+                    list.appendChild(div);
+                });
+            } catch(e) { container.classList.add('hidden'); }
+        }
+
+        function resumeRoom(roomId, name) {
+            document.getElementById('input-room-id').value = roomId;
+            document.getElementById('input-host-name').value = name;
+            createRoom();
+        }
+
+        function deleteRoomHistory(roomId, event) {
+            event.stopPropagation();
+            try {
+                let history = JSON.parse(localStorage.getItem('jukebox_room_history')) || [];
+                history = history.filter(h => h.roomId !== roomId);
+                localStorage.setItem('jukebox_room_history', JSON.stringify(history));
+                renderRoomHistory();
+                showToast("履歴を削除しました");
+            } catch(e) {}
         }
 
         function generateURLs() {
