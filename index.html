@@ -314,6 +314,14 @@
         </div>
 
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
+            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">📢 テーマ・気分を変更</h3>
+            <div class="flex gap-2">
+                <input type="text" id="remote-input-theme" placeholder="例: ドライブ中！リクエスト募集中！" class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
+                <button onclick="sendRemoteTheme()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 rounded font-bold transition-colors text-sm">更新</button>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
             <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">🎵 リクエスト追加</h3>
             <div class="flex gap-2">
                 <input type="text" id="remote-url" placeholder="YouTube URL" class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white">
@@ -600,6 +608,14 @@
             else if(data.type === 'remote_cmd') {
                 if(data.cmd === 'toggle') togglePlayHost();
                 else if(data.cmd === 'skip') playNext(true); 
+            }
+            else if(data.type === 'update_theme') {
+                hostTheme = data.theme;
+                const themeInput = document.getElementById('setting-theme');
+                if(themeInput) themeInput.value = hostTheme;
+                saveHostState();
+                broadcastState();
+                showToast("リモコンからテーマが変更されました");
             }
             else if(data.type === 'camera_stop') {
                 if(hostMediaConn) hostMediaConn.close();
@@ -1321,6 +1337,15 @@
             if(listenerConn && listenerConn.open) {
                 listenerConn.send({ type: 'remote_cmd', cmd: cmd });
                 showToast("コマンドを送信しました");
+            }
+        }
+
+        function sendRemoteTheme() {
+            const newTheme = document.getElementById('remote-input-theme').value;
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'update_theme', theme: newTheme });
+                showToast("テーマを更新しました");
+                document.getElementById('remote-input-theme').value = '';
             }
         }
 
