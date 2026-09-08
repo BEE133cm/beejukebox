@@ -564,6 +564,13 @@
         let recordedChunks = [];
 
         window.onload = () => {
+            // TTSロック解除設定 (スマホブラウザ対応)
+            const unlockTTS = () => { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); };
+            const rTts = document.getElementById('remote-tts-toggle');
+            if(rTts) rTts.addEventListener('change', unlockTTS);
+            const hTts = document.getElementById('host-tts-toggle');
+            if(hTts) hTts.addEventListener('change', unlockTTS);
+
             const params = new URLSearchParams(window.location.search);
             try {
                 if(params.has('host')) {
@@ -1314,12 +1321,26 @@
             sel.value = ""; 
         }
 
+        function applyBitrate(call, bitrateKbps) {
+            if(!call || !call.peerConnection) return;
+            const senders = call.peerConnection.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+                const params = videoSender.getParameters();
+                if (!params.encodings) params.encodings = [{}];
+                params.encodings[0].maxBitrate = bitrateKbps * 1000;
+                videoSender.setParameters(params).catch(e => console.log("Bitrate error:", e));
+            }
+        }
+
         function sendStreamToPeer(peerId) {
             if(!currentStreamToListeners) return;
             const listener = connectedListeners[peerId];
             if(listener && listener.conn.open) {
                 const call = peer.call(peerId, currentStreamToListeners);
                 listener.call = call;
+                // 中継時の画質劣化を防ぐため、ホストからリスナーへの送信もビットレートを高く設定
+                setTimeout(() => applyBitrate(call, 2500), 1000); 
             }
         }
 
@@ -1357,18 +1378,6 @@
             currentCamWidth = parseInt(res[0]);
             currentCamHeight = parseInt(res[1]);
             currentBitrate = parseInt(document.getElementById('cam-bitrate').value) || 2500;
-        }
-
-        function applyBitrate(call, bitrateKbps) {
-            if(!call || !call.peerConnection) return;
-            const senders = call.peerConnection.getSenders();
-            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-            if (videoSender) {
-                const params = videoSender.getParameters();
-                if (!params.encodings) params.encodings = [{}];
-                params.encodings[0].maxBitrate = bitrateKbps * 1000;
-                videoSender.setParameters(params).catch(e => console.log("Bitrate error:", e));
-            }
         }
 
         function setupMicMeter() {
@@ -1416,6 +1425,11 @@
                 audio: true
             }).then(stream => {
                 cameraStream = stream;
+                
+                // 解像度優先をブラウザに強制指示
+                const videoTrack = cameraStream.getVideoTracks()[0];
+                if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
+
                 document.getElementById('camera-preview').srcObject = stream;
                 setupMicMeter();
 
@@ -1461,6 +1475,11 @@
                 audio: true
             }).then(stream => {
                 cameraStream = stream;
+                
+                // 解像度優先をブラウザに強制指示
+                const videoTrack = cameraStream.getVideoTracks()[0];
+                if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
+
                 document.getElementById('camera-preview').srcObject = stream;
                 setupMicMeter();
                 
@@ -1654,11 +1673,16 @@
                         const video = document.getElementById('obs-cam-video');
                         video.srcObject = stream;
                         video.muted = false;
-                        video.play().catch(e => {
-                            video.muted = true;
-                            video.play().catch(e2=>{});
-                            document.getElementById('obs-cam-unmute').classList.remove('hidden');
-                        });
+                        video.volume = 1.0;
+                        const playPromise = video.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(e => {
+                                // どうしても自動再生ポリシーに引っかかった場合のみミュートにしてボタンを出す
+                                video.muted = true;
+                                video.play().catch(e2=>{});
+                                document.getElementById('obs-cam-unmute').classList.remove('hidden');
+                            });
+                        }
                     }
                     else if(!isObs && !isRemote) {
                         listenerHasStream = true;
