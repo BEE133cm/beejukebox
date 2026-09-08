@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v1.0.1</title>
+    <title>Remote Jukebox v1.0.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -59,11 +59,38 @@
         #host-view.share-mode .show-on-share { display: flex !important; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col items-center p-4 sm:p-8">
+<body class="min-h-screen flex flex-col items-center p-4 sm:p-8 relative">
 
     <!-- トースト通知 -->
     <div id="toast" class="toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3">
         <span id="toast-msg"></span>
+    </div>
+
+    <!-- パスワード入力モーダル -->
+    <div id="password-modal" class="hidden fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-indigo-500 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
+            <h3 class="text-xl font-bold text-white mb-2">🔒 パスワードが必要です</h3>
+            <p class="text-sm text-gray-400 mb-6">このルームを操作・配信するには<br>ホストが設定したパスワードが必要です。</p>
+            <input type="password" id="room-password-input" placeholder="管理パスワードを入力" class="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white mb-2 outline-none focus:border-indigo-500">
+            <p id="password-error" class="hidden text-red-500 text-xs mb-4">パスワードが間違っています</p>
+            <div class="flex gap-3 mt-4">
+                <button onclick="closePasswordModal()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">キャンセル</button>
+                <button onclick="submitPassword()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg">接続する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- リスナーチュートリアルモーダル -->
+    <div id="tutorial-modal" class="hidden fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center relative">
+            <h3 class="text-xl font-bold text-white mb-4">配信者にリクエストを送ろう！</h3>
+            <div class="text-sm text-gray-300 space-y-2 text-left mb-6">
+                <p>Youtube / Youtube musicの動画・音楽の共有URLをコピー＆ペースト！</p>
+                <p class="text-yellow-400">※おすすめはYoutube musicです！</p>
+                <p class="text-red-400">※動画の権利の関係で再生されないものもあります</p>
+            </div>
+            <button onclick="document.getElementById('tutorial-modal').classList.add('hidden')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg">閉じる</button>
+        </div>
     </div>
 
     <!-- ================= 1. ルーム作成画面 (初期画面) ================= -->
@@ -80,18 +107,37 @@
                 <label class="block text-sm text-gray-400 mb-1">配信者の名前</label>
                 <input type="text" id="input-host-name" placeholder="例: 配信太郎" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-3 outline-none focus:border-red-500">
             </div>
+            <div class="border-t border-gray-700 pt-4 mt-2">
+                <label class="block text-sm text-gray-400 mb-1">🔒 管理パスワード (任意)</label>
+                <input type="password" id="input-host-password" placeholder="例: 1234 (空欄ならパス不要)" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-3 outline-none focus:border-red-500">
+                <p class="text-[10px] text-gray-500 mt-1">※設定すると、コントローラーやカメラからの接続時にパスワードを要求します。リスナーはパスワード不要です。</p>
+            </div>
             <button onclick="createRoom()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg transition-colors mt-4">
                 部屋を作成する
             </button>
         </div>
-        
-        <!-- 追加: ルーム履歴エリア -->
-        <div id="room-history-container" class="mt-8 border-t border-gray-700 pt-4 hidden">
-            <p class="text-sm text-gray-300 font-bold mb-3">🕒 過去に作成したルーム</p>
-            <div id="room-history-list" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.2</p>
+    </div>
+
+    <!-- ================= 専用ポータル画面 ================= -->
+    <div id="portal-view" class="hidden w-full max-w-md bg-gray-900 border border-gray-700 p-6 rounded-2xl shadow-2xl mt-10">
+        <div class="text-center border-b border-gray-700 pb-4 mb-4">
+            <h2 id="portal-title" class="text-xl font-bold text-indigo-400 m-0">👑 専用ポータル</h2>
+            <p id="portal-desc" class="text-gray-400 text-sm mt-1">過去のルームを選ぶか、IDを入力して入室</p>
         </div>
 
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.1</p>
+        <h3 class="text-sm font-bold text-gray-300 mb-3">🕒 過去に繋いだルーム</h3>
+        <div id="portal-history-list" class="flex flex-col gap-2 mb-6 max-h-48 overflow-y-auto">
+            <!-- 履歴がここに入る -->
+        </div>
+
+        <div class="border-t border-gray-700 pt-4">
+            <h3 class="text-sm font-bold text-gray-300 mb-3">➕ 新しい部屋に入る</h3>
+            <div class="flex flex-col gap-2">
+                <input type="text" id="portal-room-id" placeholder="ルームIDを入力..." class="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white outline-none focus:border-indigo-500">
+                <button class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg" onclick="joinFromPortal()">入室する</button>
+            </div>
+        </div>
     </div>
 
     <!-- ================= 2. 配信者 (Host) 画面 ================= -->
@@ -174,8 +220,9 @@
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700">
                     <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3">🎵 待機用BGM / プレイリスト</h3>
                     <div class="flex gap-2 mb-2">
-                        <!-- ここに修正を適用 -->
-                        <input type="text" id="input-bgm-url" placeholder="YouTube URL / プレイリスト" class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white min-w-0">
+                        <!-- ここに min-w-0 を追加 -->
+                        <input type="text" id="input-bgm-url" placeholder="YouTube URL / プレイリスト" class="flex-1 min-w-0 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
+                        <!-- ここに whitespace-nowrap と flex-shrink-0 を追加 -->
                         <button onclick="addBGM()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm whitespace-nowrap flex-shrink-0">追加</button>
                         <button onclick="saveToMyList()" title="マイリストに保存" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded text-sm whitespace-nowrap flex-shrink-0">⭐</button>
                     </div>
@@ -234,14 +281,14 @@
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs text-red-400 mb-1">👑 リモコン用 URL (自分専用)</label>
+                        <label class="block text-xs text-red-400 mb-1">👑 リモコン専用ポータル URL</label>
                         <div class="flex gap-2">
                             <input type="text" id="url-remote" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
                             <button onclick="copyURL('url-remote')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs text-green-400 mb-1">🎥 車載スマホ用 (カメラ送出) URL</label>
+                        <label class="block text-xs text-green-400 mb-1">🎥 カメラ専用ポータル URL</label>
                         <div class="flex gap-2">
                             <input type="text" id="url-camera" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
                             <button onclick="copyURL('url-camera')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
@@ -264,7 +311,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.1</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.2</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -319,11 +366,11 @@
             <div>
                 <div class="flex items-center gap-2 mb-1">
                     <label class="block text-sm text-gray-300">YouTube URL</label>
-                    <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="w-5 h-5 rounded-full bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold flex items-center justify-center text-xs shadow transition-colors" title="使い方">?</button>
+                    <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="w-5 h-5 rounded-full bg-gray-700 hover:bg-gray-600 text-xs font-bold text-white flex items-center justify-center cursor-pointer shadow border border-gray-600">?</button>
                 </div>
                 <div class="flex gap-2">
-                    <input type="text" id="listener-url" placeholder="https://youtu.be/..." class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white">
-                    <button onclick="sendRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded font-bold transition-colors">送信</button>
+                    <input type="text" id="listener-url" placeholder="https://youtu.be/..." class="flex-1 min-w-0 bg-gray-900 border border-gray-600 rounded p-2 text-white">
+                    <button onclick="sendRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded font-bold transition-colors whitespace-nowrap flex-shrink-0">送信</button>
                 </div>
             </div>
         </div>
@@ -348,23 +395,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.1</div>
-
-        <!-- リスナー用：チュートリアルモーダル -->
-        <div id="tutorial-modal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 transition-opacity" onclick="if(event.target === this) this.classList.add('hidden')">
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl relative">
-                <button onclick="document.getElementById('tutorial-modal').classList.add('hidden')" class="absolute top-3 right-3 text-gray-400 hover:text-white font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full bg-gray-700/50 hover:bg-gray-600 transition-colors">×</button>
-                <h3 class="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">配信者にリクエストを送ろう！</h3>
-                <div class="text-sm text-gray-300 space-y-3">
-                    <p>Youtube / Youtube musicの動画・音楽の共有URLをコピー＆ペースト！</p>
-                    <p class="text-yellow-400 text-xs font-bold">※おすすめはYoutube musicです！</p>
-                    <p class="text-gray-400 text-xs">※動画の権利の関係で再生されないものもあります</p>
-                </div>
-                <div class="mt-6 text-center">
-                    <button onclick="document.getElementById('tutorial-modal').classList.add('hidden')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-lg">OK (閉じる)</button>
-                </div>
-            </div>
-        </div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.2</div>
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -457,7 +488,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.1</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.2</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -537,7 +568,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.1</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.2</div>
     </div>
 
     <!-- 音声維持用のダミーオーディオ (カメラ中継時のミュート回避用) -->
@@ -550,6 +581,12 @@
         let currentRoomId = null;
         let isHost = false;
         
+        // --- 新規追加：パスワード・ポータル関連 ---
+        let hostPassword = ''; 
+        let currentPortalMode = ''; 
+        let pendingConnection = null; 
+        let savedPasswords = JSON.parse(localStorage.getItem('jukebox_passwords')) || {};
+
         let queue = [];
         let bgmQueue = [];
         let historyQueue = [];
@@ -568,7 +605,13 @@
 
         let listenerConn = null;
         let listenerId = null;
-        let myUUID = null;
+        
+        // --- 新規追加：リスナーUUID（荒らし対策用） ---
+        let myGuestUUID = localStorage.getItem('jukebox_uuid');
+        if (!myGuestUUID) {
+            myGuestUUID = 'user-' + generateId() + generateId();
+            localStorage.setItem('jukebox_uuid', myGuestUUID);
+        }
 
         let myList = [];
         try {
@@ -599,12 +642,27 @@
             const hTts = document.getElementById('host-tts-toggle');
             if(hTts) hTts.addEventListener('change', unlockTTS);
 
+            // 保存されたリスナー名の復元
+            const savedName = localStorage.getItem('jukebox_guest_name');
+            const savedAnon = localStorage.getItem('jukebox_guest_anon');
+            const nameEl = document.getElementById('listener-name');
+            const anonEl = document.getElementById('listener-anon');
+            if (savedName && nameEl) nameEl.value = savedName;
+            if (savedAnon !== null && anonEl) anonEl.checked = (savedAnon === 'true');
+
             const params = new URLSearchParams(window.location.search);
             try {
-                if(params.has('host')) {
+                if(params.has('portal')) {
+                    initPortal(params.get('portal'));
+                } else if(params.has('host')) {
                     showView('listener-view');
                     currentRoomId = params.get('host');
                     initListener(false);
+                } else if(params.has('obs')) {
+                    showView('obs-view');
+                    document.body.style.backgroundColor = 'transparent';
+                    currentRoomId = params.get('obs');
+                    initListener(true);
                 } else if(params.has('obs_cam')) {
                     showView('obs-cam-view');
                     document.body.style.backgroundColor = '#000';
@@ -620,17 +678,15 @@
                     initCamera();
                 } else {
                     showView('setup-view');
-                    renderRoomHistory();
                 }
             } catch(e) {
                 console.error("Initialization error:", e);
                 showView('setup-view');
-                renderRoomHistory();
             }
         };
 
         function showView(viewId) {
-            ['setup-view', 'host-view', 'listener-view', 'obs-view', 'remote-view', 'camera-view', 'obs-cam-view'].forEach(id => {
+            ['setup-view', 'portal-view', 'host-view', 'listener-view', 'obs-view', 'remote-view', 'camera-view', 'obs-cam-view'].forEach(id => {
                 const el = document.getElementById(id);
                 if(el) { el.classList.add('hidden'); el.classList.remove('flex'); }
             });
@@ -651,31 +707,143 @@
 
         function generateId() { return Math.random().toString(36).substring(2, 9); }
 
-        function generateUUID() {
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
-        }
-
         function showBannedScreen() {
             document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500">🚫 アクセスがブロックされました</h1><p class="text-gray-300">管理者の操作により、このルームへのアクセスが制限されています。</p></div>';
+        }
+
+        // --- ポータル＆パスワード機能 ---
+
+        function initPortal(mode) {
+            currentPortalMode = mode;
+            showView('portal-view');
+            
+            const titleEl = document.getElementById('portal-title');
+            const descEl = document.getElementById('portal-desc');
+            
+            if (mode === 'remote') {
+                titleEl.textContent = '👑 リモコン専用ポータル';
+                descEl.textContent = '操作したいルームを選んでください';
+            } else if (mode === 'listener') {
+                titleEl.textContent = '🎧 リスナー専用ポータル';
+                descEl.textContent = '視聴するルームを選んでください';
+            } else if (mode === 'cam' || mode === 'camera') {
+                titleEl.textContent = '🎥 カメラ専用ポータル';
+                descEl.textContent = '配信するルームを選んでください';
+            }
+            renderPortalHistory();
+        }
+
+        function renderPortalHistory() {
+            const list = document.getElementById('portal-history-list');
+            const history = JSON.parse(localStorage.getItem('jukebox_guest_history')) || [];
+            
+            if(history.length === 0) {
+                list.innerHTML = '<p class="text-gray-500 text-center text-sm py-4">過去の接続履歴はありません</p>';
+                return;
+            }
+
+            list.innerHTML = '';
+            history.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-800 p-3 rounded-lg flex justify-between items-center cursor-pointer hover:bg-gray-700 transition border border-transparent hover:border-indigo-500/50 mb-2';
+                div.innerHTML = `
+                    <div class="flex-1 min-w-0" onclick="joinFromPortalHistory('${item.roomId}')">
+                        <div class="font-bold text-white text-sm truncate">${item.hostName} の部屋</div>
+                        <div class="text-xs text-gray-400">ID: ${item.roomId}</div>
+                    </div>
+                    <button class="text-red-400 hover:text-red-300 p-2" onclick="deleteGuestHistory('${item.roomId}', event)">✖</button>
+                `;
+                list.appendChild(div);
+            });
+        }
+        
+        function saveGuestHistory(roomId, hostName) {
+            if(!roomId) return;
+            let history = JSON.parse(localStorage.getItem('jukebox_guest_history')) || [];
+            history = history.filter(h => h.roomId !== roomId);
+            history.unshift({ roomId: roomId, hostName: hostName || roomId, time: Date.now() });
+            if(history.length > 10) history = history.slice(0, 10);
+            localStorage.setItem('jukebox_guest_history', JSON.stringify(history));
+        }
+
+        function deleteGuestHistory(roomId, event) {
+            event.stopPropagation();
+            let history = JSON.parse(localStorage.getItem('jukebox_guest_history')) || [];
+            history = history.filter(h => h.roomId !== roomId);
+            localStorage.setItem('jukebox_guest_history', JSON.stringify(history));
+            renderPortalHistory();
+            showToast("履歴を削除しました");
+        }
+
+        function joinFromPortalHistory(roomId) {
+            document.getElementById('portal-room-id').value = roomId;
+            joinFromPortal();
+        }
+
+        function joinFromPortal() {
+            const roomId = document.getElementById('portal-room-id').value.trim();
+            if(!roomId) return showToast("ルームIDを入力してください", "error");
+
+            currentRoomId = roomId;
+            if (currentPortalMode === 'remote') {
+                showView('remote-view');
+                initListener(false, true);
+            } else if (currentPortalMode === 'listener') {
+                showView('listener-view');
+                initListener();
+            } else if (currentPortalMode === 'cam' || currentPortalMode === 'camera') {
+                showView('camera-view');
+                initCamera();
+            }
+        }
+
+        function showPasswordModal() {
+            document.getElementById('password-modal').classList.remove('hidden');
+            document.getElementById('room-password-input').value = '';
+            document.getElementById('password-error').classList.add('hidden');
+        }
+
+        function hidePasswordModal() {
+            document.getElementById('password-modal').classList.add('hidden');
+        }
+
+        function closePasswordModal() {
+            hidePasswordModal();
+            showToast("接続をキャンセルしました", "info");
+            if (pendingConnection) pendingConnection.close();
+            setTimeout(() => { window.location.href = window.location.href.split('?')[0]; }, 1000);
+        }
+
+        function submitPassword() {
+            const pwd = document.getElementById('room-password-input').value;
+            if (!pwd) {
+                const err = document.getElementById('password-error');
+                err.textContent = "パスワードを入力してください";
+                err.classList.remove('hidden');
+                return;
+            }
+            document.getElementById('password-error').classList.add('hidden');
+
+            if (pendingConnection) {
+                pendingConnection.send({ type: 'auth_request', password: pwd });
+            }
         }
 
         function createRoom() {
             try {
                 const idInput = document.getElementById('input-room-id').value.trim();
                 const nameInput = document.getElementById('input-host-name').value.trim();
+                const passInput = document.getElementById('input-host-password').value.trim(); 
                 if(!idInput) { showToast("ルームIDを入力してください", "error"); return; }
                 
                 currentRoomId = idInput.replace(/[^a-zA-Z0-9-]/g, '');
                 if(!currentRoomId) { showToast("ルームIDは半角英数字で入力してください", "error"); return; }
                 
                 hostName = nameInput || "配信太郎";
+                hostPassword = passInput; 
+                
                 const settingNameEl = document.getElementById('setting-host-name');
                 if(settingNameEl) settingNameEl.value = hostName;
-                
-                saveRoomHistory(currentRoomId, hostName);
                 
                 generateURLs();
                 updateMyListSelect();
@@ -685,77 +853,21 @@
             }
         }
 
-        function saveRoomHistory(roomId, name) {
-            try {
-                let history = JSON.parse(localStorage.getItem('jukebox_room_history')) || [];
-                history = history.filter(h => h.roomId !== roomId);
-                history.unshift({ roomId: roomId, hostName: name, time: Date.now() });
-                if(history.length > 10) history.pop(); // 最大10件保存
-                localStorage.setItem('jukebox_room_history', JSON.stringify(history));
-            } catch(e) {}
-        }
-
-        function renderRoomHistory() {
-            const container = document.getElementById('room-history-container');
-            const list = document.getElementById('room-history-list');
-            if(!container || !list) return;
-
-            try {
-                const history = JSON.parse(localStorage.getItem('jukebox_room_history')) || [];
-                if(history.length === 0) {
-                    container.classList.add('hidden');
-                    return;
-                }
-
-                container.classList.remove('hidden');
-                list.innerHTML = '';
-                history.forEach(h => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer group";
-                    div.onclick = () => resumeRoom(h.roomId, h.hostName);
-                    
-                    div.innerHTML = `
-                        <div class="flex-1 min-w-0 pr-2">
-                            <p class="text-sm text-gray-200 font-bold truncate">👑 ${h.hostName}</p>
-                            <p class="text-xs text-gray-500 font-mono truncate">ID: ${h.roomId}</p>
-                        </div>
-                        <div class="flex-shrink-0 flex items-center gap-2">
-                            <span class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded font-bold shadow transition-colors">再開</span>
-                            <button onclick="deleteRoomHistory('${h.roomId}', event)" class="text-gray-500 hover:text-red-500 p-1 transition-colors" title="履歴から削除">✖</button>
-                        </div>
-                    `;
-                    list.appendChild(div);
-                });
-            } catch(e) { container.classList.add('hidden'); }
-        }
-
-        function resumeRoom(roomId, name) {
-            document.getElementById('input-room-id').value = roomId;
-            document.getElementById('input-host-name').value = name;
-            createRoom();
-        }
-
-        function deleteRoomHistory(roomId, event) {
-            event.stopPropagation();
-            try {
-                let history = JSON.parse(localStorage.getItem('jukebox_room_history')) || [];
-                history = history.filter(h => h.roomId !== roomId);
-                localStorage.setItem('jukebox_room_history', JSON.stringify(history));
-                renderRoomHistory();
-                showToast("履歴を削除しました");
-            } catch(e) {}
-        }
-
         function generateURLs() {
             const base = window.location.href.split('?')[0].split('#')[0];
-            ['url-listener', 'url-obs', 'url-camera', 'url-remote', 'url-obs-cam'].forEach(id => {
+            ['url-listener', 'url-obs', 'url-obs-cam'].forEach(id => {
                 const el = document.getElementById(id);
                 if(el) {
                     let type = id.replace('url-', '');
-                    let param = type === 'listener' ? 'host' : (type === 'obs-cam' ? 'obs_cam' : (type === 'camera' ? 'cam' : type));
+                    let param = type === 'listener' ? 'host' : (type === 'obs-cam' ? 'obs_cam' : type);
                     el.value = `${base}?${param}=${currentRoomId}`;
                 }
             });
+            // リモコン・カメラはポータル経由に変更
+            const elRemote = document.getElementById('url-remote');
+            if(elRemote) elRemote.value = `${base}?portal=remote`;
+            const elCamera = document.getElementById('url-camera');
+            if(elCamera) elCamera.value = `${base}?portal=cam`;
         }
 
         function copyURL(inputId) {
@@ -804,16 +916,65 @@
                     conn.on('open', () => { conn.send({type: 'banned'}); conn.close(); });
                     return;
                 }
+                
+                conn.isAuthenticated = false;
 
                 if(!conn.peer.startsWith('cam-')) {
                     connectedListeners[conn.peer] = {
-                        id: conn.peer, conn: conn, name: "名無し", isMuted: false, cameraStatus: 'none', isRemote: false, isObs: false, call: null, uuid: null
+                        id: conn.peer, conn: conn, name: "名無し", isMuted: false, cameraStatus: 'none', isRemote: false, isObs: false, call: null
                     };
                     updateParticipantsUI();
                 }
 
-                conn.on('data', (data) => { handleHostData(data, conn); });
-                conn.on('open', () => { broadcastState(); });
+                conn.on('open', () => { 
+                    conn.send({
+                        type: 'state',
+                        status: player ? (player.getPlayerState && player.getPlayerState() === 1 ? 'playing' : 'paused') : 'paused',
+                        videoId: currentSong ? currentSong.videoId : null,
+                        hostName: hostName,
+                        requirePassword: !!hostPassword 
+                    });
+                    broadcastState(); 
+                });
+                
+                conn.on('data', (data) => { 
+                    // --- 認証ガード ---
+                    if (hostPassword) {
+                        if (data.type === 'auth_request') {
+                            if (data.password === hostPassword) {
+                                conn.isAuthenticated = true;
+                                conn.send({ type: 'auth_response', success: true });
+                                broadcastState();
+                            } else {
+                                conn.send({ type: 'auth_response', success: false });
+                            }
+                            return;
+                        }
+
+                        // UUID BANチェック（新規追加）
+                        if (data.uuid) {
+                            // もしこのUUIDがBANリストにあれば弾く
+                            const isBannedUUID = Object.values(bannedUsers).some(u => u.uuid === data.uuid);
+                            if (isBannedUUID) {
+                                conn.send({type: 'banned'});
+                                conn.close();
+                                return;
+                            }
+                        }
+
+                        // リモコン、カメラからの操作は認証必須
+                        const isRemoteOrCam = data.isRemote || conn.peer.startsWith('cam-');
+                        if (isRemoteOrCam && !conn.isAuthenticated) {
+                            conn.send({ type: 'auth_required' }); 
+                            return;
+                        }
+                    } else {
+                        conn.isAuthenticated = true;
+                    }
+                    
+                    handleHostData(data, conn); 
+                });
+                
                 conn.on('close', () => {
                     if(connectedListeners[conn.peer]) {
                         delete connectedListeners[conn.peer];
@@ -852,17 +1013,6 @@
             const peerId = conn.peer;
             const listener = connectedListeners[peerId];
 
-            if (listener && data.uuid) {
-                listener.uuid = data.uuid;
-                if (bannedUsers[listener.uuid]) {
-                    conn.send({type: 'banned'});
-                    conn.close();
-                    delete connectedListeners[peerId];
-                    updateParticipantsUI();
-                    return;
-                }
-            }
-
             if(bannedUsers[peerId]) return; 
 
             if(data.type === 'update_profile') {
@@ -870,8 +1020,8 @@
                     listener.name = data.name;
                     listener.isRemote = data.isRemote || false;
                     listener.isObs = data.isObs || false;
+                    listener.uuid = data.uuid; // 荒らし対策用UUID保持
                     
-                    // ★追加：OBSソースは参加者管理を通さず、常にカメラ承認状態（フリーパス）にする
                     if (listener.isObs) {
                         listener.cameraStatus = 'approved';
                         if (currentStreamToListeners && !listener.call) {
@@ -951,9 +1101,8 @@
                     chatHistory.push(newChat);
                     if(chatHistory.length > 100) chatHistory.shift();
                     saveHostState();
-                    updateUI(); // this will trigger broadcastState which sends the whole chatHistory
+                    updateUI(); 
                     
-                    // We also send a fast new_chat event mostly for triggering TTS instantly
                     Object.values(connectedListeners).forEach(p => {
                         if(p.conn.open) p.conn.send({type: 'new_chat', chat: newChat});
                     });
@@ -976,7 +1125,6 @@
                 });
             } else {
                 Object.values(connectedListeners).forEach(p => {
-                    // ★追加：OBS以外はカメラ承認をリセット（剥奪）する
                     if(!p.isObs && p.cameraStatus !== 'approved') {
                         p.cameraStatus = 'none';
                     }
@@ -1008,8 +1156,7 @@
                 p.isMuted = !p.isMuted;
                 showToast(`${p.name}を${p.isMuted ? '投稿禁止' : '解除'}しました`);
             } else if(action === 'ban') {
-                const banKey = p.uuid || peerId;
-                bannedUsers[banKey] = { name: p.name, time: Date.now() };
+                bannedUsers[peerId] = { name: p.name, time: Date.now(), uuid: p.uuid }; // UUIDも保存
                 saveHostState();
                 if(p.call) p.call.close();
                 p.conn.send({type: 'banned'});
@@ -1034,7 +1181,7 @@
             const list = isRemoteView ? (window.remoteReceivedParticipants || []) : Object.values(connectedListeners);
             
             list.forEach(p => {
-                if(p.isObs) return; // OBSソースは参加者リストには出さない
+                if(p.isObs) return; 
                 const div = document.createElement('div');
                 div.className = "flex items-center justify-between bg-gray-700 p-2 rounded text-sm mb-1";
                 
@@ -1446,7 +1593,6 @@
             if(listener && listener.conn.open) {
                 const call = peer.call(peerId, currentStreamToListeners);
                 listener.call = call;
-                // 中継時の画質劣化を防ぐため、ホストからリスナーへの送信もビットレートを高く設定
                 setTimeout(() => applyBitrate(call, 2500), 1000); 
             }
         }
@@ -1454,7 +1600,6 @@
         function broadcastStreamToListeners(stream) {
             currentStreamToListeners = stream;
             Object.values(connectedListeners).forEach(listener => {
-                // OBSソースの場合はcameraApprovalModeに関係なく常にストリームを送信する
                 if(!cameraApprovalMode || listener.cameraStatus === 'approved' || listener.isObs) {
                     sendStreamToPeer(listener.id);
                 }
@@ -1506,7 +1651,6 @@
             document.getElementById('camera-status').textContent = "配信準備完了 (設定をしてスタート)";
             document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-green-500');
             
-            // 初回はプレビュー用にデフォルト画質で取得
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true })
                 .then(stream => {
                     cameraStream = stream;
@@ -1532,8 +1676,6 @@
                 audio: true
             }).then(stream => {
                 cameraStream = stream;
-                
-                // 解像度優先をブラウザに強制指示
                 const videoTrack = cameraStream.getVideoTracks()[0];
                 if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
 
@@ -1559,15 +1701,51 @@
 
         function connectCamToHost(bitrate) {
             if(!listenerConn || !listenerConn.open) listenerConn = peer.connect(`jukebox-${currentRoomId}`);
-            listenerConn.on('open', () => {
-                document.getElementById('camera-status').textContent = "🔴 映像＋音声 配信中！";
-                document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-red-500');
-                document.getElementById('camera-setup-controls').classList.add('hidden');
-                document.getElementById('camera-active-controls').classList.remove('hidden');
-                
-                camCall = peer.call(`jukebox-${currentRoomId}`, cameraStream);
-                setTimeout(() => applyBitrate(camCall, bitrate), 1000);
+            
+            pendingConnection = listenerConn;
+
+            listenerConn.on('data', (data) => {
+                if (data.type === 'state') {
+                    saveGuestHistory(currentRoomId, data.hostName);
+                    
+                    if (data.requirePassword) {
+                        const savedPwd = savedPasswords[currentRoomId];
+                        if (savedPwd) {
+                            listenerConn.send({ type: 'auth_request', password: savedPwd });
+                        } else {
+                            showPasswordModal();
+                        }
+                    } else {
+                        executeCamCall(bitrate);
+                    }
+                } else if (data.type === 'auth_response') {
+                    if (data.success) {
+                        hidePasswordModal();
+                        showToast("カメラ認証に成功しました");
+                        const pwdInput = document.getElementById('room-password-input').value;
+                        if (pwdInput) {
+                            savedPasswords[currentRoomId] = pwdInput;
+                            localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                        }
+                        executeCamCall(bitrate);
+                    } else {
+                        document.getElementById('password-error').classList.remove('hidden');
+                        delete savedPasswords[currentRoomId];
+                        localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                        showPasswordModal();
+                    }
+                }
             });
+        }
+        
+        function executeCamCall(bitrate) {
+            document.getElementById('camera-status').textContent = "🔴 映像＋音声 配信中！";
+            document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-red-500');
+            document.getElementById('camera-setup-controls').classList.add('hidden');
+            document.getElementById('camera-active-controls').classList.remove('hidden');
+            
+            camCall = peer.call(`jukebox-${currentRoomId}`, cameraStream);
+            setTimeout(() => applyBitrate(camCall, bitrate), 1000);
         }
 
         function refreshCameraStream() {
@@ -1582,8 +1760,6 @@
                 audio: true
             }).then(stream => {
                 cameraStream = stream;
-                
-                // 解像度優先をブラウザに強制指示
                 const videoTrack = cameraStream.getVideoTracks()[0];
                 if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
 
@@ -1739,25 +1915,15 @@
         function initListener(isObs = false, isRemote = false, isObsCam = false) {
             isRemoteMode = isRemote;
             listenerId = generateId();
-
-            myUUID = localStorage.getItem('jukebox_listener_uuid');
-            if (!myUUID) {
-                myUUID = generateUUID();
-                localStorage.setItem('jukebox_listener_uuid', myUUID);
-            }
-
-            if (!isObs && !isObsCam && !isRemote) {
-                const savedName = localStorage.getItem('jukebox_listener_name');
-                if (savedName) document.getElementById('listener-name').value = savedName;
-                
-                const savedAnon = localStorage.getItem('jukebox_listener_anon');
-                if (savedAnon !== null) document.getElementById('listener-anon').checked = (savedAnon === 'true');
-            }
-
             peer = new Peer(`listener-${listenerId}`);
 
             peer.on('open', () => {
                 listenerConn = peer.connect(`jukebox-${currentRoomId}`);
+                
+                if (isRemoteMode) {
+                    pendingConnection = listenerConn;
+                }
+                
                 listenerConn.on('open', () => {
                     const statusId = isRemote ? 'remote-now-playing' : (isObs || isObsCam ? 'obs-now-playing' : 'listener-status');
                     if(document.getElementById(statusId)) {
@@ -1775,10 +1941,49 @@
                     }
                     if(data.type === 'error') { showToast(data.msg, "error"); return; }
                     if(data.type === 'camera_request_alert' && isRemoteMode) { showCameraRequestModal(data.id, data.name); return; }
-                    if(data.type === 'state') renderListenerState(data, isObs, isObsCam);
+                    
+                    if(data.type === 'state') {
+                        saveGuestHistory(currentRoomId, data.hostName);
+                        
+                        if (data.requirePassword && isRemoteMode) {
+                            const savedPwd = savedPasswords[currentRoomId];
+                            if (savedPwd) {
+                                listenerConn.send({ type: 'auth_request', password: savedPwd });
+                            } else {
+                                showPasswordModal();
+                            }
+                        } else {
+                            if (isRemoteMode) pendingConnection = null;
+                        }
+                        
+                        renderListenerState(data, isObs, isObsCam);
+                    }
+                    
+                    if (data.type === 'auth_response') {
+                        if (data.success) {
+                            hidePasswordModal();
+                            showToast("認証に成功しました");
+                            const pwdInput = document.getElementById('room-password-input').value;
+                            if (pwdInput) {
+                                savedPasswords[currentRoomId] = pwdInput;
+                                localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                            }
+                            pendingConnection = null;
+                        } else {
+                            document.getElementById('password-error').classList.remove('hidden');
+                            delete savedPasswords[currentRoomId];
+                            localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                            showPasswordModal(); 
+                        }
+                    }
+                    
+                    if (data.type === 'auth_required') {
+                         showToast("操作にはパスワード認証が必要です", "error");
+                         pendingConnection = listenerConn;
+                         showPasswordModal();
+                    }
                     
                     if(data.type === 'new_chat') {
-                        // 重複防止
                         if(!chatHistory.some(c => c.id === data.chat.id)) {
                             chatHistory.push(data.chat);
                             if(chatHistory.length > 100) chatHistory.shift();
@@ -1798,7 +2003,6 @@
                         const video = document.getElementById('obs-cam-video');
                         video.srcObject = stream;
                         
-                        // 【OBS自動再生対策】 Web Audio APIを使ってブロックをすり抜ける
                         try {
                             if (!window.obsAudioCtx) {
                                 window.obsAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1808,7 +2012,6 @@
                             window.obsAudioSource = window.obsAudioCtx.createMediaStreamSource(stream);
                             window.obsAudioSource.connect(window.obsAudioCtx.destination);
                             
-                            // AudioContextがブロックされていれば定期的に解除アタック
                             const resumeInterval = setInterval(() => {
                                 if (window.obsAudioCtx.state === 'suspended') {
                                     window.obsAudioCtx.resume().catch(()=>{});
@@ -1823,7 +2026,6 @@
                         const playPromise = video.play();
                         if (playPromise !== undefined) {
                             playPromise.catch(e => {
-                                // 映像の自動再生ブロックに引っかかった場合
                                 video.muted = true;
                                 video.play().catch(e2=>{});
                                 const unmuteBtn = document.getElementById('obs-cam-unmute');
@@ -1869,24 +2071,17 @@
             if(isRemote) name = "👑 リモコン";
             else if(isObsCam) name = "OBSカメラ(映像+音声)";
             else if(isObs) name = "OBS(透過バー)";
-            else name = document.getElementById('listener-name').value.trim() || "名無し";
-            listenerConn.send({ type: 'update_profile', name: name, isRemote: isRemote, isObs: isObs || isObsCam, uuid: myUUID });
+            else {
+                name = document.getElementById('listener-name').value.trim() || "名無し";
+                const isAnon = document.getElementById('listener-anon').checked;
+                localStorage.setItem('jukebox_guest_name', name);
+                localStorage.setItem('jukebox_guest_anon', isAnon);
+            }
+            listenerConn.send({ type: 'update_profile', name: name, isRemote: isRemote, isObs: isObs || isObsCam, uuid: myGuestUUID });
         }
 
         const nameInput = document.getElementById('listener-name');
-        if(nameInput) {
-            nameInput.addEventListener('change', () => {
-                localStorage.setItem('jukebox_listener_name', nameInput.value.trim());
-                sendProfileUpdate(false, false);
-            });
-        }
-
-        const anonCheck = document.getElementById('listener-anon');
-        if(anonCheck) {
-            anonCheck.addEventListener('change', () => {
-                localStorage.setItem('jukebox_listener_anon', anonCheck.checked);
-            });
-        }
+        if(nameInput) nameInput.addEventListener('change', () => sendProfileUpdate(false, false));
 
         function requestListenerCamera() {
             if (listenerConn && listenerConn.open) {
@@ -1926,9 +2121,12 @@
             if(!name) return showToast("あなたの名前を入力してください！", "error");
             if(!url) return showToast("URLを入力してください！", "error");
 
+            localStorage.setItem('jukebox_guest_name', name);
+            localStorage.setItem('jukebox_guest_anon', isAnon);
+
             const vid = extractVideoId(url);
             if(vid) {
-                listenerConn.send({ type: 'request', videoId: vid, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon, uuid: myUUID });
+                listenerConn.send({ type: 'request', videoId: vid, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
                 document.getElementById('listener-url').value = '';
                 showToast("リクエストを送信しました！");
             } else showToast("無効なYouTube URLです", "error");
@@ -1939,7 +2137,7 @@
             if(!url) return;
             const vid = extractVideoId(url);
             if(vid) {
-                listenerConn.send({ type: 'request', videoId: vid, requester: `👑 リモコン`, requesterReal: 'リモコン', isAnon: false, isRemote: true, uuid: myUUID });
+                listenerConn.send({ type: 'request', videoId: vid, requester: `👑 リモコン`, requesterReal: 'リモコン', isAnon: false, isRemote: true });
                 document.getElementById('remote-url').value = '';
                 showToast("追加しました！");
             }
@@ -1969,12 +2167,16 @@
             const name = document.getElementById('listener-name').value.trim();
             const isAnon = document.getElementById('listener-anon').checked;
             if(!name) return showToast("名前を入力してください", "error");
-            listenerConn.send({ type: 'request', videoId: videoId, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon, uuid: myUUID });
+            
+            localStorage.setItem('jukebox_guest_name', name);
+            localStorage.setItem('jukebox_guest_anon', isAnon);
+            
+            listenerConn.send({ type: 'request', videoId: videoId, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
             showToast("再リクエストを送信しました");
         }
 
         function reRequestRemote(videoId) {
-            listenerConn.send({ type: 'request', videoId: videoId, requester: `👑 リモコン`, requesterReal: 'リモコン', isAnon: false, isRemote: true, uuid: myUUID });
+            listenerConn.send({ type: 'request', videoId: videoId, requester: `👑 リモコン`, requesterReal: 'リモコン', isAnon: false, isRemote: true });
             showToast("再リクエストを追加しました");
         }
 
@@ -1999,10 +2201,12 @@
                 senderReal = document.getElementById('listener-name').value.trim() || "名無し";
                 isAnon = document.getElementById('listener-anon').checked;
                 sender = isAnon ? '184(匿名)' : senderReal;
+                localStorage.setItem('jukebox_guest_name', senderReal);
+                localStorage.setItem('jukebox_guest_anon', isAnon);
             }
 
             if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'chat', text, sender, senderReal, isAnon, isRemote, uuid: myUUID });
+                listenerConn.send({ type: 'chat', text, sender, senderReal, isAnon, isRemote });
                 document.getElementById(inputId).value = '';
             }
         }
@@ -2058,7 +2262,6 @@
             
             if(!ttsOn) return;
             
-            // 184が貫通しないように修正
             let name = chatObj.isAnon ? '184(匿名)' : chatObj.senderReal;
             const text = `${name}さんから、${chatObj.text}`;
             const ut = new SpeechSynthesisUtterance(text);
