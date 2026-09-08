@@ -129,9 +129,9 @@
                 <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 hide-on-share">
                     <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3">🎵 待機用BGM / プレイリスト</h3>
                     <div class="flex gap-2 mb-2 items-center w-full">
-                        <input type="text" id="input-bgm-url" placeholder="URLを入力" class="flex-1 min-w-0 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
-                        <button onclick="addBGM()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm shrink-0 whitespace-nowrap">追加</button>
-                        <button onclick="saveToMyList()" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded text-sm shrink-0" title="マイリストへ">⭐</button>
+                        <input type="text" id="input-bgm-url" placeholder="YouTube URL / プレイリスト" class="flex-1 min-w-0 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
+                        <button onclick="addBGM()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-sm shrink-0 whitespace-nowrap">追加</button>
+                        <button onclick="saveToMyList()" class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded text-sm shrink-0 whitespace-nowrap" title="マイリストに保存">⭐</button>
                     </div>
                     <select id="select-mylist" onchange="loadFromMyList()" class="w-full bg-gray-900 border border-gray-600 rounded p-1 text-sm text-white mb-2"><option value="">-- マイリストから追加 --</option></select>
                     <div id="host-bgm-list" class="space-y-1 max-h-20 overflow-y-auto text-sm"></div>
@@ -223,7 +223,7 @@
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-4">
             <div class="mb-3">
                 <label class="block text-xs text-gray-300 mb-1">あなたの名前 <span class="text-red-500">*自動保存</span></label>
-                <input type="text" id="listener-name" placeholder="例: リスナーA" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" onchange="saveListenerProfile()">
+                <input type="text" id="listener-name" placeholder="例: リスナーA" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" oninput="saveListenerProfile()">
             </div>
             <label class="flex items-center gap-2 text-xs text-gray-400 mb-2 cursor-pointer">
                 <input type="checkbox" id="listener-anon" class="rounded bg-gray-900 border-gray-600 text-red-500 focus:ring-red-500" onchange="saveListenerProfile()">
