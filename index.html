@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v0.11.0</title>
+    <title>Remote Jukebox v0.11.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -84,7 +84,7 @@
                 部屋を作成する
             </button>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.11.0</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.11.1</p>
     </div>
 
     <!-- ================= 2. 配信者 (Host) 画面 ================= -->
@@ -256,7 +256,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v0.11.0</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v0.11.1</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -337,7 +337,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.11.0</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.11.1</div>
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -430,7 +430,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.11.0</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.11.1</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -510,7 +510,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.11.0</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.11.1</div>
     </div>
 
     <!-- 音声維持用のダミーオーディオ (カメラ中継時のミュート回避用) -->
@@ -757,6 +757,14 @@
                     listener.name = data.name;
                     listener.isRemote = data.isRemote || false;
                     listener.isObs = data.isObs || false;
+                    
+                    // ★追加：OBSソースは参加者管理を通さず、常にカメラ承認状態（フリーパス）にする
+                    if (listener.isObs) {
+                        listener.cameraStatus = 'approved';
+                        if (currentStreamToListeners && !listener.call) {
+                            sendStreamToPeer(listener.id);
+                        }
+                    }
                     updateParticipantsUI();
                 }
             }
@@ -855,7 +863,10 @@
                 });
             } else {
                 Object.values(connectedListeners).forEach(p => {
-                    if(p.cameraStatus !== 'approved') p.cameraStatus = 'none';
+                    // ★追加：OBS以外はカメラ承認をリセット（剥奪）する
+                    if(!p.isObs && p.cameraStatus !== 'approved') {
+                        p.cameraStatus = 'none';
+                    }
                 });
             }
             broadcastState();
@@ -909,7 +920,7 @@
             const list = isRemoteView ? (window.remoteReceivedParticipants || []) : Object.values(connectedListeners);
             
             list.forEach(p => {
-                if(p.isObs) return; 
+                if(p.isObs) return; // OBSソースは参加者リストには出さない
                 const div = document.createElement('div');
                 div.className = "flex items-center justify-between bg-gray-700 p-2 rounded text-sm mb-1";
                 
@@ -1315,7 +1326,8 @@
         function broadcastStreamToListeners(stream) {
             currentStreamToListeners = stream;
             Object.values(connectedListeners).forEach(listener => {
-                if(!cameraApprovalMode || listener.cameraStatus === 'approved') {
+                // OBSソースの場合はcameraApprovalModeに関係なく常にストリームを送信する
+                if(!cameraApprovalMode || listener.cameraStatus === 'approved' || listener.isObs) {
                     sendStreamToPeer(listener.id);
                 }
             });
