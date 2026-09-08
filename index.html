@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v0.9.1</title>
+    <title>Remote Jukebox v0.10.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -84,11 +84,11 @@
                 部屋を作成する
             </button>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.9.1</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.10.0</p>
     </div>
 
     <!-- ================= 2. 配信者 (Host) 画面 ================= -->
-    <div id="host-view" class="hidden w-full max-w-5xl flex-col gap-6">
+    <div id="host-view" class="hidden w-full max-w-6xl flex-col gap-6">
         <div class="flex items-center justify-between bg-gray-800 p-4 rounded-xl border border-gray-700 hide-on-share">
             <div>
                 <h2 class="font-bold text-xl text-white">👑 配信コントロール</h2>
@@ -103,12 +103,11 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- 左カラム：プレイヤーと設定 -->
-            <div id="host-player-col" class="space-y-6 md:col-span-1">
+            <div id="host-player-col" class="space-y-6 lg:col-span-1">
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 text-center relative transition-all duration-300">
                     
-                    <!-- コントロールバー（ボタンの重なりバグ修正） -->
                     <div class="flex justify-between items-center mb-4 relative z-20">
                         <button onclick="toggleShareMode(true)" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded hide-on-share flex items-center gap-1 shadow font-bold transition-transform active:scale-95">
                             📺 画面共有モード
@@ -159,7 +158,7 @@
             </div>
 
             <!-- 中央カラム：キューとBGMと履歴 -->
-            <div id="host-center-col" class="space-y-6 md:col-span-1 hide-on-share">
+            <div id="host-center-col" class="space-y-6 lg:col-span-1 hide-on-share">
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 h-64 flex flex-col">
                     <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3">📋 リクエストキュー</h3>
                     <div id="host-queue-list" class="flex-1 overflow-y-auto space-y-2 pr-2"></div>
@@ -187,10 +186,26 @@
                 </div>
             </div>
 
-            <!-- 右カラム：参加者管理とURL -->
-            <div id="host-right-col" class="space-y-6 md:col-span-1 hide-on-share">
+            <!-- 右カラム：参加者管理とチャットとURL -->
+            <div id="host-right-col" class="space-y-6 lg:col-span-1 hide-on-share">
+                <!-- チャット管理 -->
+                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 flex flex-col" style="height: 350px;">
+                    <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
+                        <h3 class="font-bold text-gray-200">💬 リアルタイムチャット</h3>
+                        <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
+                            <input type="checkbox" id="host-tts-toggle" class="rounded bg-gray-900 border-gray-600 text-indigo-500">
+                            🗣️ 読上
+                        </label>
+                    </div>
+                    <div id="host-chat-list" class="flex-1 overflow-y-auto space-y-1 pr-2 mb-2"></div>
+                    <div class="flex gap-2 mt-auto">
+                        <input type="text" id="host-chat-input" placeholder="チャットを送信..." class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
+                        <button onclick="sendChatRequest(true, 'host')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm font-bold">送信</button>
+                    </div>
+                </div>
+
                 <!-- 参加者管理 -->
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 h-96 flex flex-col">
+                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 flex flex-col" style="height: 350px;">
                     <div class="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
                         <h3 class="font-bold text-gray-200">👥 参加者管理</h3>
                         <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
@@ -198,9 +213,7 @@
                             視聴承認制
                         </label>
                     </div>
-                    <div id="host-participant-list" class="flex-1 overflow-y-auto space-y-2 pr-2">
-                        <!-- 参加者とBANリストが入る -->
-                    </div>
+                    <div id="host-participant-list" class="flex-1 overflow-y-auto space-y-2 pr-2"></div>
                 </div>
 
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-3">
@@ -210,13 +223,6 @@
                         <div class="flex gap-2">
                             <input type="text" id="url-listener" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
                             <button onclick="copyURL('url-listener')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">🟩 OBS取り込み専用 URL</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="url-obs" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
-                            <button onclick="copyURL('url-obs')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
                         </div>
                     </div>
                     <div>
@@ -233,10 +239,17 @@
                             <button onclick="copyURL('url-camera')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
                         </div>
                     </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">🟩 OBS取り込み専用 URL</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="url-obs" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
+                            <button onclick="copyURL('url-obs')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-2">v0.9.1</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v0.10.0</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -253,12 +266,16 @@
                 🔴 LIVE配信中！(タップして開く)
             </button>
             <div id="listener-video-wrapper" class="hidden mt-3 relative bg-black rounded-lg overflow-hidden border border-gray-700 aspect-video shadow-inner">
-                <video id="listener-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
-                <div class="absolute bottom-3 right-3 flex gap-2">
-                    <button onclick="toggleListenerAudio()" id="btn-listener-audio" class="bg-gray-800/80 hover:bg-gray-700 text-white text-xs px-4 py-2 rounded-full backdrop-blur border border-gray-600 shadow transition-colors font-bold">
-                        🔇 ミュート解除
-                    </button>
-                </div>
+                <video id="listener-video" autoplay playsinline class="w-full h-full object-cover"></video>
+            </div>
+            <!-- コントロールボタンを外出し -->
+            <div id="listener-video-controls" class="hidden flex gap-2 mt-2">
+                <button onclick="toggleListenerAudio()" id="btn-listener-audio" class="flex-1 bg-gray-800 border border-gray-600 hover:bg-gray-700 text-white text-xs px-4 py-3 rounded-lg shadow transition-colors font-bold flex items-center justify-center gap-2">
+                    🔇 ミュート解除
+                </button>
+                <button onclick="toggleListenerFullscreen()" class="flex-1 bg-indigo-700 hover:bg-indigo-600 border border-indigo-500 text-white text-xs px-4 py-3 rounded-lg shadow transition-colors font-bold flex items-center justify-center gap-2">
+                    ⛶ 全画面表示
+                </button>
             </div>
         </div>
 
@@ -293,6 +310,16 @@
             </div>
         </div>
 
+        <!-- チャット欄 (リスナー用) -->
+        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 flex flex-col">
+            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2 mb-2">💬 リアルタイムチャット</h3>
+            <div id="listener-chat-list" class="h-40 overflow-y-auto space-y-1 mb-2 pr-2"></div>
+            <div class="flex gap-2">
+                <input type="text" id="listener-chat-input" placeholder="コメントを入力..." class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
+                <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm font-bold">送信</button>
+            </div>
+        </div>
+
         <div class="space-y-4">
             <div>
                 <h3 class="text-sm font-bold text-gray-300 mb-3 border-b border-gray-700 pb-2">📋 順番待ち (<span id="listener-queue-count">0</span>曲)</h3>
@@ -303,7 +330,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.9.1</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.10.0</div>
     </div>
 
     <!-- ================= 4. OBS用透過画面 ================= -->
@@ -348,6 +375,22 @@
             </button>
         </div>
 
+        <!-- チャット欄 (リモコン) -->
+        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 flex flex-col">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
+                <h3 class="text-sm font-bold text-gray-300">💬 リアルタイムチャット</h3>
+                <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
+                    <input type="checkbox" id="remote-tts-toggle" class="rounded bg-gray-900 border-gray-600 text-indigo-500">
+                    🗣️ 読上
+                </label>
+            </div>
+            <div id="remote-chat-list" class="h-48 overflow-y-auto space-y-1 mb-2 pr-2"></div>
+            <div class="flex gap-2">
+                <input type="text" id="remote-chat-input" placeholder="チャットを送信..." class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
+                <button onclick="sendChatRequest(true)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm font-bold">送信</button>
+            </div>
+        </div>
+
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
             <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">🎵 リモコンからリクエスト</h3>
             <div class="flex gap-2">
@@ -371,7 +414,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.9.1</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.10.0</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -413,8 +456,8 @@
                 </button>
             </div>
 
-            <div id="camera-active-controls" class="hidden">
-                <div class="grid grid-cols-2 gap-3 mb-4">
+            <div id="camera-active-controls" class="hidden space-y-3">
+                <div class="grid grid-cols-2 gap-3">
                     <button onclick="toggleCameraMic()" id="btn-cam-mic" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors">
                         🎙️ マイクON
                     </button>
@@ -422,12 +465,16 @@
                         📹 映像ON
                     </button>
                 </div>
-                <button onclick="stopCameraStream()" class="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors">
+                <!-- 同録ボタン -->
+                <button onclick="toggleCameraRecording()" id="btn-cam-record" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors border border-gray-500 shadow">
+                    ⏺️ 同録スタート (スマホ内に録画)
+                </button>
+                <button onclick="stopCameraStream()" class="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors shadow">
                     ⏹️ 配信を停止する
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.9.1</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.10.0</div>
     </div>
 
     <!-- 音声維持用のダミーオーディオ (カメラ中継時のミュート回避用) -->
@@ -442,7 +489,8 @@
         
         let queue = [];
         let bgmQueue = [];
-        let historyQueue = []; 
+        let historyQueue = [];
+        let chatHistory = []; 
         let currentSong = null;
         let player = null;
         let isLightMode = false;
@@ -474,6 +522,10 @@
         let hostMediaConn = null; 
         let camCall = null;
         let currentStreamToListeners = null;
+
+        // 同録用変数
+        let mediaRecorder = null;
+        let recordedChunks = [];
 
         window.onload = () => {
             const params = new URLSearchParams(window.location.search);
@@ -723,6 +775,23 @@
                 if(hostMediaConn) hostMediaConn.close();
                 stopBroadcastStream();
             }
+            else if(data.type === 'chat') {
+                const newChat = {
+                    id: generateId(), text: data.text, sender: data.sender, senderReal: data.senderReal, isAnon: data.isAnon, isRemote: data.isRemote, time: Date.now()
+                };
+                chatHistory.push(newChat);
+                if(chatHistory.length > 100) chatHistory.shift();
+                saveHostState();
+                updateUI();
+                
+                Object.values(connectedListeners).forEach(p => {
+                    if(p.conn.open) p.conn.send({type: 'new_chat', chat: newChat});
+                });
+                triggerTTS(newChat);
+            }
+            else if(data.type === 'delete_chat') {
+                deleteChat(data.id);
+            }
         }
 
         function toggleCamApproval() {
@@ -851,7 +920,7 @@
             }));
 
             const state = {
-                type: 'state', queue: queue, historyQueue: historyQueue, currentSong: currentSong,
+                type: 'state', queue: queue, historyQueue: historyQueue, chatHistory: chatHistory, currentSong: currentSong,
                 isPlaying: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1) : false,
                 hostTheme: hostTheme, isLive: !!currentStreamToListeners, cameraApprovalMode: cameraApprovalMode,
                 participants: safeParticipants, bannedUsers: bannedUsers
@@ -1100,6 +1169,7 @@
                 });
             }
 
+            renderChatList('host-chat-list', chatHistory, true);
             broadcastState();
         }
 
@@ -1120,7 +1190,7 @@
 
         function saveHostState() {
             if(!isHost) return;
-            const data = { queue, bgmQueue, historyQueue, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers };
+            const data = { queue, bgmQueue, historyQueue, chatHistory, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers };
             localStorage.setItem('jukebox_state_' + currentRoomId, JSON.stringify(data));
         }
 
@@ -1132,6 +1202,7 @@
                     queue = Array.isArray(data.queue) ? data.queue : [];
                     bgmQueue = Array.isArray(data.bgmQueue) ? data.bgmQueue : [];
                     historyQueue = Array.isArray(data.historyQueue) ? data.historyQueue : [];
+                    chatHistory = Array.isArray(data.chatHistory) ? data.chatHistory : [];
                     currentSong = data.currentSong || null;
                     bgmResumeData = data.bgmResumeData || null;
                     cameraApprovalMode = !!data.cameraApprovalMode;
@@ -1258,6 +1329,8 @@
             if(camCall) { camCall.close(); camCall = null; }
             if(listenerConn && listenerConn.open) listenerConn.send({type: 'camera_stop'});
             if(peer) { peer.destroy(); peer = null; }
+            if(mediaRecorder && mediaRecorder.state === "recording") toggleCameraRecording(); // 録画中なら停止
+
             document.getElementById('camera-status').textContent = "⏹️ 配信停止 (待機中)";
             document.getElementById('camera-status').classList.replace('text-red-500', 'text-green-500');
             showToast("配信を停止しました");
@@ -1314,6 +1387,44 @@
             document.getElementById('camera-off-overlay').classList.toggle('hidden', isVideoOn);
         }
 
+        function toggleCameraRecording() {
+            const btn = document.getElementById('btn-cam-record');
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                btn.innerHTML = '⏺️ 同録スタート (スマホ内に録画)';
+                btn.classList.replace('bg-red-700', 'bg-gray-700');
+                btn.classList.replace('hover:bg-red-600', 'hover:bg-gray-600');
+                btn.classList.remove('animate-pulse');
+                showToast("録画を停止し、保存します");
+            } else {
+                if (!cameraStream) return showToast("カメラが起動していません", "error");
+                recordedChunks = [];
+                try {
+                    mediaRecorder = new MediaRecorder(cameraStream); // iOS等向けにコーデック指定なしでデフォルト使用
+                    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                    mediaRecorder.onstop = () => {
+                        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/mp4' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = `drive_record_${Date.now()}.mp4`; // 拡張子は環境によりmp4やwebmになるがmp4指定で大抵動く
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
+                    };
+                    mediaRecorder.start();
+                    btn.innerHTML = '⏹️ 同録中 (タップで停止保存)';
+                    btn.classList.replace('bg-gray-700', 'bg-red-700');
+                    btn.classList.replace('hover:bg-gray-600', 'hover:bg-red-600');
+                    btn.classList.add('animate-pulse');
+                    showToast("ローカル録画を開始しました");
+                } catch (e) {
+                    showToast("このブラウザは録画機能に未対応です", "error");
+                }
+            }
+        }
+
         let isRemoteMode = false;
         let isListenerVideoOpen = false;
         let listenerHasStream = false;
@@ -1358,6 +1469,13 @@
                     if(data.type === 'error') { showToast(data.msg, "error"); return; }
                     if(data.type === 'camera_request_alert' && isRemoteMode) { showCameraRequestModal(data.id, data.name); return; }
                     if(data.type === 'state') renderListenerState(data, isObs);
+                    if(data.type === 'new_chat') {
+                        chatHistory.push(data.chat);
+                        if(chatHistory.length > 100) chatHistory.shift();
+                        if(isRemoteMode) renderChatList('remote-chat-list', chatHistory, true);
+                        else if(!isObs) renderChatList('listener-chat-list', chatHistory, false);
+                        triggerTTS(data.chat);
+                    }
                 });
             });
 
@@ -1367,10 +1485,12 @@
                     if(!isObs && !isRemote) {
                         listenerHasStream = true;
                         const wrapper = document.getElementById('listener-video-wrapper');
+                        const controls = document.getElementById('listener-video-controls');
                         const video = document.getElementById('listener-video');
                         const btn = document.getElementById('btn-toggle-camera');
                         
                         wrapper.classList.remove('hidden');
+                        controls.classList.remove('hidden');
                         btn.classList.add('hidden'); 
                         video.srcObject = stream;
                         video.play().catch(e => console.log("Stream play error:", e));
@@ -1385,6 +1505,7 @@
             listenerHasStream = false;
             isListenerVideoOpen = false;
             document.getElementById('listener-video-wrapper').classList.add('hidden');
+            document.getElementById('listener-video-controls').classList.add('hidden');
             document.getElementById('listener-video').srcObject = null;
             const btn = document.getElementById('btn-toggle-camera');
             if(btn) { btn.classList.remove('hidden'); btn.textContent = "🔴 LIVE配信中！(タップして開く)"; }
@@ -1415,12 +1536,22 @@
             video.muted = !video.muted;
             if(video.muted) {
                 btn.innerHTML = "🔇 ミュート解除";
-                btn.classList.replace('bg-red-600', 'bg-gray-800/80');
+                btn.classList.replace('bg-red-700', 'bg-gray-800');
+                btn.classList.replace('hover:bg-red-600', 'hover:bg-gray-700');
             } else {
                 btn.innerHTML = "🔊 配信の音声ON (タップで消音)";
-                btn.classList.replace('bg-gray-800/80', 'bg-red-600');
+                btn.classList.replace('bg-gray-800', 'bg-red-700');
+                btn.classList.replace('hover:bg-gray-700', 'hover:bg-red-600');
                 video.play().catch(e=>{});
             }
+        }
+
+        function toggleListenerFullscreen() {
+            const video = document.getElementById('listener-video');
+            if (!video) return;
+            if (video.requestFullscreen) { video.requestFullscreen(); }
+            else if (video.webkitEnterFullscreen) { video.webkitEnterFullscreen(); } // iOS Safari
+            else if (video.webkitRequestFullscreen) { video.webkitRequestFullscreen(); }
         }
 
         function sendRequest() {
@@ -1482,9 +1613,102 @@
             showToast("再リクエストを追加しました");
         }
 
-        function renderListenerState(state, isObs) {
-            const { queue, historyQueue, currentSong, isPlaying, hostTheme, isLive, cameraApprovalMode, participants, bannedUsers } = state;
+        // --- チャット関連 ---
+        function sendChatRequest(isRemote = false, role = 'listener') {
+            const inputId = role === 'host' ? 'host-chat-input' : (isRemote ? 'remote-chat-input' : 'listener-chat-input');
+            const text = document.getElementById(inputId).value.trim();
+            if(!text) return;
+
+            let sender = "名無し", senderReal = "名無し", isAnon = false;
             
+            if(role === 'host') {
+                sender = `👑 ${hostName}`; senderReal = hostName;
+                handleHostData({type: 'chat', text: text, sender: sender, senderReal: senderReal, isAnon: false, isRemote: true}, {peer: 'host-self'});
+                document.getElementById(inputId).value = '';
+                return;
+            }
+
+            if(isRemote) {
+                sender = `👑 リモコン`; senderReal = "リモコン";
+            } else {
+                senderReal = document.getElementById('listener-name').value.trim() || "名無し";
+                isAnon = document.getElementById('listener-anon').checked;
+                sender = isAnon ? '184(匿名)' : senderReal;
+            }
+
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'chat', text, sender, senderReal, isAnon, isRemote });
+                document.getElementById(inputId).value = '';
+            }
+        }
+
+        function deleteChat(id) {
+            if(isHost) {
+                chatHistory = chatHistory.filter(c => c.id !== id);
+                saveHostState();
+                updateUI();
+            } else if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'delete_chat', id });
+            }
+        }
+
+        function renderChatList(containerId, chats, isPrivileged) {
+            const container = document.getElementById(containerId);
+            if(!container) return;
+            container.innerHTML = '';
+            chats.forEach(c => {
+                const div = document.createElement('div');
+                div.className = "text-sm bg-gray-900/50 p-2 rounded mb-1 flex justify-between group";
+                
+                const dispName = (c.isAnon && !isPrivileged) ? '184(匿名)' : c.senderReal;
+                const badge = c.isRemote ? '👑 ' : '';
+                
+                div.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <span class="text-xs text-gray-400 font-bold block truncate">${badge}${dispName}</span>
+                        <p class="text-gray-200 break-all">${c.text}</p>
+                    </div>
+                `;
+                if (isPrivileged) {
+                    const delBtn = document.createElement('button');
+                    delBtn.className = "text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2 transition-opacity flex-shrink-0";
+                    delBtn.textContent = "🗑";
+                    delBtn.onclick = () => deleteChat(c.id);
+                    div.appendChild(delBtn);
+                }
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function triggerTTS(chatObj) {
+            let ttsOn = false;
+            if (isRemoteMode) {
+                const toggle = document.getElementById('remote-tts-toggle');
+                if(toggle) ttsOn = toggle.checked;
+            } else if (isHost) {
+                const toggle = document.getElementById('host-tts-toggle');
+                if(toggle) ttsOn = toggle.checked;
+            }
+            
+            if(!ttsOn) return;
+            
+            let name = chatObj.senderReal;
+            const text = `${name}さんから、${chatObj.text}`;
+            const ut = new SpeechSynthesisUtterance(text);
+            ut.lang = 'ja-JP';
+            window.speechSynthesis.speak(ut);
+        }
+
+        function renderListenerState(state, isObs) {
+            const { queue, historyQueue, chatHistory: serverChatHistory, currentSong, isPlaying, hostTheme, isLive, cameraApprovalMode, participants, bannedUsers } = state;
+            
+            if(serverChatHistory) {
+                chatHistory = serverChatHistory;
+                if(isRemoteMode) renderChatList('remote-chat-list', chatHistory, true);
+                else if(!isObs) renderChatList('listener-chat-list', chatHistory, false);
+            }
+
             const playingId = isRemoteMode ? 'remote-now-playing' : (isObs ? 'obs-now-playing' : 'listener-now-playing');
             const playingEl = document.getElementById(playingId);
             
@@ -1588,7 +1812,6 @@
                 }
             }
 
-            // キューの描画 (リスナー & リモコン)
             if(!isObs) {
                 const isR = isRemoteMode;
                 const countEl = document.getElementById(isR ? 'remote-queue-count' : 'listener-queue-count');
@@ -1614,7 +1837,6 @@
                             </div>
                         `;
                         
-                        // リモコンは全削除可能、リスナーは自分の曲のみ
                         if(isR || (myName && q.requesterReal === myName && !q.isRemote)) {
                             const btn = document.createElement('button');
                             btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
