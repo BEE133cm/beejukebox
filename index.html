@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v0.9.0</title>
+    <title>Remote Jukebox v0.9.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -54,9 +54,9 @@
 
         /* 画面共有モード用のCSS */
         #host-view.share-mode .hide-on-share { display: none !important; }
-        #host-view.share-mode #host-player-col { grid-column: span 3 / span 3; }
-        .show-on-share { display: none; }
-        #host-view.share-mode .show-on-share { display: block; }
+        #host-view.share-mode #host-player-col { grid-column: 1 / -1 !important; }
+        .show-on-share { display: none !important; }
+        #host-view.share-mode .show-on-share { display: flex !important; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-4 sm:p-8">
@@ -84,7 +84,7 @@
                 部屋を作成する
             </button>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.9.0</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.9.1</p>
     </div>
 
     <!-- ================= 2. 配信者 (Host) 画面 ================= -->
@@ -108,22 +108,20 @@
             <div id="host-player-col" class="space-y-6 md:col-span-1">
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 text-center relative transition-all duration-300">
                     
-                    <!-- 画面共有モード切替ボタン -->
-                    <button onclick="document.getElementById('host-view').classList.add('share-mode')" class="absolute top-2 left-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded hide-on-share flex items-center gap-1 z-10 shadow">
-                        📺 画面共有モード
-                    </button>
-                    <button onclick="document.getElementById('host-view').classList.remove('share-mode')" class="absolute top-2 left-2 text-xs bg-gray-600 hover:bg-gray-500 text-white px-3 py-2 rounded show-on-share flex items-center gap-1 z-10 shadow font-bold">
-                        ❌ 共有モード解除
-                    </button>
-
-                    <!-- 軽量モード切替 -->
-                    <div class="absolute top-2 right-2 z-10">
-                        <button onclick="toggleLightMode()" id="btn-light-mode" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded transition-colors border border-gray-600 shadow hide-on-share">
+                    <!-- コントロールバー（ボタンの重なりバグ修正） -->
+                    <div class="flex justify-between items-center mb-4 relative z-20">
+                        <button onclick="toggleShareMode(true)" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded hide-on-share flex items-center gap-1 shadow font-bold transition-transform active:scale-95">
+                            📺 画面共有モード
+                        </button>
+                        <button onclick="toggleShareMode(false)" class="text-xs bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded show-on-share items-center gap-2 shadow-lg font-bold transition-transform active:scale-95 mx-auto">
+                            ❌ 共有モードを解除して管理パネルを表示
+                        </button>
+                        <button onclick="toggleLightMode()" id="btn-light-mode" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded transition-colors border border-gray-600 shadow hide-on-share">
                             🎥 映像ON
                         </button>
                     </div>
 
-                    <div id="youtube-player-container" class="w-full aspect-video bg-black rounded-lg overflow-hidden mb-4 relative shadow-inner mt-8">
+                    <div id="youtube-player-container" class="w-full aspect-video bg-black rounded-lg overflow-hidden mb-4 relative shadow-inner">
                         <div id="youtube-player"></div>
                     </div>
                     
@@ -238,7 +236,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-2">v0.9.0</p>
+        <p class="text-center text-xs text-gray-500 mt-2">v0.9.1</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -305,7 +303,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.9.0</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.9.1</div>
     </div>
 
     <!-- ================= 4. OBS用透過画面 ================= -->
@@ -350,11 +348,6 @@
             </button>
         </div>
 
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 flex flex-col">
-            <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3">👥 参加者管理</h3>
-            <div id="remote-participant-list" class="max-h-64 overflow-y-auto space-y-2 pr-2"></div>
-        </div>
-
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
             <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">🎵 リモコンからリクエスト</h3>
             <div class="flex gap-2">
@@ -363,12 +356,22 @@
             </div>
         </div>
 
+        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
+            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">📋 順番待ち (<span id="remote-queue-count">0</span>曲)</h3>
+            <div id="remote-queue-list" class="space-y-2 max-h-48 overflow-y-auto text-sm"></div>
+        </div>
+
+        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 flex flex-col">
+            <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3">👥 参加者管理</h3>
+            <div id="remote-participant-list" class="max-h-64 overflow-y-auto space-y-2 pr-2"></div>
+        </div>
+
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3">
             <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">🕒 再生履歴</h3>
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.9.0</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.9.1</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -424,7 +427,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.9.0</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.9.1</div>
     </div>
 
     <!-- 音声維持用のダミーオーディオ (カメラ中継時のミュート回避用) -->
@@ -449,7 +452,7 @@
         let bgmResumeData = null; 
 
         let connectedListeners = {}; 
-        let bannedUsers = {}; // { peerId: { name: "name", time: timestamp } }
+        let bannedUsers = {}; 
         let cameraApprovalMode = false;
 
         let listenerConn = null;
@@ -559,6 +562,17 @@
             document.getElementById(inputId).select();
             document.execCommand("copy");
             showToast("コピーしました！");
+        }
+
+        function toggleShareMode(enable) {
+            const view = document.getElementById('host-view');
+            if(enable) {
+                view.classList.add('share-mode');
+                showToast("画面共有モードをONにしました");
+            } else {
+                view.classList.remove('share-mode');
+                showToast("画面共有モードを解除しました");
+            }
         }
 
         function initHost() {
@@ -678,7 +692,10 @@
             else if(data.type === 'remote_cmd') {
                 if(data.cmd === 'toggle') togglePlayHost();
                 else if(data.cmd === 'skip') playNext(true); 
-                else if(data.cmd === 'manage') manageUser(data.targetId, data.action);
+                else if(data.cmd === 'manage') {
+                    if (data.action === 'cancel_req') removeQueue(data.targetId);
+                    else manageUser(data.targetId, data.action);
+                }
             }
             else if(data.type === 'update_theme') {
                 hostTheme = data.theme;
@@ -1571,55 +1588,64 @@
                 }
             }
 
-            if(!isRemoteMode && !isObs) {
-                const countEl = document.getElementById('listener-queue-count');
+            // キューの描画 (リスナー & リモコン)
+            if(!isObs) {
+                const isR = isRemoteMode;
+                const countEl = document.getElementById(isR ? 'remote-queue-count' : 'listener-queue-count');
                 if(countEl) countEl.textContent = queue.length;
                 
-                const qList = document.getElementById('listener-queue-list');
+                const qList = document.getElementById(isR ? 'remote-queue-list' : 'listener-queue-list');
                 if(qList) {
                     qList.innerHTML = '';
-                    const myName = document.getElementById('listener-name').value.trim();
+                    const myName = isR ? '' : document.getElementById('listener-name').value.trim();
                     queue.forEach((q, idx) => {
                         const div = document.createElement('div');
                         div.className = "flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700 text-sm mb-1";
+                        
+                        const dispName = q.isAnon ? '184(匿名)' : (isR ? q.requesterReal : q.requester);
+                        
                         div.innerHTML = `
                             <div class="flex items-center gap-2 overflow-hidden">
                                 <span class="text-gray-500 font-bold w-4">${idx+1}</span>
                                 <div class="truncate">
                                     <p class="text-gray-200 truncate font-medium">${q.title}</p>
-                                    <p class="text-xs text-gray-400 truncate">👤 ${q.isAnon ? '184(匿名)' : q.requester} ${q.isRemote ? '(👑)' : ''}</p>
+                                    <p class="text-xs text-gray-400 truncate">👤 ${dispName} ${q.isRemote ? '(👑)' : ''}</p>
                                 </div>
                             </div>
                         `;
-                        if(myName && q.requesterReal === myName && !q.isRemote) {
+                        
+                        // リモコンは全削除可能、リスナーは自分の曲のみ
+                        if(isR || (myName && q.requesterReal === myName && !q.isRemote)) {
                             const btn = document.createElement('button');
-                            btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0";
+                            btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
                             btn.textContent = "✖";
-                            btn.onclick = () => cancelRequest(q.id);
+                            btn.onclick = () => isR ? sendRemoteCommand('manage', 'cancel_req', q.id) : cancelRequest(q.id);
                             div.appendChild(btn);
                         }
                         qList.appendChild(div);
                     });
                 }
 
-                const listenerHist = document.getElementById('listener-history-list');
-                if(listenerHist && historyQueue) {
-                    listenerHist.innerHTML = '';
-                    historyQueue.forEach((q, idx) => {
-                        const div = document.createElement('div');
-                        div.className = "flex items-center justify-between bg-gray-800 border border-gray-700 p-2 rounded text-sm mb-1";
-                        div.innerHTML = `
-                            <div class="flex items-center gap-2 overflow-hidden flex-1">
-                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                                <div class="truncate">
-                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                    <p class="text-xs text-gray-500 truncate">👤 ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                if(!isRemoteMode && historyQueue) {
+                    const listenerHist = document.getElementById('listener-history-list');
+                    if (listenerHist) {
+                        listenerHist.innerHTML = '';
+                        historyQueue.forEach((q, idx) => {
+                            const div = document.createElement('div');
+                            div.className = "flex items-center justify-between bg-gray-800 border border-gray-700 p-2 rounded text-sm mb-1";
+                            div.innerHTML = `
+                                <div class="flex items-center gap-2 overflow-hidden flex-1">
+                                    <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                                    <div class="truncate">
+                                        <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                        <p class="text-xs text-gray-500 truncate">👤 ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <button onclick="reRequestListener('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0">🔄</button>
-                        `;
-                        listenerHist.appendChild(div);
-                    });
+                                <button onclick="reRequestListener('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0">🔄</button>
+                            `;
+                            listenerHist.appendChild(div);
+                        });
+                    }
                 }
             }
         }
