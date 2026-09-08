@@ -1624,6 +1624,9 @@
                 video.play().catch(e=>{});
                 document.getElementById('obs-cam-unmute').classList.add('hidden');
             }
+            if(window.obsAudioCtx && window.obsAudioCtx.state === 'suspended') {
+                window.obsAudioCtx.resume().catch(e=>{});
+            }
         }
 
         function initListener(isObs = false, isRemote = false, isObsCam = false) {
@@ -1672,15 +1675,40 @@
                     if(isObsCam) {
                         const video = document.getElementById('obs-cam-video');
                         video.srcObject = stream;
+                        
+                        // 【OBS自動再生対策】 Web Audio APIを使ってブロックをすり抜ける
+                        try {
+                            if (!window.obsAudioCtx) {
+                                window.obsAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                            }
+                            if (window.obsAudioSource) window.obsAudioSource.disconnect();
+                            
+                            window.obsAudioSource = window.obsAudioCtx.createMediaStreamSource(stream);
+                            window.obsAudioSource.connect(window.obsAudioCtx.destination);
+                            
+                            // AudioContextがブロックされていれば定期的に解除アタック
+                            const resumeInterval = setInterval(() => {
+                                if (window.obsAudioCtx.state === 'suspended') {
+                                    window.obsAudioCtx.resume().catch(()=>{});
+                                } else {
+                                    clearInterval(resumeInterval);
+                                }
+                            }, 1000);
+                        } catch(e) { console.error("WebAudio API Error", e); }
+
                         video.muted = false;
                         video.volume = 1.0;
                         const playPromise = video.play();
                         if (playPromise !== undefined) {
                             playPromise.catch(e => {
-                                // どうしても自動再生ポリシーに引っかかった場合のみミュートにしてボタンを出す
+                                // 映像の自動再生ブロックに引っかかった場合
                                 video.muted = true;
                                 video.play().catch(e2=>{});
-                                document.getElementById('obs-cam-unmute').classList.remove('hidden');
+                                const unmuteBtn = document.getElementById('obs-cam-unmute');
+                                unmuteBtn.classList.remove('hidden');
+                                unmuteBtn.textContent = "🔊 映像のみ再生中（裏側で音声は流れている可能性があります）";
+                            }).then(() => {
+                                document.getElementById('obs-cam-unmute').classList.add('hidden');
                             });
                         }
                     }
