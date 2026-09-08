@@ -605,11 +605,6 @@
                     showView('listener-view');
                     currentRoomId = params.get('host');
                     initListener(false);
-                } else if(params.has('obs')) {
-                    showView('obs-view');
-                    document.body.style.backgroundColor = 'transparent';
-                    currentRoomId = params.get('obs');
-                    initListener(true);
                 } else if(params.has('obs_cam')) {
                     showView('obs-cam-view');
                     document.body.style.backgroundColor = '#000';
@@ -619,9 +614,9 @@
                     showView('remote-view');
                     currentRoomId = params.get('remote');
                     initListener(false, true);
-                } else if(params.has('cam')) {
+                } else if(params.has('cam') || params.has('camera')) {
                     showView('camera-view');
-                    currentRoomId = params.get('cam');
+                    currentRoomId = params.get('cam') || params.get('camera');
                     initCamera();
                 } else {
                     showView('setup-view');
@@ -757,7 +752,7 @@
                 const el = document.getElementById(id);
                 if(el) {
                     let type = id.replace('url-', '');
-                    let param = type === 'listener' ? 'host' : (type === 'obs-cam' ? 'obs_cam' : type);
+                    let param = type === 'listener' ? 'host' : (type === 'obs-cam' ? 'obs_cam' : (type === 'camera' ? 'cam' : type));
                     el.value = `${base}?${param}=${currentRoomId}`;
                 }
             });
