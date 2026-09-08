@@ -290,72 +290,17 @@
         <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.8</div>
     </div>
 
-    <!-- ================= 4. OBS用透過画面 ================= -->
-    <div id="obs-view" class="hidden w-full max-w-2xl bg-black/60 border border-gray-700/50 p-4 rounded-xl backdrop-blur-sm">
-        <div class="flex items-center gap-3">
-            <div class="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded shrink-0">NOW</div>
-            <div class="flex-1 overflow-hidden">
-                <div class="text-xs text-gray-300 mb-1" id="obs-requester">👤 ---</div>
-                <div class="marquee-container h-6">
-                    <div id="obs-now-playing" class="marquee-content font-bold text-white text-lg drop-shadow-md">待機中...</div>
-                </div>
+    <!-- リモコン用：カメラ承認ポップアップ -->
+    <div id="remote-cam-modal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
+            <h3 class="text-xl font-bold text-white mb-2">🎥 視聴リクエスト</h3>
+            <p class="text-sm text-gray-300 mb-6"><span id="remote-cam-req-name" class="font-bold text-yellow-400 text-lg"></span> さんがカメラの視聴を申請しました。</p>
+            <div class="space-y-3">
+                <button onclick="handleRemoteCamRequest('approve')" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2"><span>⭕</span> 承認する</button>
+                <button onclick="handleRemoteCamRequest('reject')" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2"><span>❌</span> 拒否する</button>
+                <button onclick="handleRemoteCamRequest('ignore')" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">後で決める (無視)</button>
             </div>
         </div>
-    </div>
-
-    <!-- ================= 5. リモコン画面 ================= -->
-    <div id="remote-view" class="hidden w-full max-w-md bg-gray-900 border border-gray-700 p-6 rounded-2xl shadow-2xl relative">
-        <h2 class="text-xl font-bold text-white mb-6 text-center">👑 リモコンモード</h2>
-        <div id="remote-theme-container" class="text-center text-sm text-indigo-300 mb-4 font-bold"></div>
-
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 text-center">
-            <p class="text-xs text-red-400 font-bold uppercase mb-1">Now Playing</p>
-            <div class="marquee-container h-6 mb-1">
-                <div id="remote-now-playing" class="marquee-content font-bold text-white">接続待ち...</div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4 mb-6">
-            <button onclick="sendRemoteCommand('toggle')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-8 rounded-xl shadow-lg text-lg flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                <span>⏯️</span>再生/一時停止
-            </button>
-            <button onclick="sendRemoteCommand('skip')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-8 rounded-xl shadow-lg text-lg flex flex-col items-center gap-2 active:scale-95 transition-transform">
-                <span>⏭️</span>スキップ
-            </button>
-        </div>
-
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
-            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">📢 テーマ・気分を変更</h3>
-            <div class="flex gap-2">
-                <input type="text" id="remote-input-theme" placeholder="例: ドライブ中！リクエスト募集中！" class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
-                <button onclick="sendRemoteTheme()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 rounded font-bold transition-colors text-sm">更新</button>
-            </div>
-        </div>
-
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
-            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">🎵 リクエスト追加</h3>
-            <div class="flex gap-2">
-                <input type="text" id="remote-url" placeholder="YouTube URL" class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white">
-                <button onclick="sendRemoteRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded font-bold transition-colors">追加</button>
-            </div>
-        </div>
-
-        <!-- 新設：リモコン用参加者管理 -->
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 h-64 flex flex-col mb-6">
-            <div class="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
-                <h3 class="text-sm font-bold text-gray-300">👥 参加者管理</h3>
-                <span class="text-xs text-gray-500">※承認制切替はPCから</span>
-            </div>
-            <div id="remote-participant-list" class="flex-1 overflow-y-auto space-y-2 pr-2">
-                <!-- 参加者リストがここに入る -->
-            </div>
-        </div>
-
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3">
-            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">🕒 再生履歴</h3>
-            <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
-        </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.8</div>
     </div>
 
     <!-- ================= 6. カメラ送出用ビュー ================= -->
@@ -403,6 +348,8 @@
 
     <!-- 音声維持用のダミーオーディオ (カメラ中継時のミュート回避用) -->
     <audio id="dummy-audio" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" loop playsinline></audio>
+    <!-- 音声欠落対策：ホスト側でストリームをアクティブに保つ隠しビデオ -->
+    <video id="host-relay-video" class="hidden" autoplay playsinline muted></video>
 
     <script>
         let peer = null;
@@ -580,6 +527,12 @@
                     hostMediaConn = call;
                     call.answer();
                     call.on('stream', (stream) => {
+                        // 音声をアクティブに保つための処理（中継途中の欠落防止）
+                        const relayVid = document.getElementById('host-relay-video');
+                        if (relayVid) {
+                            relayVid.srcObject = stream;
+                            relayVid.play().catch(e=>{});
+                        }
                         document.getElementById('dummy-audio').play().catch(e=>{});
                         broadcastStreamToListeners(stream);
                     });
@@ -647,9 +600,15 @@
                     if(cameraApprovalMode) {
                         listener.cameraStatus = 'requested';
                         updateParticipantsUI();
+                        // リモコンにポップアップ通知を送る
+                        Object.values(connectedListeners).forEach(p => {
+                            if(p.isRemote && p.conn.open) {
+                                p.conn.send({type: 'camera_request_alert', id: listener.id, name: listener.name});
+                            }
+                        });
                     } else {
                         listener.cameraStatus = 'approved';
-                        if(currentStreamToListeners) sendStreamToPeer(peerId);
+                        if(currentStreamToListeners && !listener.call) sendStreamToPeer(peerId);
                     }
                 }
             }
@@ -685,8 +644,11 @@
 
             if(action === 'approve_cam') {
                 p.cameraStatus = 'approved';
-                if(currentStreamToListeners) sendStreamToPeer(peerId);
+                if(currentStreamToListeners && !p.call) sendStreamToPeer(peerId);
                 showToast(`${p.name}の視聴を許可しました`);
+            } else if(action === 'reject_cam') {
+                p.cameraStatus = 'none';
+                showToast(`${p.name}の視聴を拒否しました`);
             } else if(action === 'mute') {
                 p.isMuted = !p.isMuted;
                 showToast(`${p.name}を${p.isMuted ? '投稿禁止' : '解除'}しました`);
@@ -728,7 +690,8 @@
                 if(!p.isRemote) {
                     if(cameraApprovalMode) {
                         if(p.cameraStatus === 'requested') {
-                            controls += `<button onclick="${isRemoteView ? `sendRemoteCommand('manage', 'approve_cam', '${p.id}')` : `manageUser('${p.id}', 'approve_cam')`}" class="text-xs bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded mr-2">✋許可</button>`;
+                            controls += `<button onclick="${isRemoteView ? `sendRemoteCommand('manage', 'approve_cam', '${p.id}')` : `manageUser('${p.id}', 'approve_cam')`}" class="text-xs bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded mr-1">⭕</button>`;
+                            controls += `<button onclick="${isRemoteView ? `sendRemoteCommand('manage', 'reject_cam', '${p.id}')` : `manageUser('${p.id}', 'reject_cam')`}" class="text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded mr-2">❌</button>`;
                         } else if(p.cameraStatus === 'approved') {
                             controls += `<span class="text-xs text-green-400 mr-2">🎥許可済</span>`;
                         }
@@ -1219,6 +1182,26 @@
         let isListenerVideoOpen = false;
         let listenerHasStream = false;
 
+        // リモコン用ポップアップ管理
+        let currentCamReqPeerId = null;
+        function showCameraRequestModal(peerId, name) {
+            currentCamReqPeerId = peerId;
+            document.getElementById('remote-cam-req-name').textContent = name;
+            document.getElementById('remote-cam-modal').classList.remove('hidden');
+        }
+
+        function handleRemoteCamRequest(action) {
+            document.getElementById('remote-cam-modal').classList.add('hidden');
+            if(!currentCamReqPeerId) return;
+
+            if(action === 'approve') {
+                sendRemoteCommand('manage', 'approve_cam', currentCamReqPeerId);
+            } else if (action === 'reject') {
+                sendRemoteCommand('manage', 'reject_cam', currentCamReqPeerId);
+            }
+            currentCamReqPeerId = null;
+        }
+
         function initListener(isObs = false, isRemote = false) {
             isRemoteMode = isRemote;
             listenerId = generateId();
@@ -1244,6 +1227,11 @@
                     }
                     if(data.type === 'error') {
                         showToast(data.msg, "error");
+                        return;
+                    }
+                    // リモコン側にポップアップを出すシグナル
+                    if(data.type === 'camera_request_alert' && isRemoteMode) {
+                        showCameraRequestModal(data.id, data.name);
                         return;
                     }
                     if(data.type === 'state') renderListenerState(data, isObs);
