@@ -127,6 +127,27 @@
         <p class="text-center text-xs text-gray-500 mt-6">v1.0.2</p>
     </div>
 
+    <!-- ================= 1.5. ポータル画面 ================= -->
+    <div id="portal-view" class="hidden w-full max-w-md bg-gray-900 border border-gray-700 p-6 rounded-2xl shadow-2xl mt-10">
+        <div class="text-center mb-6 border-b border-gray-700 pb-4">
+            <h2 id="portal-title" class="text-xl font-bold text-white">👑 専用ポータル</h2>
+            <p id="portal-desc" class="text-sm text-gray-400 mt-1">過去のルームを選ぶか、IDを入力して入室</p>
+        </div>
+
+        <h3 class="text-sm font-bold text-gray-300 mb-3">🕒 過去に繋いだルーム</h3>
+        <div id="portal-history-list" class="flex flex-col gap-2 mb-6 max-h-48 overflow-y-auto">
+            <!-- 履歴がここに入る -->
+        </div>
+
+        <div class="border-t border-gray-700 pt-4">
+            <h3 class="text-sm font-bold text-gray-300 mb-3">➕ 新しい部屋に入る</h3>
+            <div class="flex flex-col gap-3">
+                <input type="text" id="portal-room-id" placeholder="ルームIDを入力..." class="w-full bg-gray-800 text-white border border-gray-600 rounded p-3 outline-none focus:border-indigo-500">
+                <button onclick="joinFromPortal()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg">入室する</button>
+            </div>
+        </div>
+    </div>
+
     <!-- リモコン用：カメラ承認ポップアップ -->
     <div id="remote-cam-modal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
@@ -518,6 +539,15 @@
             }
         }
 
+        function generateHash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash = hash & hash; 
+            }
+            return Math.abs(hash).toString(36);
+        }
+
         function createRoom() {
             try {
                 const idInput = document.getElementById('input-room-id').value.trim();
@@ -525,18 +555,25 @@
                 const passInput = document.getElementById('input-host-password').value.trim(); 
                 if(!idInput) { showToast("ルームIDを入力してください", "error"); return; }
                 
-                currentRoomId = idInput.replace(/[^a-zA-Z0-9-]/g, '');
-                if(!currentRoomId) { showToast("ルームIDは半角英数字で入力してください", "error"); return; }
+                let baseId = idInput.replace(/[^a-zA-Z0-9-]/g, '');
+                if(!baseId) { showToast("ルームIDは半角英数字で入力してください", "error"); return; }
                 
                 hostName = nameInput || "配信太郎";
                 hostPassword = passInput; 
+                
+                // パスワード連動型のセキュアIDを生成 (乗っ取り完全防御)
+                if (hostPassword) {
+                    currentRoomId = baseId + '-' + generateHash(hostPassword);
+                } else {
+                    currentRoomId = baseId;
+                }
                 
                 const settingNameEl = document.getElementById('setting-host-name');
                 if(settingNameEl) settingNameEl.value = hostName;
                 
                 generateURLs();
                 updateMyListSelect();
-                saveHostHistory(currentRoomId, hostName, hostPassword);
+                saveHostHistory(baseId, hostName, hostPassword); // ハッシュ化前の元のIDを履歴に保存
                 initHost();
             } catch (err) {
                 showToast("エラーが発生しました: " + err.message, "error");
