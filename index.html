@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v1.0.0</title>
+    <title>Remote Jukebox v1.0.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -91,7 +91,7 @@
             <div id="room-history-list" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
         </div>
 
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.0</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.1</p>
     </div>
 
     <!-- ================= 2. 配信者 (Host) 画面 ================= -->
@@ -264,7 +264,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.0</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.1</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -317,7 +317,10 @@
                 <span>リスナー画面では匿名(184)にする</span>
             </label>
             <div>
-                <label class="block text-sm text-gray-300 mb-1">YouTube URL</label>
+                <div class="flex items-center gap-2 mb-1">
+                    <label class="block text-sm text-gray-300">YouTube URL</label>
+                    <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="w-5 h-5 rounded-full bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold flex items-center justify-center text-xs shadow transition-colors" title="使い方">?</button>
+                </div>
                 <div class="flex gap-2">
                     <input type="text" id="listener-url" placeholder="https://youtu.be/..." class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white">
                     <button onclick="sendRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded font-bold transition-colors">送信</button>
@@ -345,7 +348,23 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.0</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.1</div>
+
+        <!-- リスナー用：チュートリアルモーダル -->
+        <div id="tutorial-modal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 transition-opacity" onclick="if(event.target === this) this.classList.add('hidden')">
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl relative">
+                <button onclick="document.getElementById('tutorial-modal').classList.add('hidden')" class="absolute top-3 right-3 text-gray-400 hover:text-white font-bold text-lg w-8 h-8 flex items-center justify-center rounded-full bg-gray-700/50 hover:bg-gray-600 transition-colors">×</button>
+                <h3 class="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">配信者にリクエストを送ろう！</h3>
+                <div class="text-sm text-gray-300 space-y-3">
+                    <p>Youtube / Youtube musicの動画・音楽の共有URLをコピー＆ペースト！</p>
+                    <p class="text-yellow-400 text-xs font-bold">※おすすめはYoutube musicです！</p>
+                    <p class="text-gray-400 text-xs">※動画の権利の関係で再生されないものもあります</p>
+                </div>
+                <div class="mt-6 text-center">
+                    <button onclick="document.getElementById('tutorial-modal').classList.add('hidden')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-lg">OK (閉じる)</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -438,7 +457,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.0</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.1</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -518,7 +537,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.0</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.1</div>
     </div>
 
     <!-- 音声維持用のダミーオーディオ (カメラ中継時のミュート回避用) -->
