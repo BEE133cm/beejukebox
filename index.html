@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v0.8.2</title>
+    <title>Remote Jukebox v0.8.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -79,7 +79,7 @@
                 部屋を作成する
             </button>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.8.2</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.8.3</p>
     </div>
 
     <!-- ================= 2. 配信者 (Host) 画面 ================= -->
@@ -220,7 +220,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-2">v0.8.2</p>
+        <p class="text-center text-xs text-gray-500 mt-2">v0.8.3</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -287,7 +287,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.8.2</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.8.3</div>
     </div>
 
     <!-- ================= 4. OBS用透過画面 ================= -->
@@ -347,7 +347,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.8.2</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.8.3</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -403,7 +403,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.8.2</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v0.8.3</div>
     </div>
 
     <!-- 音声維持用のダミーオーディオ (カメラ中継時のミュート回避用) -->
@@ -428,13 +428,24 @@
         let bgmResumeData = null; 
 
         // 参加者管理用データ
-        let connectedListeners = {}; // { peerId: { conn, name, isMuted, cameraStatus, isRemote, call } }
+        let connectedListeners = {}; 
         let cameraApprovalMode = false;
 
         let listenerConn = null;
         let listenerId = null;
 
-        let myList = JSON.parse(localStorage.getItem('jukebox_mylist') || '[]');
+        // ★修正点：JSON.parseのエラーを完全に防ぐセーフガード
+        let myList = [];
+        try {
+            const rawData = localStorage.getItem('jukebox_mylist');
+            if (rawData) {
+                const parsed = JSON.parse(rawData);
+                if (Array.isArray(parsed)) myList = parsed;
+            }
+        } catch(e) {
+            console.warn("マイリストの読み込みに失敗しました。データを初期化します。");
+            myList = [];
+        }
 
         let cameraStream = null;
         let isMicOn = true;
@@ -476,7 +487,6 @@
         };
 
         function showView(viewId) {
-            // エラー原因だった不足IDを補完して確実に処理させる
             ['setup-view', 'host-view', 'listener-view', 'obs-view', 'remote-view', 'camera-view'].forEach(id => {
                 const el = document.getElementById(id);
                 if(el) {
@@ -506,17 +516,29 @@
         }
 
         function createRoom() {
-            const idInput = document.getElementById('input-room-id').value.trim();
-            const nameInput = document.getElementById('input-host-name').value.trim();
-            if(!idInput) { showToast("ルームIDを入力してください", "error"); return; }
-            
-            currentRoomId = idInput;
-            hostName = nameInput || "配信太郎";
-            document.getElementById('setting-host-name').value = hostName;
-            
-            generateURLs();
-            updateMyListSelect();
-            initHost();
+            try {
+                const idInput = document.getElementById('input-room-id').value.trim();
+                const nameInput = document.getElementById('input-host-name').value.trim();
+                if(!idInput) { showToast("ルームIDを入力してください", "error"); return; }
+                
+                // エラー防止のため半角英数字とハイフンのみに強制
+                currentRoomId = idInput.replace(/[^a-zA-Z0-9-]/g, '');
+                if(!currentRoomId) {
+                    showToast("ルームIDは半角英数字で入力してください", "error");
+                    return;
+                }
+                
+                hostName = nameInput || "配信太郎";
+                const settingNameEl = document.getElementById('setting-host-name');
+                if(settingNameEl) settingNameEl.value = hostName;
+                
+                generateURLs();
+                updateMyListSelect();
+                initHost();
+            } catch (err) {
+                console.error("Room creation error:", err);
+                showToast("エラーが発生しました: " + err.message, "error");
+            }
         }
 
         function generateURLs() {
@@ -669,7 +691,6 @@
                     if(cameraApprovalMode) {
                         listener.cameraStatus = 'requested';
                         updateParticipantsUI();
-                        // リモコンにポップアップ通知を送る
                         Object.values(connectedListeners).forEach(p => {
                             if(p.isRemote && p.conn.open) {
                                 p.conn.send({type: 'camera_request_alert', id: listener.id, name: listener.name});
@@ -689,7 +710,6 @@
 
         function toggleCamApproval() {
             cameraApprovalMode = document.getElementById('setting-cam-approval').checked;
-            // モードOFFにした場合、申請中の人を全員許可して映像を送る
             if(!cameraApprovalMode) {
                 Object.values(connectedListeners).forEach(p => {
                     if(!p.isRemote && !p.isObs) {
@@ -698,7 +718,6 @@
                     }
                 });
             } else {
-                // モードONにした場合、既存の通信は切らないがステータスリセット
                 Object.values(connectedListeners).forEach(p => {
                     if(p.cameraStatus !== 'approved') p.cameraStatus = 'none';
                 });
@@ -730,23 +749,21 @@
                 showToast(`ユーザーをBANしました`, 'error');
             }
             updateParticipantsUI();
-            broadcastState(); // リモコン側へ状態同期
+            broadcastState(); 
         }
 
         function updateParticipantsUI() {
             const hList = document.getElementById('host-participant-list');
             if(hList) renderParticipantList(hList);
-            // リモコンは broadcastState で更新される
         }
 
         function renderParticipantList(container, isRemoteView = false) {
             if(!container) return;
             container.innerHTML = '';
-            // Host renders from connectedListeners, Remote renders from received state
             const list = isRemoteView ? (window.remoteReceivedParticipants || []) : Object.values(connectedListeners);
             
             list.forEach(p => {
-                if(p.isObs) return; // OBSは除外
+                if(p.isObs) return; 
                 
                 const div = document.createElement('div');
                 div.className = "flex items-center justify-between bg-gray-700 p-2 rounded text-sm";
@@ -792,7 +809,6 @@
 
         function broadcastState() {
             if(!isHost) return;
-            // 参加者リストから関数などを抜いて安全なデータに
             const safeParticipants = Object.values(connectedListeners).map(p => ({
                 id: p.id, name: p.name, isMuted: p.isMuted, cameraStatus: p.cameraStatus, isRemote: p.isRemote, isObs: p.isObs
             }));
@@ -996,22 +1012,24 @@
             }
 
             const qList = document.getElementById('host-queue-list');
-            qList.innerHTML = '';
-            queue.forEach((q, idx) => {
-                const div = document.createElement('div');
-                div.className = "flex items-center justify-between bg-gray-700 p-2 rounded text-sm";
-                div.innerHTML = `
-                    <div class="flex items-center gap-2 overflow-hidden">
-                        <span class="text-gray-400 font-bold w-4">${idx+1}</span>
-                        <div class="truncate">
-                            <p class="text-white truncate font-medium">${q.title}</p>
-                            <p class="text-xs text-gray-400 truncate">👤 ${q.requesterReal || q.requester} ${q.isRemote ? '(👑配信主)' : ''}</p>
+            if(qList) {
+                qList.innerHTML = '';
+                queue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-700 p-2 rounded text-sm";
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-gray-400 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-white truncate font-medium">${q.title}</p>
+                                <p class="text-xs text-gray-400 truncate">👤 ${q.requesterReal || q.requester} ${q.isRemote ? '(👑配信主)' : ''}</p>
+                            </div>
                         </div>
-                    </div>
-                    <button onclick="removeQueue('${q.id}')" class="text-red-400 hover:text-red-300 px-2 flex-shrink-0">✖</button>
-                `;
-                qList.appendChild(div);
-            });
+                        <button onclick="removeQueue('${q.id}')" class="text-red-400 hover:text-red-300 px-2 flex-shrink-0">✖</button>
+                    `;
+                    qList.appendChild(div);
+                });
+            }
 
             const hostHist = document.getElementById('host-history-list');
             if(hostHist) {
@@ -1034,16 +1052,18 @@
             }
 
             const bList = document.getElementById('host-bgm-list');
-            bList.innerHTML = '';
-            bgmQueue.forEach((b, idx) => {
-                const div = document.createElement('div');
-                div.className = "flex justify-between bg-gray-900 border border-gray-700 p-2 rounded items-center";
-                div.innerHTML = `
-                    <span class="text-gray-300 truncate text-xs flex-1">${b.title || '取得中...'}</span>
-                    <button onclick="removeBGM(${idx})" class="text-red-400 hover:text-red-300 px-2">✖</button>
-                `;
-                bList.appendChild(div);
-            });
+            if(bList) {
+                bList.innerHTML = '';
+                bgmQueue.forEach((b, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex justify-between bg-gray-900 border border-gray-700 p-2 rounded items-center";
+                    div.innerHTML = `
+                        <span class="text-gray-300 truncate text-xs flex-1">${b.title || '取得中...'}</span>
+                        <button onclick="removeBGM(${idx})" class="text-red-400 hover:text-red-300 px-2">✖</button>
+                    `;
+                    bList.appendChild(div);
+                });
+            }
 
             broadcastState();
         }
@@ -1065,25 +1085,528 @@
         }
 
         function loadHostState() {
-            const saved = localStorage.getItem('jukebox_state_' + currentRoomId);
-            if(saved) {
-                try {
+            try {
+                const saved = localStorage.getItem('jukebox_state_' + currentRoomId);
+                if(saved) {
                     const data = JSON.parse(saved);
-                    queue = data.queue || [];
-                    bgmQueue = data.bgmQueue || [];
-                    historyQueue = data.historyQueue || [];
+                    queue = Array.isArray(data.queue) ? data.queue : [];
+                    bgmQueue = Array.isArray(data.bgmQueue) ? data.bgmQueue : [];
+                    historyQueue = Array.isArray(data.historyQueue) ? data.historyQueue : [];
                     currentSong = data.currentSong || null;
                     bgmResumeData = data.bgmResumeData || null;
-                    cameraApprovalMode = data.cameraApprovalMode || false;
-                    document.getElementById('setting-cam-approval').checked = cameraApprovalMode;
+                    cameraApprovalMode = !!data.cameraApprovalMode;
+                    
+                    const camAppEl = document.getElementById('setting-cam-approval');
+                    if(camAppEl) camAppEl.checked = cameraApprovalMode;
                     
                     if(data.hostName) { hostName = data.hostName; document.getElementById('setting-host-name').value = hostName; }
                     if(data.hostTheme) { hostTheme = data.hostTheme; document.getElementById('setting-theme').value = hostTheme; }
                     if(data.durationLimit !== undefined) { durationLimit = data.durationLimit; document.getElementById('setting-duration').value = durationLimit / 60; }
                     updateUI();
-                } catch(e) {}
+                }
+            } catch(e) {
+                console.warn("Failed to load host state", e);
             }
         }
 
         function saveToMyList() {
-            const url = document.getElementById('input-bgm
+            const url = document.getElementById('input-bgm-url').value;
+            if(!url) return showToast("URLを入力してください", "error");
+            const name = prompt("このURLをマイリストに保存します。\n名前を付けてください:", "お気に入りBGM");
+            if(name) {
+                myList.push({ name: name, url: url });
+                try {
+                    localStorage.setItem('jukebox_mylist', JSON.stringify(myList));
+                    updateMyListSelect();
+                    showToast("マイリストに保存しました");
+                } catch(e) {
+                    showToast("保存に失敗しました", "error");
+                }
+            }
+        }
+
+        function updateMyListSelect() {
+            const sel = document.getElementById('select-mylist');
+            if(!sel) return;
+            sel.innerHTML = '<option value="">-- 選択してください --</option>';
+            myList.forEach((item, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.textContent = item.name;
+                sel.appendChild(opt);
+            });
+        }
+
+        function loadFromMyList() {
+            const sel = document.getElementById('select-mylist');
+            if(sel.value === "") return;
+            document.getElementById('input-bgm-url').value = myList[sel.value].url;
+            addBGM();
+            sel.value = ""; 
+        }
+
+        function sendStreamToPeer(peerId) {
+            if(!currentStreamToListeners) return;
+            const listener = connectedListeners[peerId];
+            if(listener && listener.conn.open) {
+                const call = peer.call(peerId, currentStreamToListeners);
+                listener.call = call;
+            }
+        }
+
+        function broadcastStreamToListeners(stream) {
+            currentStreamToListeners = stream;
+            Object.values(connectedListeners).forEach(listener => {
+                if(!cameraApprovalMode || listener.cameraStatus === 'approved') {
+                    sendStreamToPeer(listener.id);
+                }
+            });
+            showToast("カメラ中継を開始しました！", "info");
+            broadcastState();
+        }
+
+        function stopBroadcastStream() {
+            currentStreamToListeners = null;
+            Object.values(connectedListeners).forEach(listener => {
+                if(listener.call) { listener.call.close(); listener.call = null; }
+            });
+            showToast("カメラ中継が停止しました", "info");
+            broadcastState(); 
+        }
+
+        function initCamera() {
+            document.getElementById('camera-status').textContent = "配信準備完了 (スタートボタンを押してください)";
+            document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-green-500');
+            
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true })
+                .then(stream => {
+                    cameraStream = stream;
+                    document.getElementById('camera-preview').srcObject = stream;
+                    try {
+                        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        analyser = audioContext.createAnalyser();
+                        microphone = audioContext.createMediaStreamSource(stream);
+                        microphone.connect(analyser);
+                        analyser.fftSize = 256;
+                        drawMicMeter();
+                    } catch(e) {}
+                })
+                .catch(err => {
+                    showToast("カメラ/マイクが取得できませんでした", "error");
+                    document.getElementById('camera-status').textContent = "エラーが発生しました";
+                });
+        }
+
+        function startCameraStream() {
+            if(!cameraStream) return showToast("カメラの準備ができていません", "error");
+            document.getElementById('camera-status').textContent = "ホストに接続中...";
+            document.getElementById('camera-status').classList.replace('text-green-500', 'text-yellow-500');
+            
+            listenerId = generateId();
+            peer = new Peer(`cam-${listenerId}`);
+            
+            peer.on('open', () => {
+                listenerConn = peer.connect(`jukebox-${currentRoomId}`);
+                listenerConn.on('open', () => {
+                    document.getElementById('camera-status').textContent = "🔴 映像＋音声 配信中！";
+                    document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-red-500');
+                    document.getElementById('camera-setup-controls').classList.add('hidden');
+                    document.getElementById('camera-active-controls').classList.remove('hidden');
+                    camCall = peer.call(`jukebox-${currentRoomId}`, cameraStream);
+                });
+            });
+        }
+
+        function stopCameraStream() {
+            if(camCall) { camCall.close(); camCall = null; }
+            if(listenerConn && listenerConn.open) listenerConn.send({type: 'camera_stop'});
+            if(peer) { peer.destroy(); peer = null; }
+            document.getElementById('camera-status').textContent = "⏹️ 配信停止 (待機中)";
+            document.getElementById('camera-status').classList.replace('text-red-500', 'text-green-500');
+            showToast("配信を停止しました");
+            document.getElementById('camera-setup-controls').classList.remove('hidden');
+            document.getElementById('camera-active-controls').classList.add('hidden');
+        }
+
+        function drawMicMeter() {
+            const canvas = document.getElementById('mic-meter');
+            if(!canvas) return;
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            const ctx = canvas.getContext('2d');
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function draw() {
+                meterDrawId = requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for(let i = 0; i < bufferLength; i++) sum += dataArray[i];
+                let width = ((sum / bufferLength) / 128) * canvas.width; 
+                if(!isMicOn) width = 0;
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                let grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+                grad.addColorStop(0, '#22c55e'); grad.addColorStop(0.7, '#eab308'); grad.addColorStop(1, '#ef4444'); 
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, width, canvas.height);
+            }
+            draw();
+        }
+
+        function toggleCameraMic() {
+            if(!cameraStream) return;
+            isMicOn = !isMicOn;
+            const audioTracks = cameraStream.getAudioTracks();
+            if(audioTracks.length > 0) audioTracks[0].enabled = isMicOn;
+            const btn = document.getElementById('btn-cam-mic');
+            btn.innerHTML = isMicOn ? '🎙️ マイクON' : '🔇 マイクOFF';
+            btn.classList.toggle('bg-green-600', isMicOn);
+            btn.classList.toggle('bg-gray-600', !isMicOn);
+        }
+
+        function toggleCameraVideo() {
+            if(!cameraStream) return;
+            isVideoOn = !isVideoOn;
+            const videoTracks = cameraStream.getVideoTracks();
+            if(videoTracks.length > 0) videoTracks[0].enabled = isVideoOn;
+            const btn = document.getElementById('btn-cam-vid');
+            btn.innerHTML = isVideoOn ? '📹 映像ON' : '🚫 映像OFF';
+            btn.classList.toggle('bg-green-600', isVideoOn);
+            btn.classList.toggle('bg-gray-600', !isVideoOn);
+            document.getElementById('camera-off-overlay').classList.toggle('hidden', isVideoOn);
+        }
+
+        let isRemoteMode = false;
+        let isListenerVideoOpen = false;
+        let listenerHasStream = false;
+
+        let currentCamReqPeerId = null;
+        function showCameraRequestModal(peerId, name) {
+            currentCamReqPeerId = peerId;
+            document.getElementById('remote-cam-req-name').textContent = name;
+            document.getElementById('remote-cam-modal').classList.remove('hidden');
+        }
+
+        function handleRemoteCamRequest(action) {
+            document.getElementById('remote-cam-modal').classList.add('hidden');
+            if(!currentCamReqPeerId) return;
+
+            if(action === 'approve') {
+                sendRemoteCommand('manage', 'approve_cam', currentCamReqPeerId);
+            } else if (action === 'reject') {
+                sendRemoteCommand('manage', 'reject_cam', currentCamReqPeerId);
+            }
+            currentCamReqPeerId = null;
+        }
+
+        function initListener(isObs = false, isRemote = false) {
+            isRemoteMode = isRemote;
+            listenerId = generateId();
+            peer = new Peer(`listener-${listenerId}`);
+
+            peer.on('open', () => {
+                listenerConn = peer.connect(`jukebox-${currentRoomId}`);
+                listenerConn.on('open', () => {
+                    const statusId = isRemote ? 'remote-now-playing' : (isObs ? 'obs-now-playing' : 'listener-status');
+                    if(document.getElementById(statusId)) {
+                        document.getElementById(statusId).textContent = "接続完了！";
+                        document.getElementById(statusId).classList.replace('text-yellow-500', 'text-green-500');
+                    }
+                    sendProfileUpdate(isObs, isRemote);
+                });
+
+                listenerConn.on('data', (data) => {
+                    if(data.type === 'banned') {
+                        localStorage.setItem('banned_' + currentRoomId, 'true');
+                        showBannedScreen();
+                        if(peer) peer.destroy();
+                        return;
+                    }
+                    if(data.type === 'error') {
+                        showToast(data.msg, "error");
+                        return;
+                    }
+                    if(data.type === 'camera_request_alert' && isRemoteMode) {
+                        showCameraRequestModal(data.id, data.name);
+                        return;
+                    }
+                    if(data.type === 'state') renderListenerState(data, isObs);
+                });
+            });
+
+            peer.on('call', (call) => {
+                call.answer(); 
+                call.on('stream', (stream) => {
+                    if(!isObs && !isRemote) {
+                        listenerHasStream = true;
+                        const wrapper = document.getElementById('listener-video-wrapper');
+                        const video = document.getElementById('listener-video');
+                        const btn = document.getElementById('btn-toggle-camera');
+                        
+                        wrapper.classList.remove('hidden');
+                        btn.classList.add('hidden'); 
+                        video.srcObject = stream;
+                        video.play().catch(e => console.log("Stream play error:", e));
+                        
+                        isListenerVideoOpen = true;
+                    }
+                });
+                call.on('close', () => {
+                    if(!isObs && !isRemote) resetListenerVideo();
+                });
+            });
+        }
+
+        function resetListenerVideo() {
+            listenerHasStream = false;
+            isListenerVideoOpen = false;
+            document.getElementById('listener-video-wrapper').classList.add('hidden');
+            document.getElementById('listener-video').srcObject = null;
+            const btn = document.getElementById('btn-toggle-camera');
+            if(btn) {
+                btn.classList.remove('hidden');
+                btn.textContent = "🔴 LIVE配信中！(タップして開く)";
+            }
+        }
+
+        function sendProfileUpdate(isObs, isRemote) {
+            if(!listenerConn || !listenerConn.open) return;
+            let name = "名無し";
+            if(isRemote) name = "👑 リモコン";
+            else if(isObs) name = "OBS";
+            else name = document.getElementById('listener-name').value.trim() || "名無し";
+            listenerConn.send({ type: 'update_profile', name: name, isRemote: isRemote, isObs: isObs });
+        }
+
+        const nameInput = document.getElementById('listener-name');
+        if(nameInput) nameInput.addEventListener('change', () => sendProfileUpdate(false, false));
+
+        function requestListenerCamera() {
+            if (listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'request_camera' });
+                document.getElementById('btn-toggle-camera').textContent = "⏳ 承認待ち...";
+            }
+        }
+
+        function toggleListenerAudio() {
+            const video = document.getElementById('listener-video');
+            const btn = document.getElementById('btn-listener-audio');
+            video.muted = !video.muted;
+            if(video.muted) {
+                btn.innerHTML = "🔇 ミュート解除";
+                btn.classList.replace('bg-red-600', 'bg-gray-800/80');
+            } else {
+                btn.innerHTML = "🔊 配信の音声ON (タップで消音)";
+                btn.classList.replace('bg-gray-800/80', 'bg-red-600');
+                video.play().catch(e=>{});
+            }
+        }
+
+        function sendRequest() {
+            const url = document.getElementById('listener-url').value;
+            const name = document.getElementById('listener-name').value.trim();
+            const isAnon = document.getElementById('listener-anon').checked;
+
+            if(!name) return showToast("あなたの名前を入力してください！", "error");
+            if(!url) return showToast("URLを入力してください！", "error");
+
+            const vid = extractVideoId(url);
+            if(vid) {
+                listenerConn.send({ type: 'request', videoId: vid, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
+                document.getElementById('listener-url').value = '';
+                showToast("リクエストを送信しました！");
+            } else showToast("無効なYouTube URLです", "error");
+        }
+
+        function sendRemoteRequest() {
+            const url = document.getElementById('remote-url').value;
+            if(!url) return;
+            const vid = extractVideoId(url);
+            if(vid) {
+                listenerConn.send({ type: 'request', videoId: vid, requester: `👑 リモコン`, requesterReal: 'リモコン', isAnon: false, isRemote: true });
+                document.getElementById('remote-url').value = '';
+                showToast("追加しました！");
+            }
+        }
+
+        function sendRemoteCommand(cmd, action = null, targetId = null) {
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'remote_cmd', cmd: cmd, action: action, targetId: targetId });
+                if(cmd !== 'manage') showToast("コマンドを送信しました");
+            }
+        }
+
+        function sendRemoteTheme() {
+            const newTheme = document.getElementById('remote-input-theme').value;
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'update_theme', theme: newTheme });
+                document.getElementById('remote-input-theme').value = '';
+            }
+        }
+
+        function cancelRequest(id) {
+            listenerConn.send({ type: 'cancel', id: id });
+            showToast("キャンセルしました");
+        }
+
+        function reRequestListener(videoId) {
+            const name = document.getElementById('listener-name').value.trim();
+            const isAnon = document.getElementById('listener-anon').checked;
+            if(!name) return showToast("名前を入力してください", "error");
+            listenerConn.send({ type: 'request', videoId: videoId, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
+            showToast("再リクエストを送信しました");
+        }
+
+        function reRequestRemote(videoId) {
+            listenerConn.send({ type: 'request', videoId: videoId, requester: `👑 リモコン`, requesterReal: 'リモコン', isAnon: false, isRemote: true });
+            showToast("再リクエストを追加しました");
+        }
+
+        function renderListenerState(state, isObs) {
+            const { queue, historyQueue, currentSong, isPlaying, hostTheme, isLive, cameraApprovalMode, participants } = state;
+            
+            const playingId = isRemoteMode ? 'remote-now-playing' : (isObs ? 'obs-now-playing' : 'listener-now-playing');
+            const playingEl = document.getElementById(playingId);
+            
+            if(currentSong && playingEl) {
+                playingEl.textContent = currentSong.title;
+                if(!isRemoteMode && !isObs) {
+                    const reqName = currentSong.isAnon ? '184(匿名)' : (currentSong.requester || "");
+                    document.getElementById('listener-now-requester').textContent = reqName;
+                    const eq = document.getElementById('listener-eq');
+                    if(eq) isPlaying ? eq.classList.add('active') : eq.classList.remove('active');
+                }
+                if(isObs) {
+                    const obsReq = currentSong.isAnon ? '184(匿名)' : currentSong.requesterReal;
+                    const obsReqEl = document.getElementById('obs-requester');
+                    if(obsReqEl) obsReqEl.textContent = `👤 ${obsReq}`;
+                }
+            } else if (playingEl) {
+                playingEl.textContent = "BGM停止中";
+                if(!isRemoteMode && !isObs) {
+                    const reqEl = document.getElementById('listener-now-requester');
+                    if(reqEl) reqEl.textContent = "---";
+                    const eq = document.getElementById('listener-eq');
+                    if(eq) eq.classList.remove('active');
+                }
+                if(isObs) {
+                    const obsReqEl = document.getElementById('obs-requester');
+                    if(obsReqEl) obsReqEl.textContent = "👤 ---";
+                }
+            }
+
+            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
+
+            if(!isObs) {
+                const tDiv = document.getElementById(isRemoteMode ? 'remote-theme-container' : 'listener-theme-container');
+                if(tDiv) {
+                    if(hostTheme) {
+                        tDiv.textContent = `📢 ${hostTheme}`;
+                        tDiv.classList.remove('hidden');
+                    } else tDiv.classList.add('hidden');
+                }
+            }
+
+            if(!isRemoteMode && !isObs) {
+                const liveContainer = document.getElementById('listener-live-container');
+                if(liveContainer) {
+                    if(isLive) {
+                        liveContainer.classList.remove('hidden');
+                        const btn = document.getElementById('btn-toggle-camera');
+                        if(btn && !listenerHasStream) {
+                            if(cameraApprovalMode) {
+                                const myData = participants ? participants.find(p => p.id === listenerId) : null;
+                                if(myData && myData.cameraStatus === 'requested') btn.textContent = "⏳ 承認待ち...";
+                                else btn.textContent = "🎥 配信を見る (タップで申請)";
+                            } else {
+                                btn.textContent = "🔴 LIVE配信中！(タップして開く)";
+                            }
+                        }
+                    } else {
+                        liveContainer.classList.add('hidden');
+                        resetListenerVideo();
+                    }
+                }
+            }
+
+            if(isRemoteMode) {
+                window.remoteReceivedParticipants = participants;
+                renderParticipantList(document.getElementById('remote-participant-list'), true);
+
+                const hList = document.getElementById('remote-history-list');
+                if(hList && historyQueue) {
+                    hList.innerHTML = '';
+                    historyQueue.forEach((q, idx) => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center justify-between bg-gray-900 p-2 rounded text-sm";
+                        div.innerHTML = `
+                            <div class="flex items-center gap-2 overflow-hidden flex-1">
+                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                                <div class="truncate">
+                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                    <p class="text-xs text-gray-500 truncate">👤 ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                                </div>
+                            </div>
+                            <button onclick="reRequestRemote('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0">🔄</button>
+                        `;
+                        hList.appendChild(div);
+                    });
+                }
+            }
+
+            if(!isRemoteMode && !isObs) {
+                const countEl = document.getElementById('listener-queue-count');
+                if(countEl) countEl.textContent = queue.length;
+                
+                const qList = document.getElementById('listener-queue-list');
+                if(qList) {
+                    qList.innerHTML = '';
+                    const myName = document.getElementById('listener-name').value.trim();
+                    queue.forEach((q, idx) => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700 text-sm";
+                        div.innerHTML = `
+                            <div class="flex items-center gap-2 overflow-hidden">
+                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                                <div class="truncate">
+                                    <p class="text-gray-200 truncate font-medium">${q.title}</p>
+                                    <p class="text-xs text-gray-400 truncate">👤 ${q.isAnon ? '184(匿名)' : q.requester} ${q.isRemote ? '(👑)' : ''}</p>
+                                </div>
+                            </div>
+                        `;
+                        if(myName && q.requesterReal === myName && !q.isRemote) {
+                            const btn = document.createElement('button');
+                            btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0";
+                            btn.textContent = "✖";
+                            btn.onclick = () => cancelRequest(q.id);
+                            div.appendChild(btn);
+                        }
+                        qList.appendChild(div);
+                    });
+                }
+
+                const listenerHist = document.getElementById('listener-history-list');
+                if(listenerHist && historyQueue) {
+                    listenerHist.innerHTML = '';
+                    historyQueue.forEach((q, idx) => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center justify-between bg-gray-800 border border-gray-700 p-2 rounded text-sm";
+                        div.innerHTML = `
+                            <div class="flex items-center gap-2 overflow-hidden flex-1">
+                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                                <div class="truncate">
+                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                    <p class="text-xs text-gray-500 truncate">👤 ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                                </div>
+                            </div>
+                            <button onclick="reRequestListener('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0">🔄</button>
+                        `;
+                        listenerHist.appendChild(div);
+                    });
+                }
+            }
+        }
+    </script>
+</body>
+</html>
