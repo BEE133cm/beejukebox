@@ -1344,7 +1344,7 @@
                     else eq.classList.remove('active');
                 }
                 if(isObs) {
-                    const obsReq = currentSong.isAnon ? currentSong.requesterReal : (currentSong.requester || "");
+                    const obsReq = currentSong.isAnon ? '184(匿名)' : (currentSong.requester || "");
                     document.getElementById('obs-requester').textContent = `👤 ${obsReq}`;
                 }
             } else {
@@ -1379,12 +1379,13 @@
                         historyQueue.forEach((q, idx) => {
                             const div = document.createElement('div');
                             div.className = "flex items-center justify-between bg-gray-900 p-2 rounded";
+                            const dispName = q.isAnon ? '184(匿名)' : q.requesterReal;
                             div.innerHTML = `
                                 <div class="flex items-center gap-2 overflow-hidden flex-1">
                                     <span class="text-gray-500 font-bold w-4">${idx+1}</span>
                                     <div class="truncate">
                                         <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                        <p class="text-xs text-gray-500 truncate">👤 ${q.requesterReal}</p>
+                                        <p class="text-xs text-gray-500 truncate">👤 ${dispName}</p>
                                     </div>
                                 </div>
                                 <button onclick="listenerRequestFromHistory('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded ml-2 flex-shrink-0 transition-colors">🔄</button>
@@ -1406,12 +1407,13 @@
                         historyQueue.forEach((q, idx) => {
                             const div = document.createElement('div');
                             div.className = "flex items-center justify-between bg-gray-800 border border-gray-700 p-2 rounded text-sm";
+                            const dispName = q.isAnon ? '184(匿名)' : q.requesterReal;
                             div.innerHTML = `
                                 <div class="flex items-center gap-2 overflow-hidden flex-1">
                                     <span class="text-gray-500 font-bold w-4">${idx+1}</span>
                                     <div class="truncate">
                                         <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                        <p class="text-xs text-gray-500 truncate">👤 ${q.requesterReal}</p>
+                                        <p class="text-xs text-gray-500 truncate">👤 ${dispName}</p>
                                     </div>
                                 </div>
                                 <button onclick="listenerRequestFromHistory('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded ml-2 flex-shrink-0 transition-colors">🔄</button>
