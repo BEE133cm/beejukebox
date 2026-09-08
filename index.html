@@ -334,7 +334,7 @@
                 🔴 LIVE配信中！(タップして開く)
             </button>
             <div id="listener-video-wrapper" class="hidden mt-3 relative bg-black rounded-lg overflow-hidden border border-gray-700 aspect-video shadow-inner">
-                <video id="listener-video" autoplay playsinline class="w-full h-full object-cover"></video>
+                <video id="listener-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
             </div>
             <!-- コントロールボタン -->
             <div id="listener-video-controls" class="hidden flex gap-2 mt-2">
@@ -1724,8 +1724,8 @@
         }
 
         function initCamera() {
-            document.getElementById('camera-status').textContent = "配信準備完了 (設定をしてスタート)";
-            document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-green-500');
+            document.getElementById('camera-status').textContent = "ホストに接続・認証中...";
+            document.getElementById('camera-status').classList.replace('text-green-500', 'text-yellow-500');
             
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true })
                 .then(stream => {
@@ -1737,45 +1737,22 @@
                     showToast("カメラ/マイクが取得できませんでした", "error");
                     document.getElementById('camera-status').textContent = "エラーが発生しました";
                 });
+
+            // ホストへの接続処理を入室時点に前倒し
+            if(!peer || peer.destroyed) {
+                listenerId = generateId();
+                peer = new Peer(`cam-${listenerId}`);
+            }
+            
+            if(!listenerConn || !listenerConn.open) {
+                peer.on('open', () => setupCameraConnection());
+                if(peer.open) setupCameraConnection();
+            } else {
+                setupCameraConnection();
+            }
         }
 
-        function startCameraStream() {
-            applyCameraSettings();
-            
-            if(cameraStream) { cameraStream.getTracks().forEach(t=>t.stop()); }
-            
-            document.getElementById('camera-status').textContent = "ホストに接続中...";
-            document.getElementById('camera-status').classList.replace('text-green-500', 'text-yellow-500');
-
-            navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment', width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
-                audio: true
-            }).then(stream => {
-                cameraStream = stream;
-                const videoTrack = cameraStream.getVideoTracks()[0];
-                if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
-
-                document.getElementById('camera-preview').srcObject = stream;
-                setupMicMeter();
-
-                if(!peer || peer.destroyed) {
-                    listenerId = generateId();
-                    peer = new Peer(`cam-${listenerId}`);
-                }
-                
-                if(!listenerConn || !listenerConn.open) {
-                    peer.on('open', () => connectCamToHost(currentBitrate));
-                    if(peer.open) connectCamToHost(currentBitrate);
-                } else {
-                    connectCamToHost(currentBitrate);
-                }
-            }).catch(err => {
-                showToast("カメラの再取得に失敗しました", "error");
-                document.getElementById('camera-status').textContent = "エラーが発生しました";
-            });
-        }
-
-        function connectCamToHost(bitrate) {
+        function setupCameraConnection() {
             if(!listenerConn || !listenerConn.open) listenerConn = peer.connect(`jukebox-${currentRoomId}`);
             
             pendingConnection = listenerConn;
@@ -1792,7 +1769,7 @@
                             showPasswordModal();
                         }
                     } else {
-                        executeCamCall(bitrate);
+                        cameraReadyToStart();
                     }
                 } else if (data.type === 'auth_response') {
                     if (data.success) {
@@ -1803,7 +1780,7 @@
                             savedPasswords[currentRoomId] = pwdInput;
                             localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
                         }
-                        executeCamCall(bitrate);
+                        cameraReadyToStart();
                     } else {
                         document.getElementById('password-error').classList.remove('hidden');
                         delete savedPasswords[currentRoomId];
@@ -1811,6 +1788,39 @@
                         showPasswordModal();
                     }
                 }
+            });
+        }
+
+        function cameraReadyToStart() {
+            pendingConnection = null;
+            document.getElementById('camera-status').textContent = "配信準備完了 (設定をしてスタート)";
+            document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-green-500');
+        }
+
+        function startCameraStream() {
+            applyCameraSettings();
+            
+            if(cameraStream) { cameraStream.getTracks().forEach(t=>t.stop()); }
+            
+            document.getElementById('camera-status').textContent = "配信を開始しています...";
+            document.getElementById('camera-status').classList.replace('text-green-500', 'text-yellow-500');
+
+            navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment', width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
+                audio: true
+            }).then(stream => {
+                cameraStream = stream;
+                const videoTrack = cameraStream.getVideoTracks()[0];
+                if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
+
+                document.getElementById('camera-preview').srcObject = stream;
+                setupMicMeter();
+
+                executeCamCall(currentBitrate);
+
+            }).catch(err => {
+                showToast("カメラの再取得に失敗しました", "error");
+                document.getElementById('camera-status').textContent = "エラーが発生しました";
             });
         }
         
