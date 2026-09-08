@@ -542,6 +542,7 @@
 
         let listenerConn = null;
         let listenerId = null;
+        let myUUID = null;
 
         let myList = [];
         try {
@@ -626,6 +627,13 @@
         }
 
         function generateId() { return Math.random().toString(36).substring(2, 9); }
+
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
 
         function showBannedScreen() {
             document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500">🚫 アクセスがブロックされました</h1><p class="text-gray-300">管理者の操作により、このルームへのアクセスが制限されています。</p></div>';
@@ -713,7 +721,7 @@
 
                 if(!conn.peer.startsWith('cam-')) {
                     connectedListeners[conn.peer] = {
-                        id: conn.peer, conn: conn, name: "名無し", isMuted: false, cameraStatus: 'none', isRemote: false, isObs: false, call: null
+                        id: conn.peer, conn: conn, name: "名無し", isMuted: false, cameraStatus: 'none', isRemote: false, isObs: false, call: null, uuid: null
                     };
                     updateParticipantsUI();
                 }
@@ -757,6 +765,17 @@
         function handleHostData(data, conn) {
             const peerId = conn.peer;
             const listener = connectedListeners[peerId];
+
+            if (listener && data.uuid) {
+                listener.uuid = data.uuid;
+                if (bannedUsers[listener.uuid]) {
+                    conn.send({type: 'banned'});
+                    conn.close();
+                    delete connectedListeners[peerId];
+                    updateParticipantsUI();
+                    return;
+                }
+            }
 
             if(bannedUsers[peerId]) return; 
 
@@ -903,7 +922,8 @@
                 p.isMuted = !p.isMuted;
                 showToast(`${p.name}を${p.isMuted ? '投稿禁止' : '解除'}しました`);
             } else if(action === 'ban') {
-                bannedUsers[peerId] = { name: p.name, time: Date.now() };
+                const banKey = p.uuid || peerId;
+                bannedUsers[banKey] = { name: p.name, time: Date.now() };
                 saveHostState();
                 if(p.call) p.call.close();
                 p.conn.send({type: 'banned'});
@@ -1633,6 +1653,21 @@
         function initListener(isObs = false, isRemote = false, isObsCam = false) {
             isRemoteMode = isRemote;
             listenerId = generateId();
+
+            myUUID = localStorage.getItem('jukebox_listener_uuid');
+            if (!myUUID) {
+                myUUID = generateUUID();
+                localStorage.setItem('jukebox_listener_uuid', myUUID);
+            }
+
+            if (!isObs && !isObsCam && !isRemote) {
+                const savedName = localStorage.getItem('jukebox_listener_name');
+                if (savedName) document.getElementById('listener-name').value = savedName;
+                
+                const savedAnon = localStorage.getItem('jukebox_listener_anon');
+                if (savedAnon !== null) document.getElementById('listener-anon').checked = (savedAnon === 'true');
+            }
+
             peer = new Peer(`listener-${listenerId}`);
 
             peer.on('open', () => {
@@ -1749,11 +1784,23 @@
             else if(isObsCam) name = "OBSカメラ(映像+音声)";
             else if(isObs) name = "OBS(透過バー)";
             else name = document.getElementById('listener-name').value.trim() || "名無し";
-            listenerConn.send({ type: 'update_profile', name: name, isRemote: isRemote, isObs: isObs || isObsCam });
+            listenerConn.send({ type: 'update_profile', name: name, isRemote: isRemote, isObs: isObs || isObsCam, uuid: myUUID });
         }
 
         const nameInput = document.getElementById('listener-name');
-        if(nameInput) nameInput.addEventListener('change', () => sendProfileUpdate(false, false));
+        if(nameInput) {
+            nameInput.addEventListener('change', () => {
+                localStorage.setItem('jukebox_listener_name', nameInput.value.trim());
+                sendProfileUpdate(false, false);
+            });
+        }
+
+        const anonCheck = document.getElementById('listener-anon');
+        if(anonCheck) {
+            anonCheck.addEventListener('change', () => {
+                localStorage.setItem('jukebox_listener_anon', anonCheck.checked);
+            });
+        }
 
         function requestListenerCamera() {
             if (listenerConn && listenerConn.open) {
@@ -1795,7 +1842,7 @@
 
             const vid = extractVideoId(url);
             if(vid) {
-                listenerConn.send({ type: 'request', videoId: vid, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
+                listenerConn.send({ type: 'request', videoId: vid, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon, uuid: myUUID });
                 document.getElementById('listener-url').value = '';
                 showToast("リクエストを送信しました！");
             } else showToast("無効なYouTube URLです", "error");
@@ -1806,7 +1853,7 @@
             if(!url) return;
             const vid = extractVideoId(url);
             if(vid) {
-                listenerConn.send({ type: 'request', videoId: vid, requester: `👑 リモコン`, requesterReal: 'リモコン', isAnon: false, isRemote: true });
+                listenerConn.send({ type: 'request', videoId: vid, requester: `👑 リモコン`, requesterReal: 'リモコン', isAnon: false, isRemote: true, uuid: myUUID });
                 document.getElementById('remote-url').value = '';
                 showToast("追加しました！");
             }
@@ -1836,12 +1883,12 @@
             const name = document.getElementById('listener-name').value.trim();
             const isAnon = document.getElementById('listener-anon').checked;
             if(!name) return showToast("名前を入力してください", "error");
-            listenerConn.send({ type: 'request', videoId: videoId, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
+            listenerConn.send({ type: 'request', videoId: videoId, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon, uuid: myUUID });
             showToast("再リクエストを送信しました");
         }
 
         function reRequestRemote(videoId) {
-            listenerConn.send({ type: 'request', videoId: videoId, requester: `👑 リモコン`, requesterReal: 'リモコン', isAnon: false, isRemote: true });
+            listenerConn.send({ type: 'request', videoId: videoId, requester: `👑 リモコン`, requesterReal: 'リモコン', isAnon: false, isRemote: true, uuid: myUUID });
             showToast("再リクエストを追加しました");
         }
 
@@ -1869,7 +1916,7 @@
             }
 
             if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'chat', text, sender, senderReal, isAnon, isRemote });
+                listenerConn.send({ type: 'chat', text, sender, senderReal, isAnon, isRemote, uuid: myUUID });
                 document.getElementById(inputId).value = '';
             }
         }
