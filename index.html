@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v0.6</title>
+    <title>Remote Jukebox v0.6.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -73,7 +73,7 @@
                 部屋を作成する
             </button>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.6</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.6.1</p>
     </div>
 
     <!-- ================= 2. 配信者 (Host) 画面 ================= -->
@@ -112,6 +112,7 @@
 
                     <div class="flex justify-center gap-4">
                         <button onclick="togglePlayHost()" id="btn-host-play" class="bg-red-600 hover:bg-red-500 text-white p-3 rounded-full flex items-center justify-center w-12 h-12">
+                            <!-- 初期は再生アイコン -->
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                         </button>
                         <button onclick="playNext(true)" class="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full flex items-center justify-center w-12 h-12">
@@ -123,7 +124,6 @@
                 <!-- 配信設定 -->
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-4">
                     <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2">⚙️ 配信設定</h3>
-                    
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">配信者の名前</label>
                         <input type="text" id="setting-host-name" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white" onchange="updateHostSettings()">
@@ -207,7 +207,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-2">v0.6</p>
+        <p class="text-center text-xs text-gray-500 mt-2">v0.6.1</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -272,10 +272,12 @@
             </div>
             <div>
                 <h3 class="text-sm font-bold text-gray-300 mb-3 border-b border-gray-700 pb-2">🕒 再生履歴</h3>
-                <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
+                <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
+                    <p class="text-gray-500 text-xs text-center py-2">まだ履歴はありません</p>
+                </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.6</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.6.1</p>
     </div>
 
     <!-- ================= 4. OBS用透過画面 ================= -->
@@ -323,10 +325,11 @@
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3">
             <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">🕒 再生履歴</h3>
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
+                <p class="text-gray-500 text-xs text-center py-2">まだ履歴はありません</p>
             </div>
         </div>
 
-        <p class="text-center text-xs text-gray-500 mt-6">v0.6</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.6.1</p>
     </div>
 
     <!-- ================= 6. カメラ送出用ビュー ================= -->
@@ -371,7 +374,7 @@
                 </button>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v0.6</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v0.6.1</p>
     </div>
 
     <script>
@@ -404,6 +407,8 @@
         let audioContext, analyser, microphone, meterDrawId;
         let hostMediaConn = null; 
         let camCall = null;
+        let currentStreamToListeners = null;
+        let listenerCalls = [];
 
         // --- 初期化 ---
         window.onload = () => {
@@ -509,8 +514,11 @@
                 });
                 conn.on('open', () => {
                     broadcastState(); 
+                    // ★後から入ってきたリスナーにも確実にカメラ中継を送る
                     if(currentStreamToListeners) {
                         conn.send({type: 'camera_started'});
+                        const call = peer.call(conn.peer, currentStreamToListeners);
+                        listenerCalls.push(call);
                     }
                 });
                 conn.on('close', () => {
@@ -519,6 +527,7 @@
             });
 
             peer.on('call', (call) => {
+                if(hostMediaConn) hostMediaConn.close();
                 hostMediaConn = call;
                 call.answer();
                 call.on('stream', (stream) => {
@@ -555,18 +564,21 @@
                 queue.push(song);
                 showToast(`${song.requester} からリクエスト！`);
                 updateUI();
-                
-                fetchYouTubeTitle(song.videoId).then(title => {
-                    song.title = title;
-                    updateUI();
-                    saveHostState();
-                });
-                
+                saveHostState();
+
+                // 割り込み発動のバグを修正：確実にplayNextを呼ぶ
                 if(!currentSong || currentSong.isBGM) {
-                    if(player && typeof player.getPlayerState === 'function') {
-                        playNext();
-                    }
+                    playNext();
                 }
+
+                fetchYouTubeTitle(song.videoId).then(title => {
+                    if(title !== "不明なタイトル") {
+                        song.title = title;
+                        if (currentSong && currentSong.id === song.id) currentSong.title = title;
+                        updateUI();
+                        saveHostState();
+                    }
+                });
             }
             else if(data.type === 'cancel') {
                 queue = queue.filter(q => q.id !== data.id);
@@ -650,6 +662,20 @@
             updateUI(); 
 
             if (event.data === YT.PlayerState.PLAYING) {
+                // タイトル取得中フリーズ問題の解消
+                if (currentSong && currentSong.title === "取得中...") {
+                    try {
+                        if (typeof player.getVideoData === 'function') {
+                            let vData = player.getVideoData();
+                            if (vData && vData.title) {
+                                currentSong.title = vData.title;
+                                updateUI();
+                                saveHostState();
+                            }
+                        }
+                    } catch(e) { console.warn("Title fetch failed", e); }
+                }
+
                 if(currentSong && !currentSong.isBGM && durationLimit > 0) {
                     if(durationCheckTimeout) clearTimeout(durationCheckTimeout);
                     durationCheckTimeout = setTimeout(() => {
@@ -675,18 +701,24 @@
         function playNext(forceSkip = false) {
             if (!player || typeof player.loadVideoById !== 'function') return;
 
+            // 履歴への追加を確実に処理する
             if (currentSong && !currentSong.isBGM) {
                 historyQueue.unshift(currentSong);
                 if (historyQueue.length > 20) historyQueue.pop();
             }
 
+            // BGM中断の際の時間メモを確実に処理する
             if (currentSong && currentSong.isBGM && queue.length > 0 && !forceSkip) {
-                bgmResumeData = {
-                    videoId: currentSong.videoId,
-                    listId: currentSong.listId, 
-                    title: currentSong.title,
-                    time: player.getCurrentTime()
-                };
+                try {
+                    let cTime = 0;
+                    if (typeof player.getCurrentTime === 'function') cTime = player.getCurrentTime();
+                    bgmResumeData = {
+                        videoId: currentSong.videoId || (typeof player.getVideoData === 'function' ? player.getVideoData().video_id : ''),
+                        listId: currentSong.listId, 
+                        title: currentSong.title,
+                        time: cTime
+                    };
+                } catch(e) { console.error("Resume error", e); }
             }
 
             if (queue.length > 0) {
@@ -806,12 +838,15 @@
                 document.getElementById('host-now-requester').textContent = "リクエスト待ち...";
             }
 
+            // 再生ボタンの適正化
             const playBtn = document.getElementById('btn-host-play');
             if(playBtn && player && typeof player.getPlayerState === 'function') {
                 const isPlaying = player.getPlayerState() === 1;
                 if(isPlaying) {
+                    // 一時停止アイコン
                     playBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
                 } else {
+                    // 再生アイコン
                     playBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
                 }
             }
@@ -836,19 +871,23 @@
 
             const hostHist = document.getElementById('host-history-list');
             if(hostHist) {
-                hostHist.innerHTML = '';
-                historyQueue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center gap-2 bg-gray-900 border border-gray-700 p-2 rounded text-sm";
-                    div.innerHTML = `
-                        <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                        <div class="truncate">
-                            <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                            <p class="text-xs text-gray-500 truncate">👤 ${q.requesterReal}</p>
-                        </div>
-                    `;
-                    hostHist.appendChild(div);
-                });
+                if(historyQueue && historyQueue.length > 0) {
+                    hostHist.innerHTML = '';
+                    historyQueue.forEach((q, idx) => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center gap-2 bg-gray-900 border border-gray-700 p-2 rounded text-sm";
+                        div.innerHTML = `
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                <p class="text-xs text-gray-500 truncate">👤 ${q.requesterReal}</p>
+                            </div>
+                        `;
+                        hostHist.appendChild(div);
+                    });
+                } else {
+                    hostHist.innerHTML = '<p class="text-gray-500 text-xs text-center py-2">まだ履歴はありません</p>';
+                }
             }
 
             const bList = document.getElementById('host-bgm-list');
@@ -927,9 +966,6 @@
             sel.value = ""; 
         }
 
-        let currentStreamToListeners = null;
-        let listenerCalls = [];
-
         function broadcastStreamToListeners(stream) {
             currentStreamToListeners = stream;
             hostConnections.forEach(conn => {
@@ -937,7 +973,7 @@
                 listenerCalls.push(call);
                 if(conn.open) conn.send({type: 'camera_started'});
             });
-            showToast("カメラの中継（映像＋音声）を開始しました！", "info");
+            showToast("カメラの中継を開始しました！", "info");
         }
 
         function stopBroadcastStream() {
@@ -951,7 +987,7 @@
         }
 
         function initCamera() {
-            document.getElementById('camera-status').textContent = "配信準備完了 (スタートボタンを押してください)";
+            document.getElementById('camera-status').textContent = "プレビュー準備完了 (スタートボタンを押してください)";
             document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-green-500');
             
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true })
@@ -966,9 +1002,7 @@
                         microphone.connect(analyser);
                         analyser.fftSize = 256;
                         drawMicMeter();
-                    } catch(e) {
-                        console.log("AudioContext failed:", e);
-                    }
+                    } catch(e) { console.log("AudioContext failed:", e); }
                 })
                 .catch(err => {
                     showToast("カメラ/マイクが取得できませんでした", "error");
@@ -981,6 +1015,7 @@
 
             document.getElementById('camera-status').textContent = "ホストに接続中...";
             document.getElementById('camera-status').classList.replace('text-green-500', 'text-yellow-500');
+            document.getElementById('btn-cam-start').disabled = true;
             
             listenerId = generateId();
             peer = new Peer(`cam-${listenerId}`);
@@ -993,19 +1028,26 @@
                     
                     document.getElementById('camera-setup-controls').classList.add('hidden');
                     document.getElementById('camera-active-controls').classList.remove('hidden');
+                    document.getElementById('btn-cam-start').disabled = false;
                     
                     camCall = peer.call(`jukebox-${currentRoomId}`, cameraStream);
                 });
+                listenerConn.on('close', stopCameraStream);
+                listenerConn.on('error', stopCameraStream);
+            });
+            peer.on('error', (err) => {
+                showToast("接続エラー", "error");
+                document.getElementById('btn-cam-start').disabled = false;
+                stopCameraStream();
             });
         }
 
         function stopCameraStream() {
             if(camCall) { camCall.close(); camCall = null; }
             if(listenerConn && listenerConn.open) { listenerConn.send({type: 'camera_stop'}); }
-            
             if(peer) { peer.destroy(); peer = null; }
             
-            document.getElementById('camera-status').textContent = "⏹️ 配信停止 (待機中)";
+            document.getElementById('camera-status').textContent = "⏹️ 配信停止 (再スタート可能)";
             document.getElementById('camera-status').classList.replace('text-red-500', 'text-green-500');
             showToast("配信を停止しました");
             
@@ -1106,6 +1148,7 @@
                         document.getElementById('listener-live-container').classList.remove('hidden');
                         const video = document.getElementById('listener-video');
                         video.srcObject = stream;
+                        // iOS対応のため最初はmutedで再生させる
                         video.play().catch(e => console.log("Stream play error:", e));
                     }
                 });
@@ -1232,45 +1275,55 @@
                 }
             }
 
-            // リモコン ＆ リスナーへの履歴描画
+            // 履歴リストの確実な描画（リモコン）
             if(isRemoteMode) {
                 const hList = document.getElementById('remote-history-list');
-                if(hList && historyQueue) {
-                    hList.innerHTML = '';
-                    historyQueue.forEach((q, idx) => {
-                        const div = document.createElement('div');
-                        div.className = "flex items-center gap-2 bg-gray-900 p-2 rounded";
-                        div.innerHTML = `
-                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                <p class="text-xs text-gray-500 truncate">👤 ${q.requesterReal}</p>
-                            </div>
-                        `;
-                        hList.appendChild(div);
-                    });
+                if(hList) {
+                    if(historyQueue && historyQueue.length > 0) {
+                        hList.innerHTML = '';
+                        historyQueue.forEach((q, idx) => {
+                            const div = document.createElement('div');
+                            div.className = "flex items-center gap-2 bg-gray-900 p-2 rounded";
+                            div.innerHTML = `
+                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                                <div class="truncate">
+                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                    <p class="text-xs text-gray-500 truncate">👤 ${q.requesterReal}</p>
+                                </div>
+                            `;
+                            hList.appendChild(div);
+                        });
+                    } else {
+                        hList.innerHTML = '<p class="text-gray-500 text-xs text-center py-2">まだ履歴はありません</p>';
+                    }
                 }
             }
 
+            // 履歴リストの確実な描画（リスナー）
             if(!isRemoteMode && !isObs) {
                 const listenerHist = document.getElementById('listener-history-list');
-                if(listenerHist && historyQueue) {
-                    listenerHist.innerHTML = '';
-                    historyQueue.forEach((q, idx) => {
-                        const div = document.createElement('div');
-                        div.className = "flex items-center gap-2 bg-gray-800 border border-gray-700 p-2 rounded text-sm";
-                        div.innerHTML = `
-                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                <p class="text-xs text-gray-500 truncate">👤 ${q.requesterReal}</p>
-                            </div>
-                        `;
-                        listenerHist.appendChild(div);
-                    });
+                if(listenerHist) {
+                    if(historyQueue && historyQueue.length > 0) {
+                        listenerHist.innerHTML = '';
+                        historyQueue.forEach((q, idx) => {
+                            const div = document.createElement('div');
+                            div.className = "flex items-center gap-2 bg-gray-800 border border-gray-700 p-2 rounded text-sm";
+                            div.innerHTML = `
+                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                                <div class="truncate">
+                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                    <p class="text-xs text-gray-500 truncate">👤 ${q.requesterReal}</p>
+                                </div>
+                            `;
+                            listenerHist.appendChild(div);
+                        });
+                    } else {
+                        listenerHist.innerHTML = '<p class="text-gray-500 text-xs text-center py-2">まだ履歴はありません</p>';
+                    }
                 }
             }
 
+            // リスナー用キューの描画
             if(!isRemoteMode && !isObs) {
                 document.getElementById('listener-queue-count').textContent = queue.length;
                 const qList = document.getElementById('listener-queue-list');
