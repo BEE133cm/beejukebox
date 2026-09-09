@@ -2074,7 +2074,47 @@
                     }
                     if(data.type === 'error') { showToast(data.msg, "error"); return; }
                     if(data.type === 'camera_request_alert' && isRemoteMode) { showCameraRequestModal(data.id, data.name); return; }
-                    if(data.type === 'state') renderListenerState(data, isObs, isObsCam);
+                    
+                    if(data.type === 'state') {
+                        saveGuestHistory(currentRoomId, data.hostName);
+                        
+                        if (data.requirePassword && isRemoteMode) {
+                            const savedPwd = savedPasswords[currentRoomId];
+                            if (savedPwd) {
+                                listenerConn.send({ type: 'auth_request', password: savedPwd });
+                            } else {
+                                showPasswordModal();
+                            }
+                        } else {
+                            if (isRemoteMode) pendingConnection = null;
+                        }
+                        
+                        renderListenerState(data, isObs, isObsCam);
+                    }
+                    
+                    if (data.type === 'auth_response') {
+                        if (data.success) {
+                            hidePasswordModal();
+                            showToast("認証に成功しました");
+                            const pwdInput = document.getElementById('room-password-input').value;
+                            if (pwdInput) {
+                                savedPasswords[currentRoomId] = pwdInput;
+                                localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                            }
+                            pendingConnection = null;
+                        } else {
+                            document.getElementById('password-error').classList.remove('hidden');
+                            delete savedPasswords[currentRoomId];
+                            localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                            showPasswordModal(); 
+                        }
+                    }
+                    
+                    if (data.type === 'auth_required') {
+                         showToast("操作にはパスワード認証が必要です", "error");
+                         pendingConnection = listenerConn;
+                         showPasswordModal();
+                    }
                     
                     // ↓↓↓ 追加：同期データの受信処理 ↓↓↓
                     if(data.type === 'sync_playback') {
@@ -2323,9 +2363,22 @@
             }
         }
 
+        function sendRemoteRequest() {
+            const url = document.getElementById('remote-url').value;
+            if(!url) return;
+            const vid = extractVideoId(url);
+            if(vid) {
+                listenerConn.send({ type: 'request', videoId: vid, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
+                document.getElementById('remote-url').value = '';
+                showToast("追加しました！");
+            } else {
+                showToast("無効なYouTube URLです", "error");
+            }
+        }
+
         function sendRemoteCommand(cmd, action = null, targetId = null) {
             if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'remote_cmd', cmd: cmd, action: action, targetId: targetId });
+                listenerConn.send({ type: 'remote_cmd', cmd: cmd, action: action, targetId: targetId, isRemote: true });
                 if(cmd !== 'manage') showToast("コマンドを送信しました");
             }
         }
@@ -2333,7 +2386,7 @@
         function sendRemoteTheme() {
             const newTheme = document.getElementById('remote-input-theme').value;
             if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'update_theme', theme: newTheme });
+                listenerConn.send({ type: 'update_theme', theme: newTheme, isRemote: true });
                 document.getElementById('remote-input-theme').value = '';
             }
         }
