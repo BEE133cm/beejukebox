@@ -360,6 +360,26 @@
             <p id="listener-now-requester" class="text-xs text-gray-400">---</p>
         </div>
 
+        <!-- ↓↓↓ 追加：Watch Party 同時視聴プレイヤー ↓↓↓ -->
+        <div id="listener-yt-container" class="mb-6 hidden bg-gray-800 p-4 rounded-xl border border-gray-700">
+            <h3 class="text-xs font-bold mb-2 uppercase tracking-wider flex justify-between items-center">
+                <span class="text-indigo-400">📺 Watch Party (同時視聴)</span>
+                <span id="sync-status" class="text-gray-400 text-xs">待機中...</span>
+            </h3>
+            <div class="relative w-full aspect-video bg-black rounded-lg overflow-hidden shadow-inner mb-3">
+                <div id="listener-youtube-player" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+                <!-- 操作防止の透明ブロック -->
+                <div class="absolute inset-0 z-10 cursor-not-allowed" style="background: transparent;" onclick="showToast('動画の操作・シークはホストのみ可能です', 'info')"></div>
+            </div>
+            <!-- 音量コントロール -->
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-gray-400">🔉 音量</span>
+                <input type="range" id="listener-yt-vol" min="0" max="100" value="50" class="flex-1 accent-indigo-500" oninput="changeListenerYtVol()">
+            </div>
+            <p class="text-[10px] text-gray-500 mt-2">※音声が出ない場合は、カメラ枠の「ミュート解除」を押すか、音量バーを動かしてください。</p>
+        </div>
+        <!-- ↑↑↑ 追加ここまで ↑↑↑ -->
+
         <div class="space-y-3 mb-6 bg-gray-800 p-4 rounded-xl border border-gray-700" id="request-form-container">
             <div>
                 <label class="block text-sm text-gray-300 mb-1">あなたの名前 <span class="text-red-500 text-xs">*必須</span></label>
@@ -587,12 +607,6 @@
         let currentRoomId = null;
         let isHost = false;
         
-        // --- 新規追加：パスワード・ポータル関連 ---
-        let hostPassword = ''; 
-        let currentPortalMode = ''; 
-        let pendingConnection = null; 
-        let savedPasswords = JSON.parse(localStorage.getItem('jukebox_passwords')) || {};
-
         let queue = [];
         let bgmQueue = [];
         let historyQueue = [];
@@ -639,6 +653,33 @@
         // 同録用変数
         let mediaRecorder = null;
         let recordedChunks = [];
+
+        // ↓↓↓ 追加：ホストの再生状況を毎秒リスナーへ送信するループ ↓↓↓
+        setInterval(() => {
+            if (!isHost || !player || typeof player.getPlayerState !== 'function') return;
+            
+            let vid = null;
+            try {
+                const vData = player.getVideoData();
+                if (vData) vid = vData.video_id;
+            } catch(e) {}
+            
+            if (!vid) return;
+
+            const state = player.getPlayerState();
+            const time = player.getCurrentTime();
+            
+            const syncData = {
+                type: 'sync_playback',
+                videoId: vid,
+                status: state === 1 ? 'playing' : (state === 2 ? 'paused' : 'other'),
+                time: time
+            };
+            Object.values(connectedListeners).forEach(p => {
+                if(p.conn && p.conn.open) p.conn.send(syncData);
+            });
+        }, 1000);
+        // ↑↑↑ 追加ここまで ↑↑↑
 
         window.onload = () => {
             // TTSロック解除設定 (スマホブラウザ対応)
@@ -1327,8 +1368,10 @@
         }
 
         function loadYouTubeAPI() {
-            if (window.YT && window.YT.Player) initPlayer();
-            else if (!document.getElementById('youtube-api-script')) {
+            if (window.YT && window.YT.Player) {
+                if(isHost) initPlayer();
+                else initListenerPlayer();
+            } else if (!document.getElementById('youtube-api-script')) {
                 const tag = document.createElement('script');
                 tag.id = 'youtube-api-script';
                 tag.src = 'https://www.youtube.com/iframe_api';
@@ -1336,7 +1379,11 @@
                 firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
             }
         }
-        window.onYouTubeIframeAPIReady = function() { initPlayer(); };
+        
+        window.onYouTubeIframeAPIReady = function() { 
+            if(isHost) initPlayer(); 
+            else initListenerPlayer(); // リスナー側でも初期化
+        };
 
         function initPlayer() {
             if(player && typeof player.playVideo === 'function') return;
@@ -2027,48 +2074,14 @@
                     }
                     if(data.type === 'error') { showToast(data.msg, "error"); return; }
                     if(data.type === 'camera_request_alert' && isRemoteMode) { showCameraRequestModal(data.id, data.name); return; }
+                    if(data.type === 'state') renderListenerState(data, isObs, isObsCam);
                     
-                    if(data.type === 'state') {
-                        saveGuestHistory(currentRoomId, data.hostName);
-                        
-                        if (data.requirePassword && isRemoteMode) {
-                            const savedPwd = savedPasswords[currentRoomId];
-                            if (savedPwd) {
-                                listenerConn.send({ type: 'auth_request', password: savedPwd });
-                            } else {
-                                showPasswordModal();
-                            }
-                        } else {
-                            if (isRemoteMode) pendingConnection = null;
-                        }
-                        
-                        renderListenerState(data, isObs, isObsCam);
+                    // ↓↓↓ 追加：同期データの受信処理 ↓↓↓
+                    if(data.type === 'sync_playback') {
+                        handleSyncPlayback(data);
                     }
-                    
-                    if (data.type === 'auth_response') {
-                        if (data.success) {
-                            hidePasswordModal();
-                            showToast("認証に成功しました");
-                            const pwdInput = document.getElementById('room-password-input').value;
-                            if (pwdInput) {
-                                savedPasswords[currentRoomId] = pwdInput;
-                                localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
-                            }
-                            pendingConnection = null;
-                        } else {
-                            document.getElementById('password-error').classList.remove('hidden');
-                            delete savedPasswords[currentRoomId];
-                            localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
-                            showPasswordModal(); 
-                        }
-                    }
-                    
-                    if (data.type === 'auth_required') {
-                         showToast("操作にはパスワード認証が必要です", "error");
-                         pendingConnection = listenerConn;
-                         showPasswordModal();
-                    }
-                    
+                    // ↑↑↑ 追加ここまで ↑↑↑
+
                     if(data.type === 'new_chat') {
                         if(!chatHistory.some(c => c.id === data.chat.id)) {
                             chatHistory.push(data.chat);
@@ -2139,7 +2152,86 @@
                 });
                 call.on('close', () => { if(!isObs && !isRemote && !isObsCam) resetListenerVideo(); });
             });
+
+            // ↓↓↓ 追加：リスナー側でもYouTube APIを読み込む ↓↓↓
+            loadYouTubeAPI();
         }
+
+        // ↓↓↓ 追加：リスナー側YouTube再生の同期ロジック ↓↓↓
+        let listenerPlayer = null;
+        let isListenerPlayerReady = false;
+        let currentListenerVideoId = null;
+
+        function initListenerPlayer() {
+            if(listenerPlayer && typeof listenerPlayer.playVideo === 'function') return;
+            listenerPlayer = new YT.Player('listener-youtube-player', {
+                height: '100%', width: '100%',
+                playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 1, fs: 0 },
+                events: { 
+                    'onReady': (e) => { 
+                        isListenerPlayerReady = true; 
+                        e.target.setVolume(50);
+                        e.target.mute(); // ブラウザの自動再生ブロック回避のため最初はミュート
+                    }
+                }
+            });
+        }
+
+        function handleSyncPlayback(data) {
+            if (!isListenerPlayerReady || !listenerPlayer) return;
+            
+            document.getElementById('listener-yt-container').classList.remove('hidden');
+
+            const hostVid = data.videoId;
+            const hostTime = data.time;
+            const hostStatus = data.status;
+
+            // 1. 動画が切り替わった場合
+            if (currentListenerVideoId !== hostVid) {
+                currentListenerVideoId = hostVid;
+                listenerPlayer.loadVideoById({videoId: hostVid, startSeconds: hostTime});
+                return; 
+            }
+
+            // 2. 再生・停止の同期
+            const myState = listenerPlayer.getPlayerState();
+            if (hostStatus === 'playing' && myState !== 1 && myState !== 3) { 
+                listenerPlayer.playVideo();
+            } else if (hostStatus === 'paused' && myState === 1) {
+                listenerPlayer.pauseVideo();
+            }
+
+            // 3. タイムシンクの3段階微調整
+            if (hostStatus === 'playing' && myState === 1) {
+                const myTime = listenerPlayer.getCurrentTime();
+                const diff = hostTime - myTime;
+                const statusEl = document.getElementById('sync-status');
+
+                if (Math.abs(diff) < 1) {
+                    listenerPlayer.setPlaybackRate(1.0);
+                    if(statusEl) { statusEl.textContent = '同期完了'; statusEl.className = 'text-green-400 text-xs'; }
+                } else if (Math.abs(diff) >= 1 && Math.abs(diff) < 5) {
+                    if (diff > 0) listenerPlayer.setPlaybackRate(1.05); // ホストより遅いので早送り
+                    else listenerPlayer.setPlaybackRate(0.95); // ホストより早いのでスロー
+                    if(statusEl) { statusEl.textContent = '微調整中...'; statusEl.className = 'text-yellow-400 text-xs'; }
+                } else if (Math.abs(diff) >= 5) {
+                    listenerPlayer.seekTo(hostTime); // 大幅なズレは強制ワープ
+                    listenerPlayer.setPlaybackRate(1.0);
+                    if(statusEl) { statusEl.textContent = '強制同期'; statusEl.className = 'text-red-400 text-xs'; }
+                }
+            }
+        }
+
+        function changeListenerYtVol() {
+            if (listenerPlayer && typeof listenerPlayer.setVolume === 'function') {
+                const vol = document.getElementById('listener-yt-vol').value;
+                listenerPlayer.setVolume(vol);
+                if(listenerPlayer.isMuted() && vol > 0) {
+                    listenerPlayer.unMute();
+                }
+            }
+        }
+        // ↑↑↑ 追加ここまで ↑↑↑
 
         function resetListenerVideo() {
             listenerHasStream = false;
@@ -2184,11 +2276,13 @@
                 btn.innerHTML = "🔇 ミュート解除";
                 btn.classList.replace('bg-red-700', 'bg-gray-800');
                 btn.classList.replace('hover:bg-red-600', 'hover:bg-gray-700');
+                if(listenerPlayer && typeof listenerPlayer.mute === 'function') listenerPlayer.mute(); // YouTubeも連動
             } else {
                 btn.innerHTML = "🔊 配信の音声ON (タップで消音)";
                 btn.classList.replace('bg-gray-800', 'bg-red-700');
                 btn.classList.replace('hover:bg-gray-700', 'hover:bg-red-600');
                 video.play().catch(e=>{});
+                if(listenerPlayer && typeof listenerPlayer.unMute === 'function') listenerPlayer.unMute(); // YouTubeも連動
             }
         }
 
