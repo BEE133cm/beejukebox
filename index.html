@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v1.0.5</title>
+    <title>Remote Jukebox v1.0.6</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -123,7 +123,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.5</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.6</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -311,7 +311,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.5</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.6</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -416,7 +416,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.5</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.6</div>
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -508,7 +508,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.5</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.6</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -586,7 +586,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.5</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.6</div>
     </div>
 
     <audio id="dummy-audio" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" loop playsinline></audio>
@@ -981,9 +981,18 @@
                 // Watch Party Sync Loop
                 setInterval(() => {
                     if (isHost && player && typeof player.getCurrentTime === 'function' && typeof player.getPlayerState === 'function') {
+                        let actualVideoId = currentSong ? currentSong.videoId : null;
+                        
+                        try {
+                            const vData = player.getVideoData();
+                            if(vData && vData.video_id) {
+                                actualVideoId = vData.video_id;
+                            }
+                        } catch(e) {}
+
                         const syncData = {
                             type: 'sync_playback',
-                            videoId: currentSong ? currentSong.videoId : null,
+                            videoId: actualVideoId,
                             time: player.getCurrentTime(),
                             status: player.getPlayerState()
                         };
@@ -1328,8 +1337,18 @@
                 id: p.id, name: p.name, isMuted: p.isMuted, cameraStatus: p.cameraStatus, isRemote: p.isRemote, isObs: p.isObs
             }));
 
+            let stateCurrentSong = currentSong ? { ...currentSong } : null;
+            if (stateCurrentSong && player && typeof player.getVideoData === 'function') {
+                try {
+                    const vData = player.getVideoData();
+                    if(vData && vData.video_id) {
+                        stateCurrentSong.videoId = vData.video_id;
+                    }
+                } catch(e) {}
+            }
+
             const state = {
-                type: 'state', queue: queue, historyQueue: historyQueue, chatHistory: chatHistory, currentSong: currentSong,
+                type: 'state', queue: queue, historyQueue: historyQueue, chatHistory: chatHistory, currentSong: stateCurrentSong,
                 isPlaying: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1) : false,
                 hostTheme: hostTheme, isLive: !!currentStreamToListeners, cameraApprovalMode: cameraApprovalMode,
                 participants: safeParticipants, bannedUsers: bannedUsers
