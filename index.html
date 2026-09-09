@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v1.0.4</title>
+    <title>Remote Jukebox v1.0.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -123,7 +123,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.4</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.5</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -311,7 +311,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.4</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.5</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -416,7 +416,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.4</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.5</div>
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -508,7 +508,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.4</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.5</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -586,7 +586,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.4</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.5</div>
     </div>
 
     <audio id="dummy-audio" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" loop playsinline></audio>
@@ -1338,8 +1338,11 @@
         }
 
         function loadYouTubeAPI() {
-            if (window.YT && window.YT.Player) initPlayer();
-            else if (!document.getElementById('youtube-api-script')) {
+            if (window.YT && window.YT.Player) {
+                if (isHost && document.getElementById('youtube-player')) {
+                    initPlayer();
+                }
+            } else if (!document.getElementById('youtube-api-script')) {
                 const tag = document.createElement('script');
                 tag.id = 'youtube-api-script';
                 tag.src = 'https://www.youtube.com/iframe_api';
@@ -1347,10 +1350,16 @@
                 firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
             }
         }
-        window.onYouTubeIframeAPIReady = function() { initPlayer(); };
+        
+        window.onYouTubeIframeAPIReady = function() { 
+            if (isHost && document.getElementById('youtube-player')) {
+                initPlayer(); 
+            }
+        };
 
         function initPlayer() {
             if(player && typeof player.playVideo === 'function') return;
+            if(!document.getElementById('youtube-player')) return; 
             player = new YT.Player('youtube-player', {
                 height: '100%', width: '100%',
                 playerVars: { autoplay: 1, controls: 1, rel: 0 },
@@ -2059,8 +2068,9 @@
                     loadYouTubeAPI(); 
                     return;
                 }
-                listenerYTPlayer = new YT.Player('listener-youtube-player', {
-                    height: '100%', width: '100%', videoId: data.videoId,
+                
+                let playerOptions = {
+                    height: '100%', width: '100%',
                     playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 1 },
                     events: {
                         'onReady': (event) => {
@@ -2068,12 +2078,25 @@
                             startAdMonitor(event.target);
                         }
                     }
-                });
+                };
+                if (data.videoId) {
+                    playerOptions.videoId = data.videoId;
+                }
+                
+                listenerYTPlayer = new YT.Player('listener-youtube-player', playerOptions);
                 return;
             }
 
             if (typeof listenerYTPlayer.getPlayerState !== 'function') return;
             
+            if (!data.videoId) {
+                if (listenerYTPlayer.getPlayerState() !== -1 && listenerYTPlayer.getPlayerState() !== 5) {
+                    listenerYTPlayer.stopVideo();
+                }
+                currentSong = null;
+                return;
+            }
+
             const state = listenerYTPlayer.getPlayerState();
             const currentTime = listenerYTPlayer.getCurrentTime();
             hostCurrentTime = data.time; 
@@ -2337,7 +2360,6 @@
                 btn.classList.replace('hover:bg-gray-700', 'hover:bg-red-600');
                 video.play().catch(e=>{});
                 
-                // Watch Party のミュートも連動して解除する
                 if (listenerYTPlayer && typeof listenerYTPlayer.unMute === 'function') {
                     listenerYTPlayer.unMute();
                 }
