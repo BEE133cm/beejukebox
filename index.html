@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox v1.0.21</title>
+    <title>Remote Jukebox v1.0.22</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <!-- アイコンフォント (FontAwesome) を追加 -->
@@ -160,7 +160,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.21</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.22</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -369,42 +369,66 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.21</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.22</p>
     </div>
 
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
-    <!-- h-[100dvh] を適用し、スマホキーボード出現時に自動で高さ調整されるように変更 -->
     <div id="listener-view" class="hidden fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex flex-col text-sm transition-all">
         
-        <!-- ボリューム・ミュート設定モーダル -->
-        <div id="listener-volume-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
+        <!-- ボリューム・各種設定モーダル -->
+        <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
             <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
                 <div class="flex justify-between items-center border-b border-gray-800 pb-3">
-                    <h3 class="text-white font-bold text-sm"><i class="fa-solid fa-volume-high"></i> 音量・ミュート設定</h3>
-                    <button onclick="document.getElementById('listener-volume-modal').classList.add('hidden')" class="text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                    <h3 class="text-white font-bold text-sm"><i class="fa-solid fa-gear"></i> 設定</h3>
+                    <button onclick="document.getElementById('listener-settings-modal').classList.add('hidden')" class="text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
                 </div>
+                
                 <div class="space-y-5">
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-camera"></i> カメラの音声</span>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="toggle-cam-mute" class="sr-only peer" onchange="toggleListenerAudioFromSwitch(this.checked)">
-                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-                        </label>
+                    <!-- メディア設定 -->
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-500 mb-3 uppercase">メディア設定</h4>
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-video"></i> Streamの音声</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="toggle-cam-mute" class="sr-only peer" onchange="toggleListenerAudioFromSwitch(this.checked)">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                                </label>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-music"></i> Jukeboxの音声</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="toggle-wp-mute" class="sr-only peer" onchange="toggleWatchPartyMuteFromSwitch(this.checked)">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                                </label>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-desktop"></i> Jukeboxの映像</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="toggle-wp-video" class="sr-only peer" checked onchange="toggleWatchPartyVideoFromSwitch(this.checked)">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                                </label>
+                            </div>
+                        </div>
                     </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-tv"></i> ウォチパの音声</span>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="toggle-wp-mute" class="sr-only peer" onchange="toggleWatchPartyMuteFromSwitch(this.checked)">
-                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-                        </label>
-                    </div>
-                    <!-- ウォチパ映像ON/OFF -->
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-video"></i> ウォチパの映像</span>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="toggle-wp-video" class="sr-only peer" checked onchange="toggleWatchPartyVideoFromSwitch(this.checked)">
-                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-                        </label>
+
+                    <hr class="border-gray-800 my-4">
+
+                    <!-- コメント設定 -->
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-500 mb-3 uppercase">コメント設定</h4>
+                        <div class="space-y-4">
+                            <div>
+                                <input type="text" id="listener-name" placeholder="入室時に入力した名前" readonly class="w-full bg-gray-900/50 border border-gray-700 rounded p-2 text-gray-400 text-xs focus:outline-none cursor-not-allowed">
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-user-secret"></i> 匿名(184)にする</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="listener-anon" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -424,7 +448,7 @@
                 </div>
             </div>
 
-            <!-- カメラ映像レイヤー -->
+            <!-- Stream映像レイヤー -->
             <div id="listener-cam-layer" class="absolute inset-0 layer-hidden transition-opacity duration-300">
                 <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
                     <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
@@ -432,9 +456,8 @@
                 <video id="listener-video" autoplay playsinline muted class="w-full h-full object-cover relative z-10"></video>
             </div>
             
-            <!-- Watch Party映像レイヤー -->
+            <!-- Jukebox映像レイヤー -->
             <div id="listener-wp-layer" class="absolute inset-0 layer-visible transition-opacity duration-300 bg-black">
-                <!-- 映像ON/OFFで opacity を操作するラッパー -->
                 <div id="listener-youtube-player-wrapper" class="w-full h-full transition-opacity duration-300">
                     <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
                 </div>
@@ -453,12 +476,12 @@
         <div class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
             <!-- 映像切り替えタブ -->
             <div class="flex gap-2">
-                <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-colors shadow"><i class="fa-solid fa-camera"></i> カメラ</button>
-                <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-colors shadow"><i class="fa-solid fa-tv"></i> ウォチパ</button>
+                <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
+                <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
             </div>
-            <!-- 音量モーダル呼び出しボタン -->
-            <button onclick="document.getElementById('listener-volume-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="音量・ミュート設定">
-                <i class="fa-solid fa-volume-high"></i>
+            <!-- 設定モーダル呼び出しボタン -->
+            <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
+                <i class="fa-solid fa-gear"></i>
             </button>
         </div>
 
@@ -476,7 +499,6 @@
                 </summary>
                 
                 <!-- アコーディオンの中身 (チャットを隠して表示) -->
-                <!-- pb-32 を追加し、下部に十分な余白を持たせてスクロール可能にする -->
                 <div class="p-4 space-y-6 bg-[#111827] border-t border-gray-800 h-full overflow-y-auto pb-32">
                     
                     <!-- ① リクエスト送信 -->
@@ -503,21 +525,9 @@
                         </div>
                     </div>
 
-                    <!-- ③ プロフィール & 184 -->
-                    <div class="pt-4 border-t border-gray-800/60 space-y-3">
-                        <h3 class="text-[10px] font-bold text-gray-500">あなたのプロフィール</h3>
-                        <div>
-                            <input type="text" id="listener-name" placeholder="入室時に入力した名前" readonly class="w-full bg-gray-900/50 border border-gray-700 rounded p-2 text-gray-400 text-xs focus:outline-none cursor-not-allowed">
-                        </div>
-                        <label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
-                            <input type="checkbox" id="listener-anon" class="rounded bg-gray-900 border-gray-600 text-red-500">
-                            <span>匿名(184)にする</span>
-                        </label>
-                    </div>
-
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.21
+                        v1.0.22
                     </div>
 
                 </div>
@@ -532,7 +542,7 @@
                     <!-- Chat messages here -->
                 </div>
 
-                <!-- 4. チャット入力エリア (最下部固定) 顔文字アイコン削除 -->
+                <!-- 4. チャット入力エリア (最下部固定) -->
                 <div class="flex-shrink-0 px-3 pt-2 pb-safe bg-[#18181b] border-t border-gray-800 flex gap-2 items-center">
                     <input type="text" id="listener-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest(false)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
                     <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
@@ -575,7 +585,7 @@
 
         <div id="remote-watch-party-container" class="mb-6 hidden">
             <div class="flex justify-between items-center mb-2">
-                <h3 class="text-sm font-bold text-red-400"><i class="fa-solid fa-tv"></i> Watch Party (同時視聴)</h3>
+                <h3 class="text-sm font-bold text-red-400"><i class="fa-solid fa-music"></i> Jukebox (同時視聴)</h3>
                 <button onclick="toggleWatchPartyFullscreen()" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded shadow transition-colors font-bold flex items-center gap-1">
                     <i class="fa-solid fa-expand"></i> 全画面表示
                 </button>
@@ -659,7 +669,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.21</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.22</p>
     </div>
 
     <div id="remote-cam-modal" class="hidden fixed inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
@@ -745,7 +755,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.21</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.22</div>
     </div>
 
     <!-- 全画面共通リロードボタン (アイコン化) -->
@@ -1531,7 +1541,7 @@
                     if(cameraApprovalMode) {
                         listener.cameraStatus = 'requested';
                         updateParticipantsUI();
-                        showHostNews(`<i class="fa-solid fa-bell text-yellow-400"></i> ${listener.name} がカメラ視聴承認待ちです`);
+                        showHostNews(`<i class="fa-solid fa-bell text-yellow-400"></i> ${listener.name} がStream視聴承認待ちです`);
                         Object.values(connectedListeners).forEach(p => {
                             if(p.isRemote && p.conn.open) p.conn.send({type: 'camera_request_alert', id: listener.id, name: listener.name});
                         });
@@ -2525,21 +2535,20 @@
             if(layer === 'cam') {
                 camLayer.classList.replace('layer-hidden', 'layer-visible');
                 wpLayer.classList.replace('layer-visible', 'layer-hidden');
-                tabCam.classList.replace('bg-gray-700', 'bg-red-600');
-                tabCam.classList.replace('text-gray-400', 'text-white');
-                tabWp.classList.replace('bg-indigo-600', 'bg-gray-700');
-                tabWp.classList.replace('text-white', 'text-gray-400');
+                tabCam.classList.add('bg-red-600', 'text-white');
+                tabCam.classList.remove('bg-gray-700', 'text-gray-400');
+                tabWp.classList.add('bg-gray-700', 'text-gray-400');
+                tabWp.classList.remove('bg-indigo-600', 'text-white');
             } else {
                 wpLayer.classList.replace('layer-hidden', 'layer-visible');
                 camLayer.classList.replace('layer-visible', 'layer-hidden');
-                tabWp.classList.replace('bg-gray-700', 'bg-indigo-600');
-                tabWp.classList.replace('text-gray-400', 'text-white');
-                tabCam.classList.replace('bg-red-600', 'bg-gray-700');
-                tabCam.classList.replace('text-white', 'text-gray-400');
+                tabWp.classList.add('bg-indigo-600', 'text-white');
+                tabWp.classList.remove('bg-gray-700', 'text-gray-400');
+                tabCam.classList.add('bg-gray-700', 'text-gray-400');
+                tabCam.classList.remove('bg-red-600', 'text-white');
             }
         }
 
-        // 新しいモーダルスイッチからの音声操作
         function toggleListenerAudioFromSwitch(isSoundOn) {
             const video = document.getElementById('listener-video');
             if (video) {
@@ -2557,7 +2566,6 @@
             }
         }
 
-        // リスナー用のウォチパ映像ON/OFFトグル
         function toggleWatchPartyVideoFromSwitch(isOn) {
             const playerWrapper = document.getElementById('listener-youtube-player-wrapper');
             if (playerWrapper) {
@@ -2859,7 +2867,6 @@
                         if(btn) btn.classList.add('hidden'); 
                         video.srcObject = stream;
                         
-                        // 初期状態で音を出すか（既存の「タップして開く」を押したためインタラクション済）
                         if(camMuteToggle) camMuteToggle.checked = true;
                         video.muted = false;
                         
@@ -2869,6 +2876,9 @@
                             video.play().catch(er=>{});
                         });
                         isListenerVideoOpen = true;
+                        
+                        // 動画が開始したらタブを光らせるための再描画トリガー
+                        broadcastState();
                     }
                 });
                 call.on('close', () => { if(!isObs && !isRemote && !isObsCam) resetListenerVideo(); });
@@ -2889,6 +2899,9 @@
             document.getElementById('listener-video').srcObject = null;
             const btn = document.getElementById('btn-toggle-camera');
             if(btn) { btn.classList.remove('hidden'); btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)'; }
+            
+            // タブの発光解除のための再描画トリガー
+            broadcastState();
         }
 
         function sendProfileUpdate(isObs, isRemote, isObsCam = false) {
@@ -2908,6 +2921,8 @@
 
         const nameInput = document.getElementById('listener-name');
         if(nameInput) nameInput.addEventListener('change', () => sendProfileUpdate(false, false));
+        const anonInput = document.getElementById('listener-anon');
+        if(anonInput) anonInput.addEventListener('change', () => sendProfileUpdate(false, false));
 
         function requestListenerCamera() {
             if (listenerConn && listenerConn.open) {
@@ -3173,17 +3188,29 @@
 
             if(!isRemoteMode && !isObs && !isObsCam) {
                 const btn = document.getElementById('btn-toggle-camera');
+                const tabCamIcon = document.querySelector('#tab-cam i');
+                
                 if(isLive) {
                     if(btn && !listenerHasStream) {
                         if(cameraApprovalMode) {
                             const myData = participants ? participants.find(p => p.id === listenerId) : null;
                             if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
-                            else btn.innerHTML = '<i class="fa-solid fa-camera text-white"></i> 配信を見る (タップで申請)';
+                            else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
                         } else btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
+                    }
+                    
+                    // タブのアイコンを発光させる
+                    if(tabCamIcon && listenerHasStream) {
+                        tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
                     }
                 } else { 
                     resetListenerVideo(); 
                     if(btn) btn.textContent = "配信はオフラインです"; 
+                    
+                    // タブのアイコン発光を消す
+                    if(tabCamIcon) {
+                        tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+                    }
                 }
             }
 
