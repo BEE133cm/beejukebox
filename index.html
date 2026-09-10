@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox v1.0.25</title>
+    <title>Remote Jukebox v1.0.26</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -89,7 +89,7 @@
         }
         .chat-input-floating {
             position: fixed !important;
-            top: 35vh !important; /* 動画の下あたり（絶対安全圏）に配置 */
+            top: 35vh !important; 
             left: 0 !important;
             right: 0 !important;
             z-index: 9999 !important;
@@ -189,7 +189,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.25</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.26</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -398,12 +398,11 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.25</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.26</p>
     </div>
 
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
     <div id="listener-view" class="hidden fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex flex-col text-sm">
-        
         <!-- ボリューム・各種設定モーダル -->
         <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
             <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
@@ -478,7 +477,7 @@
             </div>
 
             <!-- Stream映像レイヤー -->
-            <div id="listener-cam-layer" class="absolute inset-0 layer-hidden">
+            <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
                 <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
                     <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
                 </button>
@@ -556,7 +555,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.25
+                        v1.0.26
                     </div>
 
                 </div>
@@ -605,105 +604,182 @@
         </button>
     </div>
 
-    <!-- ================= 6. リモコン画面 ================= -->
-    <div id="remote-view" class="hidden w-full max-w-md bg-gray-900 border border-gray-700 p-6 rounded-2xl shadow-2xl relative" style="height: 100vh; overflow-y: auto;">
-        <h2 class="text-xl font-bold text-white mb-6 text-center"><i class="fa-solid fa-crown text-yellow-400"></i> リモコンモード</h2>
+    <!-- ================= 6. リモコン画面 (新フルスクリーンUI) ================= -->
+    <div id="remote-view" class="hidden fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex flex-col text-sm">
         
-        <div class="mb-4 flex gap-2">
-            <input type="text" id="remote-input-theme" placeholder="テーマ・気分を変更" class="flex-1 bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white">
-            <button onclick="sendRemoteTheme()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm font-bold">更新</button>
+        <!-- 設定モーダル -->
+        <div id="remote-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
+            <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
+                <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                    <h3 class="text-white font-bold text-sm"><i class="fa-solid fa-gear"></i> メディア設定</h3>
+                    <button onclick="document.getElementById('remote-settings-modal').classList.add('hidden')" class="text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-video"></i> Streamの音声</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggle-remote-cam-mute" class="sr-only peer" onchange="toggleRemoteAudioFromSwitch(this.checked)">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-music"></i> Jukeboxの音声</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggle-remote-wp-mute" class="sr-only peer" onchange="toggleWatchPartyMuteFromSwitch(this.checked)">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-desktop"></i> Jukeboxの映像</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggle-remote-wp-video" class="sr-only peer" checked onchange="toggleRemoteWatchPartyVideoFromSwitch(this.checked)">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div id="remote-theme-container" class="text-center text-sm text-indigo-300 mb-4 font-bold"></div>
 
-        <div id="remote-watch-party-container" class="mb-6 hidden">
-            <div class="flex justify-between items-center mb-2">
-                <h3 class="text-sm font-bold text-red-400"><i class="fa-solid fa-music"></i> Jukebox (同時視聴)</h3>
-                <button onclick="toggleWatchPartyFullscreen()" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded shadow transition-colors font-bold flex items-center gap-1">
-                    <i class="fa-solid fa-expand"></i> 全画面表示
+        <!-- 1. 映像エリア (上部固定) -->
+        <div id="remote-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden" style="aspect-ratio: 16/9;">
+            <!-- NowPlaying帯 -->
+            <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
+                <div class="marquee-container h-4 flex-1">
+                    <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
+                        <span id="remote-now-playing">接続待ち...</span>
+                        <span id="remote-now-requester" class="text-indigo-300 font-normal"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Streamレイヤー -->
+            <div id="remote-cam-layer" class="absolute inset-0 layer-hidden bg-black">
+                <button onclick="requestRemoteCamera()" id="btn-remote-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
+                    <i class="fa-solid fa-video"></i> 映像を受信 (タップ)
                 </button>
+                <video id="remote-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
             </div>
             
-            <div id="remote-watch-party-wrapper" class="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-gray-700 shadow-inner">
-                <div id="remote-youtube-player" class="w-full h-full"></div>
-                <div id="remote-youtube-overlay" class="absolute inset-0 z-10 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
+            <!-- Jukeboxレイヤー -->
+            <div id="remote-wp-layer" class="absolute inset-0 layer-visible bg-black">
+                <div id="remote-youtube-player-wrapper" class="w-full h-full">
+                    <div id="remote-youtube-player" class="w-full h-full pointer-events-auto"></div>
+                </div>
+                <!-- 初回タップ用オーバーレイ -->
+                <div id="remote-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
                     <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
                     <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
                 </div>
             </div>
-            
-            <div id="remote-wp-volume-container" class="mt-2 flex items-center gap-3 bg-gray-800 p-2 rounded-lg border border-gray-700">
-                <span class="text-xs text-gray-400"><i class="fa-solid fa-volume-low"></i></span>
-                <input type="range" id="remote-wp-volume" min="0" max="100" value="50" class="flex-1 accent-red-500" oninput="changeWatchPartyVolume(this.value)">
-                <span class="text-xs text-gray-400"><i class="fa-solid fa-volume-high"></i></span>
-            </div>
         </div>
 
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 text-center">
-            <p class="text-xs text-red-400 font-bold uppercase mb-1">Now Playing</p>
-            <div class="marquee-container h-6 mb-1">
-                <div id="remote-now-playing" class="marquee-content font-bold text-white">接続待ち...</div>
-            </div>
-            <p id="remote-now-requester" class="text-xs text-gray-400">---</p>
-        </div>
+        <!-- 1.5 テーマ表示 -->
+        <div id="remote-theme-display-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
 
-        <div class="grid grid-cols-2 gap-4 mb-6">
-            <button onclick="sendRemoteCommand('toggle')" id="btn-remote-play" class="bg-red-600 hover:bg-red-500 text-white font-bold py-6 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform">
-                <i class="fa-solid fa-play text-2xl"></i>
-                <span class="text-xs mt-1">再生/一時停止</span>
-            </button>
-            <button onclick="sendRemoteCommand('skip')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-6 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform">
-                <i class="fa-solid fa-forward-step text-2xl"></i>
-                <span class="text-xs mt-1">スキップ</span>
+        <!-- 2. コントロールバー (映像とメニューの間) -->
+        <div class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
+            <div class="flex gap-2">
+                <button onclick="switchRemoteLayer('cam')" id="remote-tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
+                <button onclick="switchRemoteLayer('wp')" id="remote-tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
+            </div>
+            <button onclick="document.getElementById('remote-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
+                <i class="fa-solid fa-gear"></i>
             </button>
         </div>
 
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 flex flex-col">
-            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
-                <h3 class="text-sm font-bold text-gray-300"><i class="fa-solid fa-comment-dots"></i> リアルタイムチャット</h3>
-                <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
-                    <input type="checkbox" id="remote-tts-toggle" class="rounded bg-gray-900 border-gray-600 text-indigo-500">
-                    <i class="fa-solid fa-head-side-waveform"></i> 読上
-                </label>
-            </div>
-            <div id="remote-chat-list" class="h-48 overflow-y-auto space-y-1 mb-2 pr-2"></div>
+        <!-- 3. 基本コントロール (テーマ入力 & 再生ボタン) -->
+        <div class="flex-shrink-0 bg-[#111827] border-b border-gray-800 px-3 py-3 space-y-2 z-10 shadow-md">
             <div class="flex gap-2">
-                <input type="text" id="remote-chat-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onkeypress="if(event.key === 'Enter') sendChatRequest(true)" placeholder="チャットを送信..." class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
-                <button onclick="sendChatRequest(true)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm font-bold">送信</button>
+                <input type="text" id="remote-input-theme" placeholder="テーマ・気分を変更" class="flex-1 bg-[#18181b] border border-gray-700 rounded-lg p-2 text-white text-xs outline-none focus:border-indigo-500">
+                <button onclick="sendRemoteTheme()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 rounded-lg text-xs font-bold transition-colors">更新</button>
             </div>
-        </div>
-
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
-            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2"><i class="fa-solid fa-music text-indigo-400"></i> リモコンからリクエスト</h3>
             <div class="flex gap-2">
-                <input type="text" id="remote-url" placeholder="YouTube URL" class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white">
-                <button onclick="sendRemoteRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded font-bold transition-colors">追加</button>
+                <button onclick="sendRemoteCommand('toggle')" id="btn-remote-play" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-lg shadow transition-transform active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-play text-lg"></i>
+                </button>
+                <button onclick="sendRemoteCommand('skip')" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2.5 rounded-lg shadow transition-transform active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-forward-step text-lg"></i>
+                </button>
             </div>
         </div>
 
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
-            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2"><i class="fa-solid fa-list-ul"></i> 順番待ち (<span id="remote-queue-count">0</span>曲)</h3>
-            <div id="remote-queue-list" class="space-y-2 max-h-48 overflow-y-auto text-sm"></div>
-        </div>
-
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 flex flex-col">
-            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-3">
-                <h3 class="font-bold text-gray-200"><i class="fa-solid fa-users"></i> 参加者管理 <span id="remote-participant-count" class="text-sm font-normal text-indigo-300 ml-1"></span></h3>
-                <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
-                    <input type="checkbox" id="remote-cam-approval-toggle" onchange="sendRemoteCamApprovalToggle(this.checked)" class="rounded bg-gray-900 border-gray-600 text-red-500">
-                    視聴承認制
-                </label>
+        <!-- 4. タブメニューエリア (下部) -->
+        <div class="flex-1 flex flex-col min-h-0 bg-[#0e0e10]">
+            <!-- タブヘッダー -->
+            <div class="flex bg-[#18181b] border-b border-gray-800 shrink-0 shadow-md z-10">
+                <button onclick="switchRemoteMenuTab('chat')" id="remote-menu-tab-chat" class="flex-1 py-2.5 text-[11px] font-bold text-indigo-400 border-b-2 border-indigo-500 transition-colors">💬 コメント</button>
+                <button onclick="switchRemoteMenuTab('users')" id="remote-menu-tab-users" class="flex-1 py-2.5 text-[11px] font-bold text-gray-500 border-b-2 border-transparent transition-colors">👥 参加者</button>
+                <button onclick="switchRemoteMenuTab('list')" id="remote-menu-tab-list" class="flex-1 py-2.5 text-[11px] font-bold text-gray-500 border-b-2 border-transparent transition-colors">📋 リスト</button>
+                <button onclick="switchRemoteMenuTab('misc')" id="remote-menu-tab-misc" class="flex-1 py-2.5 text-[11px] font-bold text-gray-500 border-b-2 border-transparent transition-colors">⚙️ その他</button>
             </div>
-            <div id="remote-participant-list" class="max-h-64 overflow-y-auto space-y-2 pr-2"></div>
-        </div>
 
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3">
-            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2"><i class="fa-regular fa-clock"></i> 再生履歴</h3>
-            <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
+            <!-- コンテンツエリア -->
+            <div class="flex-1 relative overflow-hidden">
+                <!-- 💬 コメント タブ -->
+                <div id="remote-menu-content-chat" class="absolute inset-0 flex flex-col">
+                    <div id="remote-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto pb-4 relative z-10"></div>
+                    <!-- チャット入力フローティング -->
+                    <div id="remote-chat-backdrop" class="chat-backdrop" onclick="closeRemoteChatInput()"></div>
+                    <div id="remote-chat-input-container" class="flex-shrink-0 px-3 py-2 bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20 pb-safe">
+                        <input type="text" id="remote-chat-input" name="dummy-remote-chat" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusRemoteChatInput()" onblur="blurRemoteChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest(true)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
+                        <button onclick="sendChatRequest(true)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
+                    </div>
+                </div>
+
+                <!-- 👥 参加者 タブ -->
+                <div id="remote-menu-content-users" class="hidden absolute inset-0 overflow-y-auto p-3 bg-[#111827] pb-12">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-2 mb-3">
+                        <h3 class="font-bold text-gray-200 text-xs">参加者管理 <span id="remote-participant-count" class="text-indigo-300 ml-1"></span></h3>
+                        <label class="flex items-center gap-1 text-[10px] text-gray-300 cursor-pointer">
+                            <input type="checkbox" id="remote-cam-approval-toggle" onchange="sendRemoteCamApprovalToggle(this.checked)" class="rounded bg-gray-900 border-gray-600 text-red-500">
+                            視聴承認制
+                        </label>
+                    </div>
+                    <div id="remote-participant-list" class="space-y-2"></div>
+                </div>
+
+                <!-- 📋 リスト タブ -->
+                <div id="remote-menu-content-list" class="hidden absolute inset-0 overflow-y-auto p-3 bg-[#111827] pb-12">
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="text-xs font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">順番待ち (<span id="remote-queue-count">0</span>)</h3>
+                            <div id="remote-queue-list" class="space-y-1.5 text-[10px]"></div>
+                        </div>
+                        <div>
+                            <h3 class="text-xs font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">再生履歴</h3>
+                            <div id="remote-history-list" class="space-y-1.5 text-[10px] text-gray-500"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ⚙️ その他 タブ -->
+                <div id="remote-menu-content-misc" class="hidden absolute inset-0 overflow-y-auto p-3 bg-[#111827] pb-12">
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="text-xs font-bold text-indigo-400 mb-2"><i class="fa-solid fa-music"></i> リモコンからリクエスト</h3>
+                            <div class="flex gap-2">
+                                <input type="text" id="remote-url" placeholder="YouTube URL" class="flex-1 bg-[#18181b] border border-gray-700 rounded p-2 text-white text-xs outline-none focus:border-indigo-500">
+                                <button onclick="sendRemoteRequest()" class="bg-red-600 hover:bg-red-500 text-white px-3 rounded text-xs font-bold transition-colors">追加</button>
+                            </div>
+                        </div>
+                        <div class="border-t border-gray-800 pt-3">
+                            <label class="flex items-center justify-between text-xs text-gray-300 cursor-pointer">
+                                <span><i class="fa-solid fa-head-side-waveform text-indigo-400"></i> チャット読み上げ (TTS)</span>
+                                <div class="relative inline-flex items-center">
+                                    <input type="checkbox" id="remote-tts-toggle" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
+                                </div>
+                            </label>
+                        </div>
+                        <div class="pt-8 text-center text-gray-700 text-[10px]">v1.0.26</div>
+                    </div>
+                </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6 pb-12">v1.0.25</p>
     </div>
 
+    <!-- リモコン用カメラ承認ポップアップ -->
     <div id="remote-cam-modal" class="hidden fixed inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
             <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-video"></i> 視聴リクエスト</h3>
@@ -787,7 +863,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.25</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.26</div>
     </div>
 
     <!-- 全画面共通リロードボタン (アイコン化) -->
@@ -856,6 +932,12 @@
 
         let mediaRecorder = null;
         let recordedChunks = [];
+        
+        let isRemoteMode = false;
+        let isListenerVideoOpen = false;
+        let listenerHasStream = false;
+        let isWatchPartyEnabled = true;
+        let remoteHasStream = false;
 
         document.addEventListener('DOMContentLoaded', () => {
             const menuDetails = document.getElementById('listener-menu-details');
@@ -873,7 +955,7 @@
             }
         });
 
-        // チャット入力欄フローティング機能のJS関数
+        // チャット入力欄フローティング機能のJS関数 (リスナー用)
         function focusChatInput() {
             document.getElementById('listener-chat-input-container').classList.add('chat-input-floating');
             document.getElementById('listener-chat-backdrop').classList.add('active');
@@ -887,12 +969,33 @@
         }
 
         function blurChatInputDelay() {
-            // 送信ボタンクリック等がキャンセルされないよう少し遅延して閉じる
             setTimeout(() => {
                 const input = document.getElementById('listener-chat-input');
                 if (document.activeElement !== input) {
                     document.getElementById('listener-chat-input-container').classList.remove('chat-input-floating');
                     document.getElementById('listener-chat-backdrop').classList.remove('active');
+                }
+            }, 200);
+        }
+
+        // チャット入力欄フローティング機能のJS関数 (リモコン用)
+        function focusRemoteChatInput() {
+            document.getElementById('remote-chat-input-container').classList.add('chat-input-floating');
+            document.getElementById('remote-chat-backdrop').classList.add('active');
+        }
+
+        function closeRemoteChatInput() {
+            const input = document.getElementById('remote-chat-input');
+            if (input) input.blur();
+            document.getElementById('remote-chat-input-container').classList.remove('chat-input-floating');
+            document.getElementById('remote-chat-backdrop').classList.remove('active');
+        }
+
+        function blurRemoteChatInputDelay() {
+            setTimeout(() => {
+                const input = document.getElementById('remote-chat-input');
+                if (document.activeElement !== input) {
+                    closeRemoteChatInput();
                 }
             }, 200);
         }
@@ -913,8 +1016,7 @@
 
             const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
             if (isTouchDevice) {
-                const remoteVolContainer = document.getElementById('remote-wp-volume-container');
-                if (remoteVolContainer) remoteVolContainer.style.display = 'none';
+                // ...
             }
 
             const params = new URLSearchParams(window.location.search);
@@ -936,6 +1038,8 @@
                     }
                 } else if(params.has('host')) {
                     showView('listener-view');
+                    document.body.classList.remove('p-4', 'sm:p-8');
+                    document.body.classList.add('p-0', 'overflow-hidden');
                     currentRoomId = params.get('host');
                     initListener(false);
                 } else if(params.has('obs')) {
@@ -950,6 +1054,8 @@
                     initListener(false, false, true); 
                 } else if(params.has('remote')) {
                     showView('remote-view');
+                    document.body.classList.remove('p-4', 'sm:p-8');
+                    document.body.classList.add('p-0', 'overflow-hidden');
                     currentRoomId = params.get('remote');
                     initListener(false, true);
                 } else if(params.has('cam') || params.has('camera')) {
@@ -975,7 +1081,7 @@
             const v = document.getElementById(viewId);
             if(v) {
                 v.classList.remove('hidden');
-                if(viewId === 'host-view' || viewId === 'listener-view') v.classList.add('flex');
+                if(viewId === 'host-view' || viewId === 'listener-view' || viewId === 'remote-view') v.classList.add('flex');
             }
         }
 
@@ -1178,9 +1284,13 @@
             currentRoomId = roomId;
             if (currentPortalMode === 'remote') {
                 showView('remote-view');
+                document.body.classList.remove('p-4', 'sm:p-8');
+                document.body.classList.add('p-0', 'overflow-hidden');
                 initListener(false, true);
             } else if (currentPortalMode === 'listener') {
                 showView('listener-view');
+                document.body.classList.remove('p-4', 'sm:p-8');
+                document.body.classList.add('p-0', 'overflow-hidden');
                 initListener();
             } else if (currentPortalMode === 'cam' || currentPortalMode === 'camera') {
                 showView('camera-view');
@@ -1527,7 +1637,7 @@
                         listener.isMuted = restoredIsMuted;
                     }
 
-                    if (listener.isObs) {
+                    if (listener.isObs || listener.isRemote) {
                         listener.cameraStatus = 'approved';
                         if (currentStreamToListeners && !listener.call) {
                             sendStreamToPeer(listener.id);
@@ -1607,7 +1717,7 @@
             }
             else if(data.type === 'request_camera') {
                 if(listener) {
-                    if(cameraApprovalMode) {
+                    if(cameraApprovalMode && !listener.isRemote && !listener.isObs) {
                         listener.cameraStatus = 'requested';
                         updateParticipantsUI();
                         showHostNews(`<i class="fa-solid fa-bell text-yellow-400"></i> ${listener.name} がStream視聴承認待ちです`);
@@ -1658,7 +1768,7 @@
                 });
             } else {
                 Object.values(connectedListeners).forEach(p => {
-                    if(!p.isObs && p.cameraStatus !== 'approved') {
+                    if(!p.isObs && !p.isRemote && p.cameraStatus !== 'approved') {
                         p.cameraStatus = 'none';
                     }
                 });
@@ -2208,7 +2318,7 @@
         function broadcastStreamToListeners(stream) {
             currentStreamToListeners = stream;
             Object.values(connectedListeners).forEach(listener => {
-                if(!cameraApprovalMode || listener.cameraStatus === 'approved' || listener.isObs) {
+                if(!cameraApprovalMode || listener.cameraStatus === 'approved' || listener.isObs || listener.isRemote) {
                     sendStreamToPeer(listener.id);
                 }
             });
@@ -2529,11 +2639,6 @@
             }
         }
 
-        let isRemoteMode = false;
-        let isListenerVideoOpen = false;
-        let listenerHasStream = false;
-        let isWatchPartyEnabled = true;
-
         let currentCamReqPeerId = null;
         function showCameraRequestModal(peerId, name) {
             currentCamReqPeerId = peerId;
@@ -2572,8 +2677,8 @@
                     viewerYTPlayer.unMute();
                     
                     if(isRemoteMode) {
-                        const volSlider = document.getElementById('remote-wp-volume');
-                        if(volSlider) viewerYTPlayer.setVolume(volSlider.value);
+                        const toggle = document.getElementById('toggle-remote-wp-mute');
+                        if(toggle) toggle.checked = true;
                     } else {
                         const toggle = document.getElementById('toggle-wp-mute');
                         if(toggle) toggle.checked = true;
@@ -2618,8 +2723,58 @@
             }
         }
 
+        // リモコン用切り替え
+        function switchRemoteLayer(layer) {
+            const camLayer = document.getElementById('remote-cam-layer');
+            const wpLayer = document.getElementById('remote-wp-layer');
+            const tabCam = document.getElementById('remote-tab-cam');
+            const tabWp = document.getElementById('remote-tab-wp');
+
+            if(layer === 'cam') {
+                camLayer.classList.replace('layer-hidden', 'layer-visible');
+                wpLayer.classList.replace('layer-visible', 'layer-hidden');
+                tabCam.classList.add('bg-red-600', 'text-white');
+                tabCam.classList.remove('bg-gray-700', 'text-gray-400');
+                tabWp.classList.add('bg-gray-700', 'text-gray-400');
+                tabWp.classList.remove('bg-indigo-600', 'text-white');
+            } else {
+                wpLayer.classList.replace('layer-hidden', 'layer-visible');
+                camLayer.classList.replace('layer-visible', 'layer-hidden');
+                tabWp.classList.add('bg-indigo-600', 'text-white');
+                tabWp.classList.remove('bg-gray-700', 'text-gray-400');
+                tabCam.classList.add('bg-gray-700', 'text-gray-400');
+                tabCam.classList.remove('bg-red-600', 'text-white');
+            }
+        }
+
+        function switchRemoteMenuTab(tabId) {
+            ['chat', 'users', 'list', 'misc'].forEach(id => {
+                document.getElementById('remote-menu-content-' + id).classList.add('hidden');
+                const btn = document.getElementById('remote-menu-tab-' + id);
+                btn.classList.remove('text-indigo-400', 'border-indigo-500');
+                btn.classList.add('text-gray-500', 'border-transparent');
+            });
+            document.getElementById('remote-menu-content-' + tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('remote-menu-tab-' + tabId);
+            activeBtn.classList.add('text-indigo-400', 'border-indigo-500');
+            activeBtn.classList.remove('text-gray-500', 'border-transparent');
+            
+            if(tabId === 'chat') {
+                const chatList = document.getElementById('remote-chat-list');
+                if(chatList) chatList.scrollTop = chatList.scrollHeight;
+            }
+        }
+
         function toggleListenerAudioFromSwitch(isSoundOn) {
             const video = document.getElementById('listener-video');
+            if (video) {
+                video.muted = !isSoundOn;
+                if (!video.muted) video.play().catch(e=>{});
+            }
+        }
+
+        function toggleRemoteAudioFromSwitch(isSoundOn) {
+            const video = document.getElementById('remote-video');
             if (video) {
                 video.muted = !isSoundOn;
                 if (!video.muted) video.play().catch(e=>{});
@@ -2643,26 +2798,25 @@
             }
         }
 
+        function toggleRemoteWatchPartyVideoFromSwitch(isOn) {
+            const playerWrapper = document.getElementById('remote-youtube-player-wrapper');
+            if (playerWrapper) {
+                playerWrapper.style.opacity = isOn ? '1' : '0';
+                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
+            }
+        }
+
         function handleSyncPlayback(data) {
             if (isHost) return;
 
-            const wpContainerId = isRemoteMode ? 'remote-watch-party-container' : 'listener-wp-layer';
+            const wpContainerId = isRemoteMode ? 'remote-wp-layer' : 'listener-wp-layer';
             const wpPlayerId = isRemoteMode ? 'remote-youtube-player' : 'listener-youtube-player';
 
             if (!isWatchPartyEnabled) {
-                if(isRemoteMode) {
-                     const wpContainer = document.getElementById(wpContainerId);
-                     if (wpContainer && !wpContainer.classList.contains('hidden')) wpContainer.classList.add('hidden');
-                }
                 if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
                     viewerYTPlayer.pauseVideo();
                 }
                 return;
-            }
-
-            if(isRemoteMode) {
-                const wpContainer = document.getElementById(wpContainerId);
-                if (wpContainer) wpContainer.classList.remove('hidden'); 
             }
 
             if (!viewerYTPlayer) {
@@ -2733,26 +2887,6 @@
                     viewerYTPlayer.pauseVideo();
                     viewerYTPlayer.seekTo(hostCurrentTime, true);
                     viewerYTPlayer.setPlaybackRate(1.0);
-                }
-            }
-        }
-
-        function toggleWatchPartyFullscreen() {
-            const wrapperId = isRemoteMode ? 'remote-watch-party-wrapper' : 'listener-wp-layer';
-            const wrapper = document.getElementById(wrapperId);
-            if (!wrapper) return;
-            
-            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                if (wrapper.requestFullscreen) {
-                    wrapper.requestFullscreen();
-                } else if (wrapper.webkitRequestFullscreen) {
-                    wrapper.webkitRequestFullscreen(); 
-                }
-            } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                } else if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
                 }
             }
         }
@@ -2933,6 +3067,25 @@
                             });
                         }
                     }
+                    else if(isRemoteMode) {
+                        remoteHasStream = true;
+                        const video = document.getElementById('remote-video');
+                        const btn = document.getElementById('btn-remote-toggle-camera');
+                        
+                        if(btn) btn.classList.add('hidden'); 
+                        video.srcObject = stream;
+                        
+                        const camMuteToggle = document.getElementById('toggle-remote-cam-mute');
+                        if(camMuteToggle) camMuteToggle.checked = true;
+                        video.muted = true; // リモコンは最初はミュート
+                        
+                        video.play().catch(e => {
+                            video.muted = true;
+                            if(camMuteToggle) camMuteToggle.checked = false;
+                            video.play().catch(er=>{});
+                        });
+                        broadcastState();
+                    }
                     else if(!isObs && !isRemote) {
                         listenerHasStream = true;
                         const video = document.getElementById('listener-video');
@@ -2955,7 +3108,16 @@
                         broadcastState();
                     }
                 });
-                call.on('close', () => { if(!isObs && !isRemote && !isObsCam) resetListenerVideo(); });
+                call.on('close', () => { 
+                    if(!isObs && !isRemote && !isObsCam) resetListenerVideo(); 
+                    if(isRemoteMode) {
+                        remoteHasStream = false;
+                        const videoEl = document.getElementById('remote-video');
+                        if (videoEl) videoEl.srcObject = null;
+                        const btn = document.getElementById('btn-remote-toggle-camera');
+                        if(btn) { btn.classList.remove('hidden'); }
+                    }
+                });
             });
 
             const url = new URL(window.location);
@@ -3007,6 +3169,16 @@
             if (listenerConn && listenerConn.open) {
                 listenerConn.send({ type: 'request_camera' });
                 if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+            }
+        }
+        
+        function requestRemoteCamera() {
+            const btn = document.getElementById('btn-remote-toggle-camera');
+            if (btn && btn.disabled) return; 
+
+            if (listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'request_camera' });
+                if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 取得中...';
             }
         }
 
@@ -3113,6 +3285,8 @@
                 document.getElementById(inputId).value = '';
                 if (role === 'listener' && !isRemote) {
                     closeChatInput();
+                } else if (isRemote) {
+                    closeRemoteChatInput();
                 }
             }
         }
@@ -3131,7 +3305,7 @@
             const container = document.getElementById(containerId);
             if(!container) return;
             
-            const isListenerView = containerId === 'listener-chat-list';
+            const isListenerView = containerId === 'listener-chat-list' || containerId === 'remote-chat-list';
 
             container.innerHTML = '';
             chats.forEach(c => {
@@ -3249,15 +3423,15 @@
                 const remotePlayBtn = document.getElementById('btn-remote-play');
                 if(remotePlayBtn) {
                     remotePlayBtn.innerHTML = isPlaying
-                        ? `<i class="fa-solid fa-pause text-2xl"></i><span class="text-xs mt-1">一時停止</span>`
-                        : `<i class="fa-solid fa-play text-2xl"></i><span class="text-xs mt-1">再生</span>`;
+                        ? `<i class="fa-solid fa-pause text-lg"></i>`
+                        : `<i class="fa-solid fa-play text-lg"></i>`;
                 }
             }
 
             document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
 
             if(!isObs && !isObsCam) {
-                const tDiv = document.getElementById(isRemoteMode ? 'remote-theme-container' : 'listener-theme-container');
+                const tDiv = document.getElementById(isRemoteMode ? 'remote-theme-display-container' : 'listener-theme-container');
                 if(tDiv) {
                     if(hostTheme) { 
                         tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
@@ -3282,10 +3456,7 @@
                             else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
                         } else btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
                     }
-                    
-                    if(tabCamIcon) {
-                        tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
-                    }
+                    if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
                 } else { 
                     resetListenerVideo(); 
                     if(btn) {
@@ -3293,10 +3464,7 @@
                         btn.disabled = true;
                         btn.classList.add('opacity-50', 'cursor-not-allowed');
                     }
-                    
-                    if(tabCamIcon) {
-                        tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
-                    }
+                    if(tabCamIcon) tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
                 }
             }
 
@@ -3327,6 +3495,29 @@
                         `;
                         hList.appendChild(div);
                     });
+                }
+                
+                // カメラ配信のボタンとタブの発光（リモコン用）
+                const btnRemote = document.getElementById('btn-remote-toggle-camera');
+                const tabRemoteCamIcon = document.querySelector('#remote-tab-cam i');
+                if(isLive) {
+                    if(btnRemote && !remoteHasStream) {
+                        btnRemote.disabled = false;
+                        btnRemote.classList.remove('opacity-50', 'cursor-not-allowed');
+                        btnRemote.innerHTML = '<i class="fa-solid fa-video text-white text-xs"></i> 映像を受信 (タップ)';
+                    }
+                    if(tabRemoteCamIcon) tabRemoteCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+                } else {
+                    remoteHasStream = false;
+                    const videoEl = document.getElementById('remote-video');
+                    if (videoEl) videoEl.srcObject = null;
+                    if(btnRemote) {
+                        btnRemote.classList.remove('hidden');
+                        btnRemote.textContent = "配信はオフラインです"; 
+                        btnRemote.disabled = true;
+                        btnRemote.classList.add('opacity-50', 'cursor-not-allowed');
+                    }
+                    if(tabRemoteCamIcon) tabRemoteCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
                 }
             }
 
