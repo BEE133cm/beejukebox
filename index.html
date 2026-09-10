@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox v1.0.19</title>
+    <title>Remote Jukebox v1.0.20</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -60,10 +60,7 @@
         .layer-hidden { opacity: 0; pointer-events: none; z-index: 0; }
         .layer-visible { opacity: 1; pointer-events: auto; z-index: 10; }
         
-        /* iPhone等のホームインジケーター（下部のバー）回避用 */
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
-        
-        /* アコーディオンの矢印非表示(独自実装用) */
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
     </style>
@@ -156,7 +153,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.19</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.20</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -365,15 +362,52 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.19</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.20</p>
     </div>
 
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
-    <div id="listener-view" class="hidden fixed inset-0 z-50 bg-[#0e0e10] flex flex-col text-sm w-full h-[100dvh]">
+    <div id="listener-view" class="hidden fixed inset-0 z-50 bg-[#0e0e10] flex flex-col text-sm w-full transition-all">
         
+        <!-- ボリューム・ミュート設定モーダル -->
+        <div id="listener-volume-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
+            <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
+                <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                    <h3 class="text-white font-bold text-sm">🔊 音量・ミュート設定</h3>
+                    <button onclick="document.getElementById('listener-volume-modal').classList.add('hidden')" class="text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center">✖</button>
+                </div>
+                <div class="space-y-5">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300 text-sm font-bold">📷 カメラの音声</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggle-cam-mute" class="sr-only peer" onchange="toggleListenerAudioFromSwitch(this.checked)">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300 text-sm font-bold">📺 ウォチパの音声</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggle-wp-mute" class="sr-only peer" onchange="toggleWatchPartyMuteFromSwitch(this.checked)">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 1. 映像エリア (上部固定) -->
         <div class="relative w-full aspect-video bg-black flex-shrink-0 z-20">
             
+            <!-- NowPlaying帯 (映像上部) -->
+            <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
+                <div id="listener-eq" class="equalizer scale-75 shrink-0 origin-left"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
+                <div class="marquee-container h-4 flex-1">
+                    <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
+                        <span id="listener-now-playing">接続待ち...</span>
+                        <span id="listener-now-requester" class="text-indigo-300 font-normal"></span>
+                    </div>
+                </div>
+            </div>
+
             <!-- カメラ映像レイヤー -->
             <div id="listener-cam-layer" class="absolute inset-0 layer-hidden transition-opacity duration-300">
                 <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
@@ -393,6 +427,9 @@
             </div>
         </div>
 
+        <!-- 1.5 配信主からのコメント表示（テーマ） -->
+        <div id="listener-theme-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
+
         <!-- 2. コントロールバー (映像とコメントの間) -->
         <div class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
             <!-- 映像切り替えタブ -->
@@ -400,83 +437,42 @@
                 <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-colors shadow">📷 カメラ</button>
                 <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-colors shadow">📺 ウォチパ</button>
             </div>
-            <!-- ミュートボタン -->
-            <div class="flex gap-2">
-                <button onclick="toggleListenerAudio()" id="btn-listener-audio" class="w-10 h-8 rounded-full bg-gray-700 text-gray-400 text-xs font-bold flex items-center justify-center shadow transition-colors" title="カメラの音量">
-                    <span id="icon-cam-mute">🔇</span>
-                </button>
-                <button onclick="toggleWatchPartyMute()" id="btn-wp-mute" class="w-10 h-8 rounded-full bg-indigo-700 text-white text-xs font-bold flex items-center justify-center shadow transition-colors" title="ウォチパの音量">
-                    <span id="icon-wp-mute">🔊</span>
-                </button>
-            </div>
+            <!-- 音量モーダル呼び出しボタン -->
+            <button onclick="document.getElementById('listener-volume-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="音量・ミュート設定">
+                🔊
+            </button>
         </div>
 
         <!-- 3. スクロール領域 (リクエスト類 ＋ チャット) -->
-        <div class="flex-1 overflow-y-auto flex flex-col relative bg-[#0e0e10]" id="listener-scroll-area">
+        <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0">
             
-            <!-- リクエスト・ステータス等（アコーディオンで格納して邪魔にならないようにする） -->
-            <details class="bg-[#18181b] border-b border-gray-800 shrink-0 group">
+            <!-- リクエスト・ステータス等（アコーディオン） -->
+            <details id="listener-menu-details" class="bg-[#18181b] border-b border-gray-800 shrink-0 group z-10 relative">
                 <summary class="p-3 cursor-pointer text-gray-400 font-bold text-xs flex justify-between items-center outline-none hover:text-white transition-colors">
                     <div class="flex items-center gap-2">
                         <span class="text-indigo-400 text-sm">🎵</span> 
-                        <span>Now Playing & リクエスト等 (タップで開閉)</span>
+                        <span>リクエスト等 (タップで開閉)</span>
                     </div>
                     <span class="group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 
-                <!-- アコーディオンの中身 (既存の機能群) -->
-                <div class="p-4 space-y-5 bg-[#111827] border-t border-gray-800">
+                <!-- アコーディオンの中身 (チャットを隠して表示) -->
+                <div class="p-4 space-y-6 bg-[#111827] border-t border-gray-800 h-full overflow-y-auto">
                     
-                    <!-- 接続ステータス -->
-                    <div class="text-center">
-                        <div id="listener-status" class="text-xs text-yellow-500 animate-pulse mb-2">ルームに接続中...</div>
-                        <div id="listener-theme-container" class="bg-indigo-900/30 text-indigo-300 text-xs p-2 rounded mb-2 hidden text-center font-bold"></div>
-                    </div>
-
-                    <!-- Now Playing -->
-                    <div class="bg-gray-800/80 p-3 rounded-lg border border-gray-700 shadow-inner">
-                        <div class="flex justify-between items-end mb-1">
-                            <p class="text-[10px] text-red-400 font-bold uppercase tracking-wider">Now Playing</p>
-                            <div id="listener-eq" class="equalizer"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
-                        </div>
-                        <div class="marquee-container h-5 mb-1">
-                            <div id="listener-now-playing" class="marquee-content font-bold text-white text-sm">接続待ち...</div>
-                        </div>
-                        <p id="listener-now-requester" class="text-[10px] text-gray-400">---</p>
-                        
-                        <!-- Watch Party Toggle -->
-                        <div class="border-t border-gray-700/50 pt-3 mt-3 flex justify-center">
-                            <label class="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
-                                <input type="checkbox" id="listener-wp-toggle" checked onchange="toggleWatchPartyEnable()" class="rounded bg-gray-900 border-gray-600 text-indigo-500">
-                                <span class="font-bold">📺 同時視聴の同期を有効にする</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- プロフィール & リクエスト送信 -->
+                    <!-- ① リクエスト送信 -->
                     <div class="space-y-3">
-                        <div>
-                            <input type="text" id="listener-name" placeholder="入室時に入力した名前" readonly class="w-full bg-gray-900/50 border border-gray-700 rounded p-2 text-gray-400 text-xs focus:outline-none cursor-not-allowed">
-                        </div>
-                        <label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
-                            <input type="checkbox" id="listener-anon" class="rounded bg-gray-900 border-gray-600 text-red-500">
-                            <span>匿名(184)にする</span>
-                        </label>
-                        
-                        <div class="pt-4 border-t border-gray-800">
-                            <h3 class="text-xs font-bold text-indigo-400 mb-2 flex items-center gap-1">
-                                👇 リクエストはこちらから！
-                                <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="bg-gray-700 text-gray-300 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-2">?</button>
-                            </h3>
-                            <div class="flex gap-2">
-                                <input type="text" id="listener-url" placeholder="https://youtu.be/..." class="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs outline-none focus:border-indigo-500">
-                                <button onclick="sendRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded text-xs font-bold transition-colors">送信</button>
-                            </div>
+                        <h3 class="text-xs font-bold text-indigo-400 flex items-center gap-1">
+                            👇 リクエストはこちらから！
+                            <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="bg-gray-700 text-gray-300 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-2">?</button>
+                        </h3>
+                        <div class="flex gap-2">
+                            <input type="text" id="listener-url" placeholder="https://youtu.be/..." class="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs outline-none focus:border-indigo-500">
+                            <button onclick="sendRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded text-xs font-bold transition-colors">送信</button>
                         </div>
                     </div>
 
-                    <!-- キューと履歴 -->
-                    <div class="grid grid-cols-2 gap-3 pt-2">
+                    <!-- ② キューと履歴 -->
+                    <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-800/60">
                         <div>
                             <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">順番待ち (<span id="listener-queue-count">0</span>)</h3>
                             <div id="listener-queue-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px]"></div>
@@ -486,20 +482,38 @@
                             <div id="listener-history-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px] text-gray-500"></div>
                         </div>
                     </div>
+
+                    <!-- ③ プロフィール & 184 -->
+                    <div class="pt-4 border-t border-gray-800/60 space-y-3">
+                        <h3 class="text-[10px] font-bold text-gray-500">あなたのプロフィール</h3>
+                        <div>
+                            <input type="text" id="listener-name" placeholder="入室時に入力した名前" readonly class="w-full bg-gray-900/50 border border-gray-700 rounded p-2 text-gray-400 text-xs focus:outline-none cursor-not-allowed">
+                        </div>
+                        <label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+                            <input type="checkbox" id="listener-anon" class="rounded bg-gray-900 border-gray-600 text-red-500">
+                            <span>匿名(184)にする</span>
+                        </label>
+                    </div>
+
                 </div>
             </details>
 
-            <!-- チャットリスト (フレックスで画面一杯に広がる) -->
-            <div id="listener-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto min-h-[250px] flex flex-col justify-end pb-4">
-                <!-- Chat messages here -->
-            </div>
-        </div>
+            <!-- チャットリスト領域 (アコーディオン開閉時に隠れるラッパー) -->
+            <div id="listener-chat-area-wrapper" class="flex-1 flex flex-col min-h-0 relative">
+                <!-- 接続ステータス -->
+                <div id="listener-status" class="absolute top-2 left-0 w-full text-center text-[10px] text-yellow-500 animate-pulse pointer-events-none">ルームに接続中...</div>
 
-        <!-- 4. チャット入力エリア (最下部固定) -->
-        <div class="flex-shrink-0 px-3 pt-2 pb-safe bg-[#18181b] border-t border-gray-800 flex gap-2 items-center">
-            <div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-sm shrink-0 border border-gray-700">😊</div>
-            <input type="text" id="listener-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest(false)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
-            <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow">➤</button>
+                <div id="listener-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto min-h-0 flex flex-col justify-end pb-4 pt-6">
+                    <!-- Chat messages here -->
+                </div>
+
+                <!-- 4. チャット入力エリア (最下部固定) -->
+                <div class="flex-shrink-0 px-3 pt-2 pb-safe bg-[#18181b] border-t border-gray-800 flex gap-2 items-center">
+                    <div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-sm shrink-0 border border-gray-700">😊</div>
+                    <input type="text" id="listener-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest(false)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
+                    <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow">➤</button>
+                </div>
+            </div>
         </div>
         
     </div>
@@ -555,13 +569,6 @@
                 <span class="text-xs text-gray-400">🔈</span>
                 <input type="range" id="remote-wp-volume" min="0" max="100" value="50" class="flex-1 accent-red-500" oninput="changeWatchPartyVolume(this.value)">
                 <span class="text-xs text-gray-400">🔊</span>
-            </div>
-
-            <div class="border-t border-gray-700 pt-3 mt-3 flex justify-center">
-                <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-                    <input type="checkbox" id="remote-wp-toggle" checked onchange="toggleWatchPartyEnable()" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-indigo-500">
-                    <span class="font-bold">📺 Watch Party (同時視聴) を有効にする</span>
-                </label>
             </div>
         </div>
 
@@ -628,7 +635,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.19</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.20</p>
     </div>
 
     <div id="remote-cam-modal" class="hidden fixed inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
@@ -714,12 +721,12 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.19</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.20</div>
     </div>
 
-    <!-- 全画面共通リロードボタン -->
-    <button onclick="location.reload()" class="fixed bottom-2 left-2 bg-gray-800/80 hover:bg-gray-700 border border-gray-600 text-white px-3 py-1 rounded shadow-lg text-xs font-bold z-[9999] backdrop-blur-sm transition-colors active:bg-gray-600">
-        🔄 画面を更新
+    <!-- 全画面共通リロードボタン (右上に移動・アイコン化) -->
+    <button onclick="location.reload()" class="fixed top-3 right-3 bg-gray-800/80 hover:bg-gray-700 border border-gray-600 text-white w-9 h-9 flex items-center justify-center rounded-full shadow-lg text-sm font-bold z-[9999] backdrop-blur-sm transition-colors active:bg-gray-600" title="画面を更新">
+        🔄
     </button>
 
     <audio id="dummy-audio" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" loop playsinline></audio>
@@ -783,6 +790,36 @@
 
         let mediaRecorder = null;
         let recordedChunks = [];
+
+        // ソフトウェアキーボード追従用 (リスナー画面)
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                const vh = window.visualViewport.height;
+                const listenerView = document.getElementById('listener-view');
+                if (listenerView && !listenerView.classList.contains('hidden')) {
+                    listenerView.style.height = `${vh}px`;
+                    const chatList = document.getElementById('listener-chat-list');
+                    if(chatList) chatList.scrollTop = chatList.scrollHeight;
+                }
+            });
+        }
+
+        // リスナー画面のメニュー（アコーディオン）開閉検知でチャット領域を隠す
+        document.addEventListener('DOMContentLoaded', () => {
+            const menuDetails = document.getElementById('listener-menu-details');
+            if (menuDetails) {
+                menuDetails.addEventListener('toggle', () => {
+                    const chatWrapper = document.getElementById('listener-chat-area-wrapper');
+                    if (menuDetails.open) {
+                        chatWrapper.classList.add('hidden');
+                    } else {
+                        chatWrapper.classList.remove('hidden');
+                        const chatList = document.getElementById('listener-chat-list');
+                        if(chatList) chatList.scrollTop = chatList.scrollHeight;
+                    }
+                });
+            }
+        });
 
         window.onload = () => {
             const unlockTTS = () => { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); };
@@ -2448,11 +2485,8 @@
                         const volSlider = document.getElementById('remote-wp-volume');
                         if(volSlider) viewerYTPlayer.setVolume(volSlider.value);
                     } else {
-                        // リスナー画面用UIアップデート
-                        const btnIcon = document.getElementById('icon-wp-mute');
-                        const btn = document.getElementById('btn-wp-mute');
-                        if(btnIcon) btnIcon.textContent = "🔊";
-                        if(btn) btn.classList.replace('bg-gray-700', 'bg-indigo-700');
+                        const toggle = document.getElementById('toggle-wp-mute');
+                        if(toggle) toggle.checked = true;
                     }
                     
                     if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
@@ -2471,23 +2505,6 @@
             }
         }
         
-        function toggleWatchPartyEnable() {
-            const toggleId = isRemoteMode ? 'remote-wp-toggle' : 'listener-wp-toggle';
-            const toggle = document.getElementById(toggleId);
-            if (!toggle) return;
-
-            isWatchPartyEnabled = toggle.checked;
-            
-            if (!isWatchPartyEnabled) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function') {
-                    viewerYTPlayer.pauseVideo();
-                }
-                showToast("同時視聴の同期を停止しました", "info");
-            } else {
-                showToast("同時視聴の同期を再開します...", "info");
-            }
-        }
-
         function switchListenerLayer(layer) {
             const camLayer = document.getElementById('listener-cam-layer');
             const wpLayer = document.getElementById('listener-wp-layer');
@@ -2511,44 +2528,21 @@
             }
         }
 
-        function toggleWatchPartyMute() {
-            if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
-            
-            const btnIcon = document.getElementById('icon-wp-mute');
-            const btn = document.getElementById('btn-wp-mute');
-
-            if (viewerYTPlayer.isMuted()) {
-                viewerYTPlayer.unMute();
-                btnIcon.textContent = "🔊";
-                btn.classList.replace('bg-gray-700', 'bg-indigo-700');
-                showToast("Watch Partyのミュートを解除しました", "info");
-            } else {
-                viewerYTPlayer.mute();
-                btnIcon.textContent = "🔇";
-                btn.classList.replace('bg-indigo-700', 'bg-gray-700');
-                showToast("Watch Partyをミュートしました", "info");
+        // 新しいモーダルスイッチからの音声操作
+        function toggleListenerAudioFromSwitch(isSoundOn) {
+            const video = document.getElementById('listener-video');
+            if (video) {
+                video.muted = !isSoundOn;
+                if (!video.muted) video.play().catch(e=>{});
             }
         }
 
-        function toggleListenerAudio() {
-            const video = document.getElementById('listener-video');
-            const btnIcon = document.getElementById('icon-cam-mute');
-            const btn = document.getElementById('btn-listener-audio');
-            
-            video.muted = !video.muted;
-            if(video.muted) {
-                if(btnIcon) btnIcon.textContent = "🔇";
-                if(btn) {
-                    btn.classList.replace('bg-red-700', 'bg-gray-700');
-                    btn.classList.replace('text-white', 'text-gray-400');
-                }
+        function toggleWatchPartyMuteFromSwitch(isSoundOn) {
+            if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
+            if (isSoundOn) {
+                viewerYTPlayer.unMute();
             } else {
-                if(btnIcon) btnIcon.textContent = "🔊";
-                if(btn) {
-                    btn.classList.replace('bg-gray-700', 'bg-red-700');
-                    btn.classList.replace('text-gray-400', 'text-white');
-                }
-                video.play().catch(e=>{});
+                viewerYTPlayer.mute();
             }
         }
 
@@ -2647,7 +2641,6 @@
         }
 
         function toggleWatchPartyFullscreen() {
-            // リモコン用
             const wrapperId = isRemoteMode ? 'remote-watch-party-wrapper' : 'listener-wp-layer';
             const wrapper = document.getElementById(wrapperId);
             if (!wrapper) return;
@@ -2841,10 +2834,20 @@
                         listenerHasStream = true;
                         const video = document.getElementById('listener-video');
                         const btn = document.getElementById('btn-toggle-camera');
+                        const camMuteToggle = document.getElementById('toggle-cam-mute');
                         
                         if(btn) btn.classList.add('hidden'); 
                         video.srcObject = stream;
-                        video.play().catch(e => console.log("Stream play error:", e));
+                        
+                        // 初期状態で音を出すか（既存の「タップして開く」を押したためインタラクション済）
+                        if(camMuteToggle) camMuteToggle.checked = true;
+                        video.muted = false;
+                        
+                        video.play().catch(e => {
+                            video.muted = true;
+                            if(camMuteToggle) camMuteToggle.checked = false;
+                            video.play().catch(er=>{});
+                        });
                         isListenerVideoOpen = true;
                     }
                 });
@@ -3089,7 +3092,9 @@
                 playingEl.textContent = currentSong.title;
                 if(!isRemoteMode && !isObs && !isObsCam) {
                     const reqName = currentSong.isAnon ? '184(匿名)' : (currentSong.requester || "");
-                    document.getElementById('listener-now-requester').textContent = reqName;
+                    const reqEl = document.getElementById('listener-now-requester');
+                    if(reqEl) reqEl.textContent = reqName ? `- 👤 ${reqName}` : "";
+                    
                     const eq = document.getElementById('listener-eq');
                     if(eq) isPlaying ? eq.classList.add('active') : eq.classList.remove('active');
                 }
@@ -3109,7 +3114,7 @@
                 playingEl.textContent = "BGM停止中";
                 if(!isRemoteMode && !isObs && !isObsCam) {
                     const reqEl = document.getElementById('listener-now-requester');
-                    if(reqEl) reqEl.textContent = "---";
+                    if(reqEl) reqEl.textContent = "";
                     const eq = document.getElementById('listener-eq');
                     if(eq) eq.classList.remove('active');
                 }
@@ -3137,13 +3142,16 @@
             if(!isObs && !isObsCam) {
                 const tDiv = document.getElementById(isRemoteMode ? 'remote-theme-container' : 'listener-theme-container');
                 if(tDiv) {
-                    if(hostTheme) { tDiv.textContent = `📢 ${hostTheme}`; tDiv.classList.remove('hidden'); } 
-                    else tDiv.classList.add('hidden');
+                    if(hostTheme) { 
+                        tDiv.textContent = `📢 ${hostTheme}`; 
+                        tDiv.classList.remove('hidden'); 
+                    } else {
+                        tDiv.classList.add('hidden');
+                    }
                 }
             }
 
             if(!isRemoteMode && !isObs && !isObsCam) {
-                // UI大改修によるカメラ表示ロジックの修正
                 const btn = document.getElementById('btn-toggle-camera');
                 if(isLive) {
                     if(btn && !listenerHasStream) {
