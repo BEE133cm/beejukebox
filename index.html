@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox v1.0.23</title>
+    <title>Remote Jukebox v1.0.24</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <!-- アイコンフォント (FontAwesome) を追加 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #111827; color: white; overscroll-behavior-y: none; }
@@ -70,6 +69,22 @@
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
+
+        /* キーボード出現時の動的レイアウト最適化 (狭い画面でチャット欄を確保する) */
+        body.keyboard-active #listener-theme-container,
+        body.keyboard-active #listener-controls-bar,
+        body.keyboard-active #listener-menu-details {
+            display: none !important;
+        }
+        body.keyboard-active #listener-video-area {
+            aspect-ratio: auto !important;
+            height: 25vh !important;
+            min-height: 100px;
+        }
+        body.keyboard-active #listener-video-area > div,
+        body.keyboard-active #listener-video-area video {
+            height: 100% !important;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-4 sm:p-8 relative">
@@ -160,7 +175,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.23</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.24</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -313,7 +328,7 @@
                     </div>
                     <div id="host-chat-list" class="flex-1 overflow-y-auto space-y-1 pr-2 mb-2"></div>
                     <div class="flex gap-2 mt-auto">
-                        <input type="text" id="host-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest(true, 'host')" placeholder="チャットを送信..." class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
+                        <input type="text" id="host-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest(true, 'host')" placeholder="チャットを送信..." class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true">
                         <button onclick="sendChatRequest(true, 'host')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm font-bold">送信</button>
                     </div>
                 </div>
@@ -369,11 +384,11 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.23</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.24</p>
     </div>
 
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
-    <div id="listener-view" class="hidden fixed top-0 left-0 w-full z-50 bg-[#0e0e10] flex flex-col text-sm transition-all" style="height: 100vh;">
+    <div id="listener-view" class="hidden fixed top-0 left-0 w-full z-50 bg-[#0e0e10] flex flex-col text-sm">
         
         <!-- ボリューム・各種設定モーダル -->
         <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
@@ -434,8 +449,8 @@
             </div>
         </div>
 
-        <!-- 1. 映像エリア (上部固定) -->
-        <div class="relative w-full aspect-video bg-black flex-shrink-0 z-20">
+        <!-- 1. 映像エリア (上部固定) - トランジションを外してキーボードに即追従させる -->
+        <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden" style="aspect-ratio: 16/9;">
             
             <!-- NowPlaying帯 (映像上部) -->
             <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
@@ -449,16 +464,16 @@
             </div>
 
             <!-- Stream映像レイヤー -->
-            <div id="listener-cam-layer" class="absolute inset-0 layer-hidden transition-opacity duration-300">
+            <div id="listener-cam-layer" class="absolute inset-0 layer-hidden">
                 <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
                     <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
                 </button>
-                <video id="listener-video" autoplay playsinline muted class="w-full h-full object-cover relative z-10"></video>
+                <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
             </div>
             
             <!-- Jukebox映像レイヤー -->
-            <div id="listener-wp-layer" class="absolute inset-0 layer-visible transition-opacity duration-300 bg-black">
-                <div id="listener-youtube-player-wrapper" class="w-full h-full transition-opacity duration-300">
+            <div id="listener-wp-layer" class="absolute inset-0 layer-visible bg-black">
+                <div id="listener-youtube-player-wrapper" class="w-full h-full">
                     <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
                 </div>
                 <!-- 初回タップ用オーバーレイ -->
@@ -473,7 +488,7 @@
         <div id="listener-theme-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
 
         <!-- 2. コントロールバー (映像とコメントの間) -->
-        <div class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
+        <div id="listener-controls-bar" class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
             <!-- 映像切り替えタブ -->
             <div class="flex gap-2">
                 <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
@@ -527,7 +542,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.23
+                        v1.0.24
                     </div>
 
                 </div>
@@ -543,8 +558,9 @@
                 </div>
 
                 <!-- 4. チャット入力エリア (最下部固定) -->
+                <!-- Safariのパスワード自動入力バーを出さないための属性をフル装備 -->
                 <div class="flex-shrink-0 px-3 pt-2 pb-safe bg-[#18181b] border-t border-gray-800 flex gap-2 items-center">
-                    <input type="text" id="listener-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest(false)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
+                    <input type="text" id="listener-chat-input" name="dummy-chat-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onkeypress="if(event.key === 'Enter') sendChatRequest(false)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
                     <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
             </div>
@@ -635,7 +651,7 @@
             </div>
             <div id="remote-chat-list" class="h-48 overflow-y-auto space-y-1 mb-2 pr-2"></div>
             <div class="flex gap-2">
-                <input type="text" id="remote-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest(true)" placeholder="チャットを送信..." class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
+                <input type="text" id="remote-chat-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onkeypress="if(event.key === 'Enter') sendChatRequest(true)" placeholder="チャットを送信..." class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
                 <button onclick="sendChatRequest(true)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm font-bold">送信</button>
             </div>
         </div>
@@ -669,7 +685,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6 pb-12">v1.0.23</p>
+        <p class="text-center text-xs text-gray-500 mt-6 pb-12">v1.0.24</p>
     </div>
 
     <div id="remote-cam-modal" class="hidden fixed inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
@@ -755,7 +771,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.23</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.24</div>
     </div>
 
     <!-- 全画面共通リロードボタン (アイコン化) -->
@@ -825,7 +841,6 @@
         let mediaRecorder = null;
         let recordedChunks = [];
 
-        // リスナー画面のメニュー（アコーディオン）開閉検知でチャット領域を隠す
         document.addEventListener('DOMContentLoaded', () => {
             const menuDetails = document.getElementById('listener-menu-details');
             if (menuDetails) {
@@ -840,8 +855,46 @@
                     }
                 });
             }
+
             adjustViewport(); // 初期化時のViewport調整
         });
+
+        // iOSやChromeのキーボードが「画面に被さる（押し上げる）」挙動に完全追従する最強の処理
+        function adjustViewport() {
+            const listenerView = document.getElementById('listener-view');
+            if (!listenerView || listenerView.classList.contains('hidden')) return;
+
+            if (window.visualViewport) {
+                const vv = window.visualViewport;
+                // Visual Viewport（実際に目に見えている領域）に完全に合わせる
+                listenerView.style.height = vv.height + 'px';
+                listenerView.style.top = vv.offsetTop + 'px';
+
+                // キーボードが全画面の75%以下に迫ってきたら「キーボード出現」とみなす
+                const isKeyboardOpen = vv.height < window.innerHeight * 0.75;
+                if (isKeyboardOpen) {
+                    document.body.classList.add('keyboard-active');
+                } else {
+                    document.body.classList.remove('keyboard-active');
+                }
+            } else {
+                listenerView.style.height = window.innerHeight + 'px';
+                listenerView.style.top = '0px';
+            }
+            
+            // 全体スクロールがズレるのを防ぐ
+            window.scrollTo(0, 0);
+            
+            // チャットを最下部に維持
+            const chatList = document.getElementById('listener-chat-list');
+            if (chatList) chatList.scrollTop = chatList.scrollHeight;
+        }
+
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', adjustViewport);
+            window.visualViewport.addEventListener('scroll', adjustViewport); 
+        }
+        window.addEventListener('resize', adjustViewport);
 
         window.onload = () => {
             const unlockTTS = () => { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); };
@@ -882,8 +935,6 @@
                     }
                 } else if(params.has('host')) {
                     showView('listener-view');
-                    document.body.classList.remove('p-4', 'sm:p-8');
-                    document.body.classList.add('p-0', 'overflow-hidden');
                     currentRoomId = params.get('host');
                     initListener(false);
                 } else if(params.has('obs')) {
@@ -1129,8 +1180,6 @@
                 initListener(false, true);
             } else if (currentPortalMode === 'listener') {
                 showView('listener-view');
-                document.body.classList.remove('p-4', 'sm:p-8');
-                document.body.classList.add('p-0', 'overflow-hidden');
                 initListener();
             } else if (currentPortalMode === 'cam' || currentPortalMode === 'camera') {
                 showView('camera-view');
@@ -3339,27 +3388,6 @@
                 }
             }
         }
-        
-        function adjustViewport() {
-            const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-            const listenerView = document.getElementById('listener-view');
-            if (listenerView) {
-                listenerView.style.height = vh + 'px';
-            }
-            
-            // iOS等でのフォーカス時の意図しない画面全体のスクロールズレをリセット
-            window.scrollTo(0, 0);
-            
-            // チャットを最下部に維持
-            const chatList = document.getElementById('listener-chat-list');
-            if (chatList) chatList.scrollTop = chatList.scrollHeight;
-        }
-
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', adjustViewport);
-        }
-        window.addEventListener('resize', adjustViewport);
-        
     </script>
 </body>
 </html>
