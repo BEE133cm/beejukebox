@@ -1448,27 +1448,41 @@
 
             if(data.type === 'update_profile') {
                 if(listener) {
+                    let inheritedCamStatus = 'none';
+                    let inheritedMute = false;
+                    let wasAnnounced = false;
+
                     if (data.uuid) {
                         Object.values(connectedListeners).forEach(oldP => {
                             if (oldP.uuid === data.uuid && oldP.id !== peerId) {
+                                inheritedCamStatus = oldP.cameraStatus;
+                                inheritedMute = oldP.isMuted;
+                                wasAnnounced = oldP.hasAnnounced;
+                                
                                 oldP.conn.close();
                                 delete connectedListeners[oldP.id];
                             }
                         });
                     }
 
-                    const isNew = (listener.name === "名無し" || !listener.hasAnnounced) && data.name !== "名無し" && !data.isObs && !data.isRemote;
+                    const isNew = (listener.name === "名無し" || !listener.hasAnnounced) && data.name !== "名無し" && !data.isObs && !data.isRemote && !wasAnnounced;
                     listener.name = data.name;
                     listener.isRemote = data.isRemote || false;
                     listener.isObs = data.isObs || false;
                     listener.uuid = data.uuid; 
                     listener.lastPongReceived = Date.now();
                     
+                    if (inheritedCamStatus !== 'none') listener.cameraStatus = inheritedCamStatus;
+                    if (inheritedMute) listener.isMuted = inheritedMute;
+                    if (wasAnnounced) listener.hasAnnounced = true;
+                    
                     if (listener.isObs) {
                         listener.cameraStatus = 'approved';
                         if (currentStreamToListeners && !listener.call) {
                             sendStreamToPeer(listener.id);
                         }
+                    } else if (listener.cameraStatus === 'approved' && currentStreamToListeners && !listener.call) {
+                        sendStreamToPeer(listener.id);
                     }
 
                     if (isNew) {
@@ -1480,6 +1494,7 @@
                     }
 
                     updateParticipantsUI();
+                    broadcastState();
                 }
             }
             else if(data.type === 'request') {
@@ -2700,7 +2715,13 @@
 
         function initListener(isObs = false, isRemote = false, isObsCam = false) {
             if (!isObs && !isRemote && !isObsCam) {
-                showNameModal();
+                const savedName = localStorage.getItem('jukebox_guest_name');
+                if (savedName) {
+                    document.getElementById('listener-name').value = savedName;
+                    startListenerConnection(isObs, isRemote, isObsCam);
+                } else {
+                    showNameModal();
+                }
             } else {
                 startListenerConnection(isObs, isRemote, isObsCam);
             }
