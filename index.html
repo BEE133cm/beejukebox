@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v1.0.17</title>
+    <title>Remote Jukebox v1.0.18</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -147,7 +147,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.17</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.18</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -309,7 +309,7 @@
 
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 flex flex-col" style="height: 350px;">
                     <div class="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
-                        <h3 class="font-bold text-gray-200">👥 参加者管理</h3>
+                        <h3 class="font-bold text-gray-200">👥 参加者管理 <span id="host-participant-count" class="text-sm font-normal text-indigo-300 ml-1"></span></h3>
                         <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
                             <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded bg-gray-900 border-gray-600 text-red-500">
                             視聴承認制
@@ -358,7 +358,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.17</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.18</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -477,7 +477,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.17</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.18</div>
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -593,7 +593,7 @@
 
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 flex flex-col">
             <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-3">
-                <h3 class="font-bold text-gray-200">👥 参加者管理</h3>
+                <h3 class="font-bold text-gray-200">👥 参加者管理 <span id="remote-participant-count" class="text-sm font-normal text-indigo-300 ml-1"></span></h3>
                 <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
                     <input type="checkbox" id="remote-cam-approval-toggle" onchange="sendRemoteCamApprovalToggle(this.checked)" class="rounded bg-gray-900 border-gray-600 text-red-500">
                     視聴承認制
@@ -607,7 +607,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.17</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.18</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ (既存モーダル) -->
@@ -694,7 +694,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.17</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.18</div>
     </div>
 
     <!-- 全画面共通リロードボタン -->
@@ -1228,6 +1228,31 @@
                         });
                     }
                 }, 1000);
+
+                // ハートビート（生存確認）とゾンビお掃除ループ
+                setInterval(() => {
+                    if (!isHost) return;
+                    const now = Date.now();
+                    Object.values(connectedListeners).forEach(p => {
+                        if (p.conn.open) {
+                            if (!p.lastPongReceived) p.lastPongReceived = now;
+                            
+                            // 30秒以上応答がなければゾンビとみなして切断・削除
+                            if (now - p.lastPongReceived > 30000) {
+                                p.conn.close();
+                                delete connectedListeners[p.id];
+                                updateParticipantsUI();
+                                broadcastState();
+                            } else {
+                                p.conn.send({ type: 'ping' });
+                            }
+                        } else {
+                            delete connectedListeners[p.id];
+                            updateParticipantsUI();
+                            broadcastState();
+                        }
+                    });
+                }, 10000);
             });
 
             peer.on('error', (err) => {
@@ -1248,7 +1273,7 @@
 
                 if(!conn.peer.startsWith('cam-')) {
                     connectedListeners[conn.peer] = {
-                        id: conn.peer, conn: conn, name: "名無し", isMuted: false, cameraStatus: 'none', isRemote: false, isObs: false, call: null, hasAnnounced: false
+                        id: conn.peer, conn: conn, name: "名無し", isMuted: false, cameraStatus: 'none', isRemote: false, isObs: false, call: null, hasAnnounced: false, lastPongReceived: Date.now()
                     };
                     updateParticipantsUI();
                 }
@@ -1293,6 +1318,13 @@
                         }
                     } else {
                         conn.isAuthenticated = true;
+                    }
+
+                    if (data.type === 'pong') {
+                        if (connectedListeners[conn.peer]) {
+                            connectedListeners[conn.peer].lastPongReceived = Date.now();
+                        }
+                        return;
                     }
                     
                     handleHostData(data, conn); 
@@ -1340,11 +1372,22 @@
 
             if(data.type === 'update_profile') {
                 if(listener) {
+                    // UUIDを使って古い接続（ゾンビ）を削除
+                    if (data.uuid) {
+                        Object.values(connectedListeners).forEach(oldP => {
+                            if (oldP.uuid === data.uuid && oldP.id !== peerId) {
+                                oldP.conn.close();
+                                delete connectedListeners[oldP.id];
+                            }
+                        });
+                    }
+
                     const isNew = (listener.name === "名無し" || !listener.hasAnnounced) && data.name !== "名無し" && !data.isObs && !data.isRemote;
                     listener.name = data.name;
                     listener.isRemote = data.isRemote || false;
                     listener.isObs = data.isObs || false;
                     listener.uuid = data.uuid; 
+                    listener.lastPongReceived = Date.now();
                     
                     if (listener.isObs) {
                         listener.cameraStatus = 'approved';
@@ -1526,8 +1569,11 @@
             container.innerHTML = '';
             const list = isRemoteView ? (window.remoteReceivedParticipants || []) : Object.values(connectedListeners);
             
+            let validParticipantCount = 0;
+
             list.forEach(p => {
                 if(p.isObs) return; 
+                validParticipantCount++;
                 const div = document.createElement('div');
                 div.className = "flex items-center justify-between bg-gray-700 p-2 rounded text-sm mb-1";
                 
@@ -1552,6 +1598,10 @@
                 div.innerHTML = `<div class="truncate flex-1"><span class="text-gray-200">${nameLabel}</span></div><div class="flex-shrink-0 flex items-center">${controls}</div>`;
                 container.appendChild(div);
             });
+
+            // 人数表示の更新
+            const countEl = document.getElementById(isRemoteView ? 'remote-participant-count' : 'host-participant-count');
+            if (countEl) countEl.textContent = `(現在: ${validParticipantCount}人)`;
 
             const bUsers = isRemoteView ? (window.remoteBannedUsers || {}) : bannedUsers;
             if(Object.keys(bUsers).length > 0) {
@@ -2128,6 +2178,10 @@
             pendingConnection = listenerConn;
 
             listenerConn.on('data', (data) => {
+                if (data.type === 'ping') {
+                    listenerConn.send({ type: 'pong' });
+                    return;
+                }
                 if (data.type === 'state') {
                     saveGuestHistory(currentRoomId, data.hostName);
                     
@@ -2566,6 +2620,10 @@
                 });
 
                 listenerConn.on('data', (data) => {
+                    if (data.type === 'ping') {
+                        listenerConn.send({ type: 'pong' });
+                        return;
+                    }
                     if(data.type === 'banned') {
                         showBannedScreen();
                         if(peer) peer.destroy();
