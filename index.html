@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox v1.0.20</title>
+    <title>Remote Jukebox v1.0.21</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- アイコンフォント (FontAwesome) を追加 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #111827; color: white; overscroll-behavior-y: none; }
         ::-webkit-scrollbar { width: 6px; }
@@ -13,8 +15,13 @@
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
-        .marquee-container { overflow: hidden; white-space: nowrap; position: relative; }
-        .marquee-content { display: inline-block; animation: marquee 15s linear infinite; padding-left: 100%; }
+        .marquee-container { overflow: hidden; white-space: nowrap; position: relative; width: 100%; display: flex; }
+        .marquee-content { 
+            display: inline-block; 
+            white-space: nowrap;
+            padding-left: 100vw; 
+            animation: marquee 15s linear infinite; 
+        }
         @keyframes marquee {
             0% { transform: translateX(0); }
             100% { transform: translateX(-100%); }
@@ -77,7 +84,7 @@
         <div class="bg-gray-900 border-b-2 border-indigo-500 shadow-[0_10px_25px_rgba(0,0,0,0.8)] rounded-b-2xl p-4 w-full max-w-md flex flex-col gap-3 pointer-events-auto backdrop-blur-md bg-opacity-95">
             <div class="flex justify-between items-center gap-3">
                 <span id="remote-top-msg" class="text-white text-sm font-bold flex-1 break-words leading-tight"></span>
-                <button onclick="closeRemoteTopNotification()" class="text-gray-400 hover:text-white flex-shrink-0 bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center">✖</button>
+                <button onclick="closeRemoteTopNotification()" class="text-gray-400 hover:text-white flex-shrink-0 bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div id="remote-top-action" class="hidden flex gap-2 mt-1"></div>
         </div>
@@ -86,7 +93,7 @@
     <!-- パスワード入力モーダル -->
     <div id="password-modal" class="hidden fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
         <div class="bg-gray-900 border border-indigo-500 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
-            <h3 class="text-xl font-bold text-white mb-2">🔒 パスワードが必要です</h3>
+            <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-lock"></i> パスワードが必要です</h3>
             <p class="text-sm text-gray-400 mb-6">このルームを操作・配信するには<br>ホストが設定したパスワードが必要です。</p>
             <input type="password" id="room-password-input" placeholder="管理パスワードを入力" class="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white mb-2 outline-none focus:border-indigo-500">
             <p id="password-error" class="hidden text-red-500 text-xs mb-4">パスワードが間違っています</p>
@@ -100,7 +107,7 @@
     <!-- リスナー名入力モーダル -->
     <div id="name-modal" class="hidden fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
         <div class="bg-gray-900 border border-indigo-500 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
-            <h3 class="text-xl font-bold text-white mb-2">👤 お名前を入力してください</h3>
+            <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-user"></i> お名前を入力してください</h3>
             <p class="text-sm text-gray-400 mb-6">※入室後の名前変更はできません。<br>（入室後に匿名にすることは可能です）</p>
             <input type="text" id="initial-name-input" onkeypress="if(event.key === 'Enter') submitName()" placeholder="例: リスナーA" class="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white mb-2 outline-none focus:border-indigo-500">
             <p id="name-error" class="hidden text-red-500 text-xs mb-4">名前を入力してください</p>
@@ -125,7 +132,7 @@
 
     <!-- ================= 1. ルーム作成画面 (初期画面) ================= -->
     <div id="setup-view" class="w-full max-w-md bg-gray-900 border border-gray-700 p-6 rounded-2xl shadow-2xl mt-10">
-        <h1 class="text-2xl font-bold text-center mb-2 text-white">🎵 Remote Jukebox</h1>
+        <h1 class="text-2xl font-bold text-center mb-2 text-white"><i class="fa-solid fa-music text-indigo-400"></i> Remote Jukebox</h1>
         <p class="text-gray-400 text-center text-sm mb-6">配信者用ルームを作成</p>
         
         <div class="space-y-4">
@@ -138,7 +145,7 @@
                 <input type="text" id="input-host-name" placeholder="例: 配信太郎" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-3 outline-none focus:border-red-500">
             </div>
             <div class="border-t border-gray-700 pt-4 mt-2">
-                <label class="block text-sm text-gray-400 mb-1">🔒 管理パスワード (任意)</label>
+                <label class="block text-sm text-gray-400 mb-1"><i class="fa-solid fa-lock"></i> 管理パスワード (任意)</label>
                 <input type="password" id="input-host-password" placeholder="例: 1234 (空欄ならパス不要)" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-3 outline-none focus:border-red-500">
                 <p class="text-[10px] text-gray-500 mt-1">※設定すると、コントローラーやカメラからの接続時にパスワードを要求します。リスナーはパスワード不要です。</p>
             </div>
@@ -147,29 +154,29 @@
             </button>
             
             <div class="border-t border-gray-700 pt-4 mt-6">
-                <h3 class="text-sm font-bold text-gray-300 mb-3">🕒 過去に作成したルーム</h3>
+                <h3 class="text-sm font-bold text-gray-300 mb-3"><i class="fa-regular fa-clock"></i> 過去に作成したルーム</h3>
                 <div id="setup-history-list" class="flex flex-col gap-2 max-h-40 overflow-y-auto">
                     <!-- 履歴がここに入る -->
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.20</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.21</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
     <div id="portal-view" class="hidden w-full max-w-md bg-gray-900 border border-gray-700 p-6 rounded-2xl shadow-2xl mt-10">
         <div class="text-center mb-6 border-b border-gray-700 pb-4">
-            <h2 id="portal-title" class="text-xl font-bold text-white">👑 専用ポータル</h2>
+            <h2 id="portal-title" class="text-xl font-bold text-white"><i class="fa-solid fa-crown text-yellow-400"></i> 専用ポータル</h2>
             <p id="portal-desc" class="text-sm text-gray-400 mt-1">過去のルームを選ぶか、IDを入力して入室</p>
         </div>
 
-        <h3 class="text-sm font-bold text-gray-300 mb-3">🕒 過去に繋いだルーム</h3>
+        <h3 class="text-sm font-bold text-gray-300 mb-3"><i class="fa-regular fa-clock"></i> 過去に繋いだルーム</h3>
         <div id="portal-history-list" class="flex flex-col gap-2 mb-6 max-h-48 overflow-y-auto">
             <!-- 履歴がここに入る -->
         </div>
 
         <div class="border-t border-gray-700 pt-4">
-            <h3 class="text-sm font-bold text-gray-300 mb-3">➕ 新しい部屋に入る</h3>
+            <h3 class="text-sm font-bold text-gray-300 mb-3"><i class="fa-solid fa-plus"></i> 新しい部屋に入る</h3>
             <div class="flex flex-col gap-3">
                 <input type="text" id="portal-room-id" placeholder="ルームIDを入力..." class="w-full bg-gray-800 text-white border border-gray-600 rounded p-3 outline-none focus:border-indigo-500">
                 <button onclick="joinFromPortal()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg">入室する</button>
@@ -181,7 +188,7 @@
     <div id="host-view" class="hidden w-full max-w-6xl flex-col gap-6">
         <div class="flex items-center justify-between bg-gray-800 p-4 rounded-xl border border-gray-700 hide-on-share gap-4">
             <div class="flex-shrink-0">
-                <h2 class="font-bold text-xl text-white">👑 配信コントロール</h2>
+                <h2 class="font-bold text-xl text-white"><i class="fa-solid fa-crown text-yellow-400"></i> 配信コントロール</h2>
                 <p class="text-sm text-gray-400">ルームID: <span id="display-room-id" class="text-red-400 font-mono"></span></p>
             </div>
             
@@ -206,13 +213,13 @@
                     
                     <div class="flex justify-between items-center mb-4 relative z-20">
                         <button onclick="toggleShareMode(true)" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded hide-on-share flex items-center gap-1 shadow font-bold transition-transform active:scale-95">
-                            📺 画面共有モード
+                            <i class="fa-solid fa-tv"></i> 画面共有モード
                         </button>
                         <button onclick="toggleShareMode(false)" class="text-xs bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded show-on-share items-center gap-2 shadow-lg font-bold transition-transform active:scale-95 mx-auto">
-                            ❌ 共有モードを解除して管理パネルを表示
+                            <i class="fa-solid fa-xmark"></i> 共有モード解除
                         </button>
                         <button onclick="toggleLightMode()" id="btn-light-mode" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded transition-colors border border-gray-600 shadow hide-on-share">
-                            🎥 映像ON
+                            <i class="fa-solid fa-video"></i> 映像ON
                         </button>
                     </div>
 
@@ -228,16 +235,16 @@
                     
                     <div class="flex justify-center gap-6 hide-on-share">
                         <button onclick="togglePlayHost()" id="btn-host-play" class="bg-red-600 hover:bg-red-500 text-white p-4 rounded-full flex items-center justify-center w-14 h-14 shadow-lg transition-transform active:scale-95">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                            <i class="fa-solid fa-play text-xl"></i>
                         </button>
                         <button onclick="playNext(true)" class="bg-gray-700 hover:bg-gray-600 text-white p-4 rounded-full flex items-center justify-center w-14 h-14 shadow transition-transform active:scale-95">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                            <i class="fa-solid fa-forward-step text-xl"></i>
                         </button>
                     </div>
                 </div>
 
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-4 hide-on-share">
-                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2">⚙️ 配信設定</h3>
+                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2"><i class="fa-solid fa-gear"></i> 配信設定</h3>
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">配信者の名前</label>
                         <input type="text" id="setting-host-name" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white" onchange="updateHostSettings()">
@@ -255,29 +262,29 @@
 
             <div id="host-center-col" class="space-y-6 lg:col-span-1 hide-on-share">
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 h-64 flex flex-col">
-                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3">📋 リクエストキュー</h3>
+                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3"><i class="fa-solid fa-list-ul"></i> リクエストキュー</h3>
                     <div id="host-queue-list" class="flex-1 overflow-y-auto space-y-2 pr-2"></div>
                 </div>
 
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700">
-                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3">🎵 待機用BGM / プレイリスト</h3>
+                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3"><i class="fa-solid fa-music text-indigo-400"></i> 待機用BGM / プレイリスト</h3>
                     <div class="flex gap-2 mb-2">
                         <input type="text" id="input-bgm-url" placeholder="YouTube URL / プレイリスト" class="min-w-0 flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
                         <button onclick="addBGM()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm whitespace-nowrap flex-shrink-0">追加</button>
-                        <button onclick="saveToMyList()" title="マイリストに保存" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded text-sm whitespace-nowrap flex-shrink-0">⭐</button>
+                        <button onclick="saveToMyList()" title="マイリストに保存" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded text-sm whitespace-nowrap flex-shrink-0"><i class="fa-solid fa-star"></i></button>
                     </div>
                     <div class="flex gap-3 mb-2 text-xs text-gray-300 border-b border-gray-700 pb-2">
                         <label class="flex items-center gap-1 cursor-pointer hover:text-white transition-colors">
                             <input type="checkbox" id="bgm-shuffle" onchange="updateBGMPlaybackSettings()" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-indigo-500">
-                            🔀 シャッフル
+                            <i class="fa-solid fa-shuffle"></i> シャッフル
                         </label>
                         <label class="flex items-center gap-1 cursor-pointer hover:text-white transition-colors">
                             <input type="checkbox" id="bgm-loop" checked onchange="updateBGMPlaybackSettings()" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-indigo-500">
-                            🔁 リストループ
+                            <i class="fa-solid fa-repeat"></i> リストループ
                         </label>
                         <label class="flex items-center gap-1 cursor-pointer hover:text-white transition-colors">
                             <input type="checkbox" id="bgm-loop-one" onchange="updateBGMPlaybackSettings()" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-indigo-500">
-                            🔂 1曲ループ
+                            <i class="fa-solid fa-rotate-right"></i> 1曲ループ
                         </label>
                     </div>
                     <div class="mb-3">
@@ -290,7 +297,7 @@
                 </div>
 
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 h-48 flex flex-col">
-                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3">🕒 再生履歴</h3>
+                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3"><i class="fa-regular fa-clock"></i> 再生履歴</h3>
                     <div id="host-history-list" class="flex-1 overflow-y-auto space-y-2 pr-2 text-sm text-gray-400"></div>
                 </div>
             </div>
@@ -298,10 +305,10 @@
             <div id="host-right-col" class="space-y-6 lg:col-span-1 hide-on-share">
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 flex flex-col" style="height: 350px;">
                     <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
-                        <h3 class="font-bold text-gray-200">💬 リアルタイムチャット</h3>
+                        <h3 class="font-bold text-gray-200"><i class="fa-solid fa-comment-dots"></i> リアルタイムチャット</h3>
                         <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
                             <input type="checkbox" id="host-tts-toggle" class="rounded bg-gray-900 border-gray-600 text-indigo-500">
-                            🗣️ 読上
+                            <i class="fa-solid fa-head-side-waveform"></i> 読上
                         </label>
                     </div>
                     <div id="host-chat-list" class="flex-1 overflow-y-auto space-y-1 pr-2 mb-2"></div>
@@ -313,7 +320,7 @@
 
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 flex flex-col" style="height: 350px;">
                     <div class="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
-                        <h3 class="font-bold text-gray-200">👥 参加者管理 <span id="host-participant-count" class="text-sm font-normal text-indigo-300 ml-1"></span></h3>
+                        <h3 class="font-bold text-gray-200"><i class="fa-solid fa-users"></i> 参加者管理 <span id="host-participant-count" class="text-sm font-normal text-indigo-300 ml-1"></span></h3>
                         <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
                             <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded bg-gray-900 border-gray-600 text-red-500">
                             視聴承認制
@@ -323,37 +330,37 @@
                 </div>
 
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-3">
-                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2">🔗 共有URL</h3>
+                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2"><i class="fa-solid fa-link"></i> 共有URL</h3>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">🎧 リスナー招待用 URL</label>
+                        <label class="block text-xs text-gray-400 mb-1"><i class="fa-solid fa-headphones"></i> リスナー招待用 URL</label>
                         <div class="flex gap-2">
                             <input type="text" id="url-listener" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
                             <button onclick="copyURL('url-listener')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs text-red-400 mb-1">👑 リモコン専用ポータル URL</label>
+                        <label class="block text-xs text-red-400 mb-1"><i class="fa-solid fa-crown text-yellow-400"></i> リモコン専用ポータル URL</label>
                         <div class="flex gap-2">
                             <input type="text" id="url-remote" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
                             <button onclick="copyURL('url-remote')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs text-green-400 mb-1">🎥 カメラ専用ポータル URL</label>
+                        <label class="block text-xs text-green-400 mb-1"><i class="fa-solid fa-camera"></i> カメラ専用ポータル URL</label>
                         <div class="flex gap-2">
                             <input type="text" id="url-camera" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
                             <button onclick="copyURL('url-camera')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs text-blue-400 mb-1">🟦 OBSカメラ取り込み専用 URL (映像+音声)</label>
+                        <label class="block text-xs text-blue-400 mb-1"><i class="fa-solid fa-tv"></i> OBSカメラ取り込み専用 URL (映像+音声)</label>
                         <div class="flex gap-2">
                             <input type="text" id="url-obs-cam" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
                             <button onclick="copyURL('url-obs-cam')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">🟩 旧OBS用 URL (再生バーのみ透過)</label>
+                        <label class="block text-xs text-gray-400 mb-1"><i class="fa-solid fa-tv text-gray-500"></i> 旧OBS用 URL (再生バーのみ透過)</label>
                         <div class="flex gap-2">
                             <input type="text" id="url-obs" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
                             <button onclick="copyURL('url-obs')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
@@ -362,31 +369,40 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.20</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.21</p>
     </div>
 
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
-    <div id="listener-view" class="hidden fixed inset-0 z-50 bg-[#0e0e10] flex flex-col text-sm w-full transition-all">
+    <!-- h-[100dvh] を適用し、スマホキーボード出現時に自動で高さ調整されるように変更 -->
+    <div id="listener-view" class="hidden fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex flex-col text-sm transition-all">
         
         <!-- ボリューム・ミュート設定モーダル -->
         <div id="listener-volume-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
             <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
                 <div class="flex justify-between items-center border-b border-gray-800 pb-3">
-                    <h3 class="text-white font-bold text-sm">🔊 音量・ミュート設定</h3>
-                    <button onclick="document.getElementById('listener-volume-modal').classList.add('hidden')" class="text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center">✖</button>
+                    <h3 class="text-white font-bold text-sm"><i class="fa-solid fa-volume-high"></i> 音量・ミュート設定</h3>
+                    <button onclick="document.getElementById('listener-volume-modal').classList.add('hidden')" class="text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="space-y-5">
                     <div class="flex justify-between items-center">
-                        <span class="text-gray-300 text-sm font-bold">📷 カメラの音声</span>
+                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-camera"></i> カメラの音声</span>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" id="toggle-cam-mute" class="sr-only peer" onchange="toggleListenerAudioFromSwitch(this.checked)">
                             <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                         </label>
                     </div>
                     <div class="flex justify-between items-center">
-                        <span class="text-gray-300 text-sm font-bold">📺 ウォチパの音声</span>
+                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-tv"></i> ウォチパの音声</span>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" id="toggle-wp-mute" class="sr-only peer" onchange="toggleWatchPartyMuteFromSwitch(this.checked)">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                    <!-- ウォチパ映像ON/OFF -->
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-video"></i> ウォチパの映像</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggle-wp-video" class="sr-only peer" checked onchange="toggleWatchPartyVideoFromSwitch(this.checked)">
                             <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                         </label>
                     </div>
@@ -411,17 +427,20 @@
             <!-- カメラ映像レイヤー -->
             <div id="listener-cam-layer" class="absolute inset-0 layer-hidden transition-opacity duration-300">
                 <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
-                    🔴 LIVE配信中！(タップして開く)
+                    <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
                 </button>
                 <video id="listener-video" autoplay playsinline muted class="w-full h-full object-cover relative z-10"></video>
             </div>
             
             <!-- Watch Party映像レイヤー -->
             <div id="listener-wp-layer" class="absolute inset-0 layer-visible transition-opacity duration-300 bg-black">
-                <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
+                <!-- 映像ON/OFFで opacity を操作するラッパー -->
+                <div id="listener-youtube-player-wrapper" class="w-full h-full transition-opacity duration-300">
+                    <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
+                </div>
                 <!-- 初回タップ用オーバーレイ -->
                 <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
-                    <span class="text-4xl mb-2 hover:scale-110 transition-transform">▶</span>
+                    <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
                     <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
                 </div>
             </div>
@@ -434,12 +453,12 @@
         <div class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
             <!-- 映像切り替えタブ -->
             <div class="flex gap-2">
-                <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-colors shadow">📷 カメラ</button>
-                <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-colors shadow">📺 ウォチパ</button>
+                <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-colors shadow"><i class="fa-solid fa-camera"></i> カメラ</button>
+                <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-colors shadow"><i class="fa-solid fa-tv"></i> ウォチパ</button>
             </div>
             <!-- 音量モーダル呼び出しボタン -->
             <button onclick="document.getElementById('listener-volume-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="音量・ミュート設定">
-                🔊
+                <i class="fa-solid fa-volume-high"></i>
             </button>
         </div>
 
@@ -450,20 +469,21 @@
             <details id="listener-menu-details" class="bg-[#18181b] border-b border-gray-800 shrink-0 group z-10 relative">
                 <summary class="p-3 cursor-pointer text-gray-400 font-bold text-xs flex justify-between items-center outline-none hover:text-white transition-colors">
                     <div class="flex items-center gap-2">
-                        <span class="text-indigo-400 text-sm">🎵</span> 
+                        <i class="fa-solid fa-music text-indigo-400 text-sm"></i> 
                         <span>リクエスト等 (タップで開閉)</span>
                     </div>
-                    <span class="group-open:rotate-180 transition-transform">▼</span>
+                    <span class="group-open:rotate-180 transition-transform"><i class="fa-solid fa-chevron-down"></i></span>
                 </summary>
                 
                 <!-- アコーディオンの中身 (チャットを隠して表示) -->
-                <div class="p-4 space-y-6 bg-[#111827] border-t border-gray-800 h-full overflow-y-auto">
+                <!-- pb-32 を追加し、下部に十分な余白を持たせてスクロール可能にする -->
+                <div class="p-4 space-y-6 bg-[#111827] border-t border-gray-800 h-full overflow-y-auto pb-32">
                     
                     <!-- ① リクエスト送信 -->
                     <div class="space-y-3">
                         <h3 class="text-xs font-bold text-indigo-400 flex items-center gap-1">
-                            👇 リクエストはこちらから！
-                            <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="bg-gray-700 text-gray-300 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-2">?</button>
+                            <i class="fa-solid fa-arrow-down text-indigo-400"></i> リクエストはこちらから！
+                            <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="bg-gray-700 text-gray-300 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-2"><i class="fa-solid fa-question"></i></button>
                         </h3>
                         <div class="flex gap-2">
                             <input type="text" id="listener-url" placeholder="https://youtu.be/..." class="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs outline-none focus:border-indigo-500">
@@ -495,6 +515,11 @@
                         </label>
                     </div>
 
+                    <!-- 最下部余白用バージョン表記 -->
+                    <div class="pt-8 text-center text-gray-700 text-[10px]">
+                        v1.0.21
+                    </div>
+
                 </div>
             </details>
 
@@ -507,11 +532,10 @@
                     <!-- Chat messages here -->
                 </div>
 
-                <!-- 4. チャット入力エリア (最下部固定) -->
+                <!-- 4. チャット入力エリア (最下部固定) 顔文字アイコン削除 -->
                 <div class="flex-shrink-0 px-3 pt-2 pb-safe bg-[#18181b] border-t border-gray-800 flex gap-2 items-center">
-                    <div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-sm shrink-0 border border-gray-700">😊</div>
                     <input type="text" id="listener-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest(false)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
-                    <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow">➤</button>
+                    <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
             </div>
         </div>
@@ -523,7 +547,7 @@
         <div class="flex items-center gap-3">
             <div class="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded shrink-0">NOW</div>
             <div class="flex-1 overflow-hidden">
-                <div class="text-xs text-gray-300 mb-1" id="obs-requester">👤 ---</div>
+                <div class="text-xs text-gray-300 mb-1" id="obs-requester"><i class="fa-solid fa-user"></i> ---</div>
                 <div class="marquee-container h-6">
                     <div id="obs-now-playing" class="marquee-content font-bold text-white text-lg drop-shadow-md">待機中...</div>
                 </div>
@@ -535,13 +559,13 @@
     <div id="obs-cam-view" class="hidden w-screen h-screen bg-black overflow-hidden relative">
         <video id="obs-cam-video" autoplay playsinline class="w-full h-full object-cover"></video>
         <button id="obs-cam-unmute" onclick="unmuteObsCam()" class="absolute top-4 left-4 bg-red-600 text-white px-4 py-2 rounded text-xs opacity-80 hover:opacity-100 shadow-lg hidden">
-            🔊 音声ミュート解除 (ここをクリック)
+            <i class="fa-solid fa-volume-high"></i> 音声ミュート解除 (ここをクリック)
         </button>
     </div>
 
     <!-- ================= 6. リモコン画面 ================= -->
     <div id="remote-view" class="hidden w-full max-w-md bg-gray-900 border border-gray-700 p-6 rounded-2xl shadow-2xl relative">
-        <h2 class="text-xl font-bold text-white mb-6 text-center">👑 リモコンモード</h2>
+        <h2 class="text-xl font-bold text-white mb-6 text-center"><i class="fa-solid fa-crown text-yellow-400"></i> リモコンモード</h2>
         
         <div class="mb-4 flex gap-2">
             <input type="text" id="remote-input-theme" placeholder="テーマ・気分を変更" class="flex-1 bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white">
@@ -551,24 +575,24 @@
 
         <div id="remote-watch-party-container" class="mb-6 hidden">
             <div class="flex justify-between items-center mb-2">
-                <h3 class="text-sm font-bold text-red-400">📺 Watch Party (同時視聴)</h3>
+                <h3 class="text-sm font-bold text-red-400"><i class="fa-solid fa-tv"></i> Watch Party (同時視聴)</h3>
                 <button onclick="toggleWatchPartyFullscreen()" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded shadow transition-colors font-bold flex items-center gap-1">
-                    ⛶ 全画面表示
+                    <i class="fa-solid fa-expand"></i> 全画面表示
                 </button>
             </div>
             
             <div id="remote-watch-party-wrapper" class="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-gray-700 shadow-inner">
                 <div id="remote-youtube-player" class="w-full h-full"></div>
                 <div id="remote-youtube-overlay" class="absolute inset-0 z-10 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
-                    <span class="text-4xl mb-2 hover:scale-110 transition-transform">▶</span>
+                    <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
                     <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
                 </div>
             </div>
             
             <div id="remote-wp-volume-container" class="mt-2 flex items-center gap-3 bg-gray-800 p-2 rounded-lg border border-gray-700">
-                <span class="text-xs text-gray-400">🔈</span>
+                <span class="text-xs text-gray-400"><i class="fa-solid fa-volume-low"></i></span>
                 <input type="range" id="remote-wp-volume" min="0" max="100" value="50" class="flex-1 accent-red-500" oninput="changeWatchPartyVolume(this.value)">
-                <span class="text-xs text-gray-400">🔊</span>
+                <span class="text-xs text-gray-400"><i class="fa-solid fa-volume-high"></i></span>
             </div>
         </div>
 
@@ -582,21 +606,21 @@
 
         <div class="grid grid-cols-2 gap-4 mb-6">
             <button onclick="sendRemoteCommand('toggle')" id="btn-remote-play" class="bg-red-600 hover:bg-red-500 text-white font-bold py-6 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <i class="fa-solid fa-play text-2xl"></i>
                 <span class="text-xs mt-1">再生/一時停止</span>
             </button>
             <button onclick="sendRemoteCommand('skip')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-6 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                <i class="fa-solid fa-forward-step text-2xl"></i>
                 <span class="text-xs mt-1">スキップ</span>
             </button>
         </div>
 
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 flex flex-col">
             <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
-                <h3 class="text-sm font-bold text-gray-300">💬 リアルタイムチャット</h3>
+                <h3 class="text-sm font-bold text-gray-300"><i class="fa-solid fa-comment-dots"></i> リアルタイムチャット</h3>
                 <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
                     <input type="checkbox" id="remote-tts-toggle" class="rounded bg-gray-900 border-gray-600 text-indigo-500">
-                    🗣️ 読上
+                    <i class="fa-solid fa-head-side-waveform"></i> 読上
                 </label>
             </div>
             <div id="remote-chat-list" class="h-48 overflow-y-auto space-y-1 mb-2 pr-2"></div>
@@ -607,7 +631,7 @@
         </div>
 
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
-            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">🎵 リモコンからリクエスト</h3>
+            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2"><i class="fa-solid fa-music text-indigo-400"></i> リモコンからリクエスト</h3>
             <div class="flex gap-2">
                 <input type="text" id="remote-url" placeholder="YouTube URL" class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-white">
                 <button onclick="sendRemoteRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded font-bold transition-colors">追加</button>
@@ -615,13 +639,13 @@
         </div>
 
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3 mb-6">
-            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">📋 順番待ち (<span id="remote-queue-count">0</span>曲)</h3>
+            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2"><i class="fa-solid fa-list-ul"></i> 順番待ち (<span id="remote-queue-count">0</span>曲)</h3>
             <div id="remote-queue-list" class="space-y-2 max-h-48 overflow-y-auto text-sm"></div>
         </div>
 
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 flex flex-col">
             <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-3">
-                <h3 class="font-bold text-gray-200">👥 参加者管理 <span id="remote-participant-count" class="text-sm font-normal text-indigo-300 ml-1"></span></h3>
+                <h3 class="font-bold text-gray-200"><i class="fa-solid fa-users"></i> 参加者管理 <span id="remote-participant-count" class="text-sm font-normal text-indigo-300 ml-1"></span></h3>
                 <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
                     <input type="checkbox" id="remote-cam-approval-toggle" onchange="sendRemoteCamApprovalToggle(this.checked)" class="rounded bg-gray-900 border-gray-600 text-red-500">
                     視聴承認制
@@ -631,20 +655,20 @@
         </div>
 
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-3">
-            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2">🕒 再生履歴</h3>
+            <h3 class="text-sm font-bold text-gray-300 border-b border-gray-700 pb-2"><i class="fa-regular fa-clock"></i> 再生履歴</h3>
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.20</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.21</p>
     </div>
 
     <div id="remote-cam-modal" class="hidden fixed inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
-            <h3 class="text-xl font-bold text-white mb-2">🎥 視聴リクエスト</h3>
+            <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-video"></i> 視聴リクエスト</h3>
             <p class="text-sm text-gray-300 mb-6"><span id="remote-cam-req-name" class="font-bold text-yellow-400 text-lg"></span> さんがカメラの視聴を申請しました。</p>
             <div class="space-y-3">
-                <button onclick="handleRemoteCamRequest('approve')" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2"><span>⭕</span> 承認する</button>
-                <button onclick="handleRemoteCamRequest('reject')" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2"><span>❌</span> 拒否する</button>
+                <button onclick="handleRemoteCamRequest('approve')" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2"><i class="fa-regular fa-circle"></i> 承認する</button>
+                <button onclick="handleRemoteCamRequest('reject')" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2"><i class="fa-solid fa-xmark"></i> 拒否する</button>
                 <button onclick="handleRemoteCamRequest('ignore')" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">後で決める (無視)</button>
             </div>
         </div>
@@ -653,7 +677,7 @@
     <!-- ================= 7. カメラ送出用ビュー ================= -->
     <div id="camera-view" class="hidden w-full max-w-md bg-gray-900 border border-gray-700 p-4 sm:p-6 rounded-2xl shadow-2xl relative">
         <div class="text-center mb-6">
-            <h2 class="text-xl font-bold text-white mb-2">🎥 カメラ配信モード</h2>
+            <h2 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-video"></i> カメラ配信モード</h2>
             <div id="camera-status" class="text-sm text-yellow-500 animate-pulse">配信設定・待機中...</div>
         </div>
 
@@ -661,7 +685,7 @@
             <div class="w-full aspect-video bg-black rounded-lg overflow-hidden relative border border-gray-700 mb-4 shadow-inner">
                 <video id="camera-preview" autoplay muted playsinline class="w-full h-full object-cover transform scale-x-[-1]"></video>
                 <div id="camera-off-overlay" class="hidden absolute inset-0 bg-gray-900 flex flex-col items-center justify-center text-gray-500 font-bold gap-2">
-                    <span class="text-2xl">🚫</span>
+                    <span class="text-2xl"><i class="fa-solid fa-ban"></i></span>
                     <span>映像OFF (音声のみ配信中)</span>
                 </div>
             </div>
@@ -672,27 +696,27 @@
 
             <div id="camera-setup-controls" class="mb-4 space-y-4">
                 <div class="bg-gray-900 border border-gray-700 p-3 rounded-lg text-left shadow-inner">
-                    <label class="block text-xs text-gray-400 mb-1 font-bold">📺 画質 (解像度)</label>
+                    <label class="block text-xs text-gray-400 mb-1 font-bold"><i class="fa-solid fa-tv"></i> 画質 (解像度)</label>
                     <select id="cam-res" class="w-full bg-gray-800 text-white rounded p-2 text-sm border border-gray-600 outline-none focus:border-blue-500 mb-3">
                         <option value="1920x1080">1080p (フルHD / 高画質・高負荷)</option>
                         <option value="1280x720" selected>720p (HD / 標準・おすすめ)</option>
                         <option value="854x480">480p (SD / 軽量・安定優先)</option>
                     </select>
                     
-                    <label class="block text-xs text-gray-400 mb-1 font-bold">📶 最大ビットレート (kbps)</label>
+                    <label class="block text-xs text-gray-400 mb-1 font-bold"><i class="fa-solid fa-signal"></i> 最大ビットレート (kbps)</label>
                     <input type="number" id="cam-bitrate" value="2500" step="500" class="w-full bg-gray-800 text-white rounded p-2 text-sm border border-gray-600 outline-none focus:border-blue-500" placeholder="例: 2500">
                     <p class="text-[10px] text-gray-500 mt-1 leading-tight">※数値を上げるとモザイクが減りますが、パケット消費とスマホの発熱が増加します。</p>
                 </div>
 
                 <button onclick="startCameraStream()" id="btn-cam-start" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-lg font-bold flex items-center justify-center gap-2 text-lg shadow-lg transition-transform active:scale-95">
-                    🚀 配信をスタートする
+                    <i class="fa-solid fa-rocket"></i> 配信をスタートする
                 </button>
             </div>
 
             <div id="camera-active-controls" class="hidden space-y-3">
                 <div class="bg-gray-900 border border-gray-700 p-3 rounded-lg shadow-inner mb-3 text-left">
                     <label class="block text-xs text-gray-400 mb-1 font-bold flex justify-between">
-                        <span>🎙️ マイク音量ブースト</span>
+                        <span><i class="fa-solid fa-microphone"></i> マイク音量ブースト</span>
                         <span id="cam-mic-gain-val" class="text-white">1.0x</span>
                     </label>
                     <input type="range" id="cam-mic-gain" min="0" max="10" step="0.1" value="1" class="w-full accent-green-500" oninput="updateMicGain(this.value)">
@@ -701,32 +725,32 @@
 
                 <div class="grid grid-cols-2 gap-3">
                     <button onclick="toggleCameraMic()" id="btn-cam-mic" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors shadow">
-                        🎙️ マイクON
+                        <i class="fa-solid fa-microphone"></i> マイクON
                     </button>
                     <button onclick="toggleCameraVideo()" id="btn-cam-vid" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors shadow">
-                        📹 映像ON
+                        <i class="fa-solid fa-video"></i> 映像ON
                     </button>
                 </div>
                 
                 <button onclick="toggleCameraRecording()" id="btn-cam-record" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors border border-gray-500 shadow">
-                    ⏺️ 同録スタート (スマホ内に録画)
+                    <i class="fa-solid fa-record-vinyl"></i> 同録スタート (スマホ内に録画)
                 </button>
                 
                 <button onclick="refreshCameraStream()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors shadow">
-                    🔄 映像・音声をリフレッシュ (更新)
+                    <i class="fa-solid fa-rotate-right"></i> 映像・音声を更新
                 </button>
 
                 <button onclick="stopCameraStream()" class="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors shadow">
-                    ⏹️ 配信を停止する
+                    <i class="fa-solid fa-stop"></i> 配信を停止する
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.20</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.21</div>
     </div>
 
-    <!-- 全画面共通リロードボタン (右上に移動・アイコン化) -->
+    <!-- 全画面共通リロードボタン (アイコン化) -->
     <button onclick="location.reload()" class="fixed top-3 right-3 bg-gray-800/80 hover:bg-gray-700 border border-gray-600 text-white w-9 h-9 flex items-center justify-center rounded-full shadow-lg text-sm font-bold z-[9999] backdrop-blur-sm transition-colors active:bg-gray-600" title="画面を更新">
-        🔄
+        <i class="fa-solid fa-rotate-right"></i>
     </button>
 
     <audio id="dummy-audio" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" loop playsinline></audio>
@@ -790,19 +814,6 @@
 
         let mediaRecorder = null;
         let recordedChunks = [];
-
-        // ソフトウェアキーボード追従用 (リスナー画面)
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', () => {
-                const vh = window.visualViewport.height;
-                const listenerView = document.getElementById('listener-view');
-                if (listenerView && !listenerView.classList.contains('hidden')) {
-                    listenerView.style.height = `${vh}px`;
-                    const chatList = document.getElementById('listener-chat-list');
-                    if(chatList) chatList.scrollTop = chatList.scrollHeight;
-                }
-            });
-        }
 
         // リスナー画面のメニュー（アコーディオン）開閉検知でチャット領域を隠す
         document.addEventListener('DOMContentLoaded', () => {
@@ -907,7 +918,7 @@
 
         function showToast(msg, type="info") {
             const toast = document.getElementById('toast');
-            document.getElementById('toast-msg').textContent = msg;
+            document.getElementById('toast-msg').innerHTML = msg;
             toast.className = `toast bg-gray-800 border-l-4 p-4 rounded shadow-lg flex items-center gap-3 text-white ${type === 'error' ? 'border-red-500' : 'border-indigo-500'}`;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 3000);
@@ -918,7 +929,7 @@
             if(!isHost) return;
             const ticker = document.getElementById('host-news-ticker');
             if(ticker) {
-                ticker.textContent = msg;
+                ticker.innerHTML = msg;
                 ticker.style.opacity = '1';
                 if(hostNewsTimeout) clearTimeout(hostNewsTimeout);
                 hostNewsTimeout = setTimeout(() => {
@@ -973,7 +984,7 @@
         function generateId() { return Math.random().toString(36).substring(2, 9); }
 
         function showBannedScreen() {
-            document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500">🚫 アクセスがブロックされました</h1><p class="text-gray-300">管理者の操作により、このルームへのアクセスが制限されています。</p></div>';
+            document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500"><i class="fa-solid fa-ban"></i> アクセスがブロックされました</h1><p class="text-gray-300">管理者の操作により、このルームへのアクセスが制限されています。</p></div>';
         }
 
         function initPortal(mode) {
@@ -984,13 +995,13 @@
             const descEl = document.getElementById('portal-desc');
             
             if (mode === 'remote') {
-                titleEl.textContent = '👑 リモコン専用ポータル';
+                titleEl.innerHTML = '<i class="fa-solid fa-crown text-yellow-400"></i> リモコン専用ポータル';
                 descEl.textContent = '操作したいルームを選んでください';
             } else if (mode === 'listener') {
-                titleEl.textContent = '🎧 リスナー専用ポータル';
+                titleEl.innerHTML = '<i class="fa-solid fa-headphones text-indigo-400"></i> リスナー専用ポータル';
                 descEl.textContent = '視聴するルームを選んでください';
             } else if (mode === 'cam' || mode === 'camera') {
-                titleEl.textContent = '🎥 カメラ専用ポータル';
+                titleEl.innerHTML = '<i class="fa-solid fa-camera text-green-400"></i> カメラ専用ポータル';
                 descEl.textContent = '配信するルームを選んでください';
             }
             renderPortalHistory();
@@ -1018,7 +1029,7 @@
                         <div class="font-bold text-white text-sm truncate">${item.hostName} の部屋</div>
                         <div class="text-xs text-gray-400">ID: ${item.roomId}</div>
                     </div>
-                    <button class="text-red-400 hover:text-red-300 p-2" onclick="deleteGuestHistory('${item.roomId}', event)">✖</button>
+                    <button class="text-red-400 hover:text-red-300 p-2" onclick="deleteGuestHistory('${item.roomId}', event)"><i class="fa-solid fa-xmark"></i></button>
                 `;
                 list.appendChild(div);
             });
@@ -1061,7 +1072,7 @@
                         <div class="font-bold text-white text-sm truncate">${item.hostName} の部屋</div>
                         <div class="text-xs text-gray-400">ID: ${item.roomId}</div>
                     </div>
-                    <button class="text-red-400 hover:text-red-300 p-2" onclick="deleteHostHistory('${item.roomId}', event)">✖</button>
+                    <button class="text-red-400 hover:text-red-300 p-2" onclick="deleteHostHistory('${item.roomId}', event)"><i class="fa-solid fa-xmark"></i></button>
                 `;
                 list.appendChild(div);
             });
@@ -1452,9 +1463,9 @@
 
                     if (isNew) {
                         listener.hasAnnounced = true;
-                        showHostNews(`🚪 ${data.name} が入室しました`);
+                        showHostNews(`<i class="fa-solid fa-door-open"></i> ${data.name} が入室しました`);
                         Object.values(connectedListeners).forEach(p => {
-                            if (p.isRemote && p.conn.open) p.conn.send({type: 'remote_alert', msg: `🚪 <b>${data.name}</b> が入室しました`});
+                            if (p.isRemote && p.conn.open) p.conn.send({type: 'remote_alert', msg: `<i class="fa-solid fa-door-open"></i> <b>${data.name}</b> が入室しました`});
                         });
                     }
 
@@ -1471,10 +1482,10 @@
                 };
                 queue.push(song);
                 showToast(`${song.requester} からリクエスト！`);
-                showHostNews(`🎵 リクエスト受信: ${data.requesterReal}`);
+                showHostNews(`<i class="fa-solid fa-music"></i> リクエスト受信: ${data.requesterReal}`);
                 
                 Object.values(connectedListeners).forEach(p => {
-                    if (p.isRemote && p.conn.open) p.conn.send({type: 'remote_alert', msg: `🎵 リクエスト追加: <b>${data.requesterReal}</b>`});
+                    if (p.isRemote && p.conn.open) p.conn.send({type: 'remote_alert', msg: `<i class="fa-solid fa-music"></i> リクエスト追加: <b>${data.requesterReal}</b>`});
                 });
 
                 saveHostState();
@@ -1520,7 +1531,7 @@
                     if(cameraApprovalMode) {
                         listener.cameraStatus = 'requested';
                         updateParticipantsUI();
-                        showHostNews(`🚨 ${listener.name} がカメラ視聴承認待ちです`);
+                        showHostNews(`<i class="fa-solid fa-bell text-yellow-400"></i> ${listener.name} がカメラ視聴承認待ちです`);
                         Object.values(connectedListeners).forEach(p => {
                             if(p.isRemote && p.conn.open) p.conn.send({type: 'camera_request_alert', id: listener.id, name: listener.name});
                         });
@@ -1544,7 +1555,7 @@
                     if(chatHistory.length > 100) chatHistory.shift();
                     saveHostState();
                     updateUI(); 
-                    showHostNews(`💬 ${newChat.senderReal}: ${newChat.text}`);
+                    showHostNews(`<i class="fa-solid fa-comment"></i> ${newChat.senderReal}: ${newChat.text}`);
                     
                     Object.values(connectedListeners).forEach(p => {
                         if(p.conn.open) p.conn.send({type: 'new_chat', chat: newChat});
@@ -1632,21 +1643,21 @@
                 div.className = "flex items-center justify-between bg-gray-700 p-2 rounded text-sm mb-1";
                 
                 let nameLabel = p.name;
-                if(p.isRemote) nameLabel += ' <span class="text-xs text-yellow-400">(管理者)</span>';
-                if(p.isMuted) nameLabel += ' <span class="text-xs text-red-400">🔇ミュート</span>';
+                if(p.isRemote) nameLabel += ' <span class="text-xs text-yellow-400">(<i class="fa-solid fa-crown text-yellow-400"></i>)</span>';
+                if(p.isMuted) nameLabel += ' <span class="text-xs text-red-400"><i class="fa-solid fa-volume-xmark"></i>ミュート</span>';
 
                 let controls = '';
                 if(!p.isRemote) {
                     if(cameraApprovalMode) {
                         if(p.cameraStatus === 'requested') {
-                            controls += `<button onclick="${isRemoteView ? `sendRemoteCommand('manage', 'approve_cam', '${p.id}')` : `manageUser('${p.id}', 'approve_cam')`}" class="text-xs bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded mr-1">⭕</button>`;
-                            controls += `<button onclick="${isRemoteView ? `sendRemoteCommand('manage', 'reject_cam', '${p.id}')` : `manageUser('${p.id}', 'reject_cam')`}" class="text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded mr-2">❌</button>`;
+                            controls += `<button onclick="${isRemoteView ? `sendRemoteCommand('manage', 'approve_cam', '${p.id}')` : `manageUser('${p.id}', 'approve_cam')`}" class="text-xs bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded mr-1"><i class="fa-solid fa-check"></i></button>`;
+                            controls += `<button onclick="${isRemoteView ? `sendRemoteCommand('manage', 'reject_cam', '${p.id}')` : `manageUser('${p.id}', 'reject_cam')`}" class="text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded mr-2"><i class="fa-solid fa-xmark"></i></button>`;
                         } else if(p.cameraStatus === 'approved') {
-                            controls += `<span class="text-xs text-green-400 mr-2">🎥許可済</span>`;
+                            controls += `<span class="text-xs text-green-400 mr-2"><i class="fa-solid fa-video"></i>許可済</span>`;
                         }
                     }
-                    controls += `<button onclick="${isRemoteView ? `sendRemoteCommand('manage', 'mute', '${p.id}')` : `manageUser('${p.id}', 'mute')`}" class="text-xs ${p.isMuted ? 'bg-gray-500' : 'bg-orange-600'} text-white px-2 py-1 rounded mr-1" title="リクエスト禁止">🔇</button>`;
-                    controls += `<button onclick="${isRemoteView ? `sendRemoteCommand('manage', 'ban', '${p.id}')` : `manageUser('${p.id}', 'ban')`}" class="text-xs bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded" title="BAN">🚫</button>`;
+                    controls += `<button onclick="${isRemoteView ? `sendRemoteCommand('manage', 'mute', '${p.id}')` : `manageUser('${p.id}', 'mute')`}" class="text-xs ${p.isMuted ? 'bg-gray-500' : 'bg-orange-600'} text-white px-2 py-1 rounded mr-1" title="リクエスト禁止"><i class="fa-solid fa-volume-xmark"></i></button>`;
+                    controls += `<button onclick="${isRemoteView ? `sendRemoteCommand('manage', 'ban', '${p.id}')` : `manageUser('${p.id}', 'ban')`}" class="text-xs bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded" title="BAN"><i class="fa-solid fa-ban"></i></button>`;
                 }
 
                 div.innerHTML = `<div class="truncate flex-1"><span class="text-gray-200">${nameLabel}</span></div><div class="flex-shrink-0 flex items-center">${controls}</div>`;
@@ -1660,7 +1671,7 @@
             if(Object.keys(bUsers).length > 0) {
                 const banHeader = document.createElement('div');
                 banHeader.className = "text-xs font-bold text-red-400 mt-4 mb-2 border-b border-gray-700 pb-1";
-                banHeader.textContent = "🚫 BANされたユーザー";
+                banHeader.innerHTML = `<i class="fa-solid fa-ban"></i> BANされたユーザー`;
                 container.appendChild(banHeader);
 
                 Object.entries(bUsers).forEach(([id, info]) => {
@@ -1915,11 +1926,11 @@
             const btn = document.getElementById('btn-light-mode');
             if(isLightMode) {
                 container.classList.add('youtube-hidden');
-                btn.innerHTML = "🚫 映像OFF";
+                btn.innerHTML = '<i class="fa-solid fa-ban"></i> 映像OFF';
                 btn.classList.replace('bg-gray-700', 'bg-red-600');
             } else {
                 container.classList.remove('youtube-hidden');
-                btn.innerHTML = "🎥 映像ON";
+                btn.innerHTML = '<i class="fa-solid fa-video"></i> 映像ON';
                 btn.classList.replace('bg-red-600', 'bg-gray-700');
             }
         }
@@ -1939,8 +1950,8 @@
             if(playBtn && player && typeof player.getPlayerState === 'function') {
                 const isPlaying = player.getPlayerState() === 1;
                 playBtn.innerHTML = isPlaying 
-                    ? `<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>` 
-                    : `<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+                    ? `<i class="fa-solid fa-pause text-xl"></i>` 
+                    : `<i class="fa-solid fa-play text-xl"></i>`;
             }
 
             const qList = document.getElementById('host-queue-list');
@@ -1954,10 +1965,10 @@
                             <span class="text-gray-400 font-bold w-4">${idx+1}</span>
                             <div class="truncate">
                                 <p class="text-white truncate font-medium">${q.title}</p>
-                                <p class="text-xs text-gray-400 truncate">👤 ${q.requesterReal || q.requester} ${q.isRemote ? '(👑)' : ''}</p>
+                                <p class="text-xs text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${q.requesterReal || q.requester} ${q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : ''}</p>
                             </div>
                         </div>
-                        <button onclick="removeQueue('${q.id}')" class="text-red-400 hover:text-red-300 px-2 flex-shrink-0">✖</button>
+                        <button onclick="removeQueue('${q.id}')" class="text-red-400 hover:text-red-300 px-2 flex-shrink-0"><i class="fa-solid fa-xmark"></i></button>
                     `;
                     qList.appendChild(div);
                 });
@@ -1974,10 +1985,10 @@
                             <span class="text-gray-500 font-bold w-4">${idx+1}</span>
                             <div class="truncate">
                                 <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                <p class="text-xs text-gray-500 truncate">👤 ${q.requesterReal}</p>
+                                <p class="text-xs text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.requesterReal}</p>
                             </div>
                         </div>
-                        <button onclick="reRequestHost('${q.videoId}', '${q.requesterReal}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0">🔄</button>
+                        <button onclick="reRequestHost('${q.videoId}', '${q.requesterReal}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
                     `;
                     hostHist.appendChild(div);
                 });
@@ -1991,7 +2002,7 @@
                     div.className = "flex justify-between bg-gray-900 border border-gray-700 p-2 rounded items-center mb-1";
                     div.innerHTML = `
                         <span class="text-gray-300 truncate text-xs flex-1">${b.title || '取得中...'}</span>
-                        <button onclick="removeBGM(${idx})" class="text-red-400 hover:text-red-300 px-2">✖</button>
+                        <button onclick="removeBGM(${idx})" class="text-red-400 hover:text-red-300 px-2"><i class="fa-solid fa-xmark"></i></button>
                     `;
                     bList.appendChild(div);
                 });
@@ -2302,7 +2313,7 @@
         }
         
         function executeCamCall(bitrate) {
-            document.getElementById('camera-status').textContent = "🔴 映像＋音声 配信中！";
+            document.getElementById('camera-status').innerHTML = '<i class="fa-solid fa-circle text-red-500"></i> 映像＋音声 配信中！';
             document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-red-500');
             document.getElementById('camera-setup-controls').classList.add('hidden');
             document.getElementById('camera-active-controls').classList.remove('hidden');
@@ -2345,7 +2356,7 @@
             if(peer) { peer.destroy(); peer = null; }
             if(mediaRecorder && mediaRecorder.state === "recording") toggleCameraRecording();
 
-            document.getElementById('camera-status').textContent = "⏹️ 配信停止 (設定して再スタート可能)";
+            document.getElementById('camera-status').innerHTML = '<i class="fa-solid fa-stop text-green-500"></i> 配信停止 (設定して再スタート可能)';
             document.getElementById('camera-status').classList.replace('text-red-500', 'text-green-500');
             showToast("配信を停止しました");
             document.getElementById('camera-setup-controls').classList.remove('hidden');
@@ -2384,7 +2395,7 @@
             const audioTracks = cameraStream.getAudioTracks();
             if(audioTracks.length > 0) audioTracks[0].enabled = isMicOn;
             const btn = document.getElementById('btn-cam-mic');
-            btn.innerHTML = isMicOn ? '🎙️ マイクON' : '🔇 マイクOFF';
+            btn.innerHTML = isMicOn ? '<i class="fa-solid fa-microphone"></i> マイクON' : '<i class="fa-solid fa-microphone-slash"></i> マイクOFF';
             btn.classList.toggle('bg-green-600', isMicOn);
             btn.classList.toggle('bg-gray-600', !isMicOn);
         }
@@ -2395,7 +2406,7 @@
             const videoTracks = cameraStream.getVideoTracks();
             if(videoTracks.length > 0) videoTracks[0].enabled = isVideoOn;
             const btn = document.getElementById('btn-cam-vid');
-            btn.innerHTML = isVideoOn ? '📹 映像ON' : '🚫 映像OFF';
+            btn.innerHTML = isVideoOn ? '<i class="fa-solid fa-video"></i> 映像ON' : '<i class="fa-solid fa-video-slash"></i> 映像OFF';
             btn.classList.toggle('bg-green-600', isVideoOn);
             btn.classList.toggle('bg-gray-600', !isVideoOn);
             document.getElementById('camera-off-overlay').classList.toggle('hidden', isVideoOn);
@@ -2405,7 +2416,7 @@
             const btn = document.getElementById('btn-cam-record');
             if (mediaRecorder && mediaRecorder.state === "recording") {
                 mediaRecorder.stop();
-                btn.innerHTML = '⏺️ 同録スタート (スマホ内に録画)';
+                btn.innerHTML = '<i class="fa-solid fa-record-vinyl"></i> 同録スタート (スマホ内に録画)';
                 btn.classList.replace('bg-red-700', 'bg-gray-700');
                 btn.classList.replace('hover:bg-red-600', 'hover:bg-gray-600');
                 btn.classList.remove('animate-pulse');
@@ -2428,7 +2439,7 @@
                         setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
                     };
                     mediaRecorder.start();
-                    btn.innerHTML = '⏹️ 同録中 (タップで停止保存)';
+                    btn.innerHTML = '<i class="fa-solid fa-circle text-red-500"></i> 同録中 (タップで停止保存)';
                     btn.classList.replace('bg-gray-700', 'bg-red-700');
                     btn.classList.replace('hover:bg-gray-600', 'hover:bg-red-600');
                     btn.classList.add('animate-pulse');
@@ -2543,6 +2554,15 @@
                 viewerYTPlayer.unMute();
             } else {
                 viewerYTPlayer.mute();
+            }
+        }
+
+        // リスナー用のウォチパ映像ON/OFFトグル
+        function toggleWatchPartyVideoFromSwitch(isOn) {
+            const playerWrapper = document.getElementById('listener-youtube-player-wrapper');
+            if (playerWrapper) {
+                playerWrapper.style.opacity = isOn ? '1' : '0';
+                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
             }
         }
 
@@ -2719,10 +2739,10 @@
                     if(data.type === 'camera_request_alert' && isRemoteMode) {
                         showCameraRequestModal(data.id, data.name);
                         const actionBtns = `
-                            <button onclick="handleRemoteCamRequestTop('approve', '${data.id}')" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded-lg text-sm shadow">⭕ 承認する</button>
-                            <button onclick="handleRemoteCamRequestTop('reject', '${data.id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-lg text-sm shadow">❌ 拒否する</button>
+                            <button onclick="handleRemoteCamRequestTop('approve', '${data.id}')" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded-lg text-sm shadow"><i class="fa-solid fa-check"></i> 承認する</button>
+                            <button onclick="handleRemoteCamRequestTop('reject', '${data.id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-lg text-sm shadow"><i class="fa-solid fa-xmark"></i> 拒否する</button>
                         `;
-                        showRemoteTopNotification(`🚨 <span class="text-yellow-400 text-base">${data.name}</span> が視聴承認待ちです`, actionBtns);
+                        showRemoteTopNotification(`<i class="fa-solid fa-bell text-yellow-400"></i> <span class="text-yellow-400 text-base">${data.name}</span> が視聴承認待ちです`, actionBtns);
                         return;
                     }
                     
@@ -2780,7 +2800,7 @@
                             if(isRemoteMode) {
                                 renderChatList('remote-chat-list', chatHistory, true);
                                 if(data.chat.senderReal !== "配信管理者") {
-                                    showRemoteTopNotification(`💬 <span class="text-gray-300 text-xs">${data.chat.senderReal}</span><br>${data.chat.text}`);
+                                    showRemoteTopNotification(`<i class="fa-solid fa-comment-dots text-gray-400"></i> <span class="text-gray-300 text-xs">${data.chat.senderReal}</span><br>${data.chat.text}`);
                                 }
                             }
                             else if(!isObs && !isObsCam) renderChatList('listener-chat-list', chatHistory, false);
@@ -2824,7 +2844,7 @@
                                 video.play().catch(e2=>{});
                                 const unmuteBtn = document.getElementById('obs-cam-unmute');
                                 unmuteBtn.classList.remove('hidden');
-                                unmuteBtn.textContent = "🔊 映像のみ再生中（裏側で音声は流れている可能性があります）";
+                                unmuteBtn.innerHTML = '<i class="fa-solid fa-volume-high"></i> 映像のみ再生中（裏側で音声は流れている可能性があります）';
                             }).then(() => {
                                 document.getElementById('obs-cam-unmute').classList.add('hidden');
                             });
@@ -2868,7 +2888,7 @@
             isListenerVideoOpen = false;
             document.getElementById('listener-video').srcObject = null;
             const btn = document.getElementById('btn-toggle-camera');
-            if(btn) { btn.classList.remove('hidden'); btn.textContent = "🔴 LIVE配信中！(タップして開く)"; }
+            if(btn) { btn.classList.remove('hidden'); btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)'; }
         }
 
         function sendProfileUpdate(isObs, isRemote, isObsCam = false) {
@@ -2892,7 +2912,7 @@
         function requestListenerCamera() {
             if (listenerConn && listenerConn.open) {
                 listenerConn.send({ type: 'request_camera' });
-                document.getElementById('btn-toggle-camera').textContent = "⏳ 承認待ち...";
+                document.getElementById('btn-toggle-camera').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
             }
         }
 
@@ -3025,7 +3045,7 @@
                     : "text-sm bg-gray-900/50 p-2 rounded mb-1 flex justify-between group";
                 
                 const dispName = (c.isAnon && !isPrivileged) ? '184(匿名)' : c.senderReal;
-                const badge = c.isRemote ? '👑 ' : '';
+                const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400"></i> ' : '';
                 const nameColor = c.isRemote ? 'text-yellow-400' : 'text-indigo-400';
                 
                 if (isListenerView) {
@@ -3045,7 +3065,7 @@
                     if (isPrivileged) {
                         const delBtn = document.createElement('button');
                         delBtn.className = "text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2 transition-opacity flex-shrink-0";
-                        delBtn.textContent = "🗑";
+                        delBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
                         delBtn.onclick = () => deleteChat(c.id);
                         div.appendChild(delBtn);
                     }
@@ -3093,7 +3113,7 @@
                 if(!isRemoteMode && !isObs && !isObsCam) {
                     const reqName = currentSong.isAnon ? '184(匿名)' : (currentSong.requester || "");
                     const reqEl = document.getElementById('listener-now-requester');
-                    if(reqEl) reqEl.textContent = reqName ? `- 👤 ${reqName}` : "";
+                    if(reqEl) reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
                     
                     const eq = document.getElementById('listener-eq');
                     if(eq) isPlaying ? eq.classList.add('active') : eq.classList.remove('active');
@@ -3102,13 +3122,13 @@
                     const remoteReqEl = document.getElementById('remote-now-requester');
                     if(remoteReqEl) {
                         const reqName = currentSong.isAnon ? '184(匿名)' : (currentSong.requesterReal || "");
-                        remoteReqEl.textContent = reqName ? `👤 ${reqName}` : "---";
+                        remoteReqEl.innerHTML = reqName ? `<i class="fa-solid fa-user"></i> ${reqName}` : "---";
                     }
                 }
                 if(isObs && !isObsCam) {
                     const obsReq = currentSong.isAnon ? '184(匿名)' : currentSong.requesterReal;
                     const obsReqEl = document.getElementById('obs-requester');
-                    if(obsReqEl) obsReqEl.textContent = `👤 ${obsReq}`;
+                    if(obsReqEl) obsReqEl.innerHTML = `<i class="fa-solid fa-user"></i> ${obsReq}`;
                 }
             } else if (playingEl) {
                 playingEl.textContent = "BGM停止中";
@@ -3124,7 +3144,7 @@
                 }
                 if(isObs && !isObsCam) {
                     const obsReqEl = document.getElementById('obs-requester');
-                    if(obsReqEl) obsReqEl.textContent = "👤 ---";
+                    if(obsReqEl) obsReqEl.innerHTML = '<i class="fa-solid fa-user"></i> ---';
                 }
             }
 
@@ -3132,8 +3152,8 @@
                 const remotePlayBtn = document.getElementById('btn-remote-play');
                 if(remotePlayBtn) {
                     remotePlayBtn.innerHTML = isPlaying
-                        ? `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg><span class="text-xs mt-1">一時停止</span>`
-                        : `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span class="text-xs mt-1">再生</span>`;
+                        ? `<i class="fa-solid fa-pause text-2xl"></i><span class="text-xs mt-1">一時停止</span>`
+                        : `<i class="fa-solid fa-play text-2xl"></i><span class="text-xs mt-1">再生</span>`;
                 }
             }
 
@@ -3143,7 +3163,7 @@
                 const tDiv = document.getElementById(isRemoteMode ? 'remote-theme-container' : 'listener-theme-container');
                 if(tDiv) {
                     if(hostTheme) { 
-                        tDiv.textContent = `📢 ${hostTheme}`; 
+                        tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
                         tDiv.classList.remove('hidden'); 
                     } else {
                         tDiv.classList.add('hidden');
@@ -3157,9 +3177,9 @@
                     if(btn && !listenerHasStream) {
                         if(cameraApprovalMode) {
                             const myData = participants ? participants.find(p => p.id === listenerId) : null;
-                            if(myData && myData.cameraStatus === 'requested') btn.textContent = "⏳ 承認待ち...";
-                            else btn.textContent = "🎥 配信を見る (タップで申請)";
-                        } else btn.textContent = "🔴 LIVE配信中！(タップして開く)";
+                            if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+                            else btn.innerHTML = '<i class="fa-solid fa-camera text-white"></i> 配信を見る (タップで申請)';
+                        } else btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
                     }
                 } else { 
                     resetListenerVideo(); 
@@ -3187,10 +3207,10 @@
                                 <span class="text-gray-500 font-bold w-4">${idx+1}</span>
                                 <div class="truncate">
                                     <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                    <p class="text-xs text-gray-500 truncate">👤 ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                                    <p class="text-xs text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
                                 </div>
                             </div>
-                            <button onclick="reRequestRemote('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0">🔄</button>
+                            <button onclick="reRequestRemote('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
                         `;
                         hList.appendChild(div);
                     });
@@ -3213,13 +3233,14 @@
                             : "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
                         
                         const dispName = q.isAnon ? '184(匿名)' : (isR ? q.requesterReal : q.requester);
+                        const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
                         
                         div.innerHTML = `
                             <div class="flex items-center gap-2 overflow-hidden">
                                 <span class="text-gray-500 font-bold w-4">${idx+1}</span>
                                 <div class="truncate">
                                     <p class="text-gray-200 truncate font-medium">${q.title}</p>
-                                    <p class="text-[10px] text-gray-400 truncate">👤 ${dispName} ${q.isRemote ? '(👑)' : ''}</p>
+                                    <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
                                 </div>
                             </div>
                         `;
@@ -3227,7 +3248,7 @@
                         if(isR || (myName && q.requesterReal === myName && !q.isRemote)) {
                             const btn = document.createElement('button');
                             btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
-                            btn.textContent = "✖";
+                            btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
                             btn.onclick = () => isR ? sendRemoteCommand('manage', 'cancel_req', q.id) : cancelRequest(q.id);
                             div.appendChild(btn);
                         }
@@ -3247,10 +3268,10 @@
                                     <span class="text-gray-500 font-bold w-4">${idx+1}</span>
                                     <div class="truncate">
                                         <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                        <p class="text-[10px] text-gray-500 truncate">👤 ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                                        <p class="text-[10px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
                                     </div>
                                 </div>
-                                <button onclick="reRequestListener('${q.videoId}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0">🔄</button>
+                                <button onclick="reRequestListener('${q.videoId}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
                             `;
                             listenerHist.appendChild(div);
                         });
