@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v1.0.6</title>
+    <title>Remote Jukebox v1.0.7</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -123,7 +123,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.6</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.7</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -311,7 +311,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.6</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.7</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -352,8 +352,11 @@
             
             <div id="listener-watch-party-wrapper" class="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-gray-700 shadow-inner">
                 <div id="listener-youtube-player" class="w-full h-full"></div>
-                <!-- 透明オーバーレイ（本編中はブロック、広告中のみ透過） -->
-                <div id="listener-youtube-overlay" class="absolute inset-0 z-10 cursor-pointer" style="pointer-events: auto;" onclick="showToast('ホストが操作中です。音量は下部のバーで調整できます。', 'info')"></div>
+                <!-- 初回タップ用のオーバーレイ兼誤操作防止板 -->
+                <div id="listener-youtube-overlay" class="absolute inset-0 z-10 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" style="pointer-events: auto;" onclick="handleOverlayClick()">
+                    <span id="listener-overlay-icon" class="text-4xl mb-2 hover:scale-110 transition-transform">▶</span>
+                    <span id="listener-overlay-text" class="text-sm font-bold">タップして音声をONにして視聴開始</span>
+                </div>
             </div>
             
             <div class="mt-2 flex items-center gap-3 bg-gray-800 p-2 rounded-lg border border-gray-700">
@@ -416,7 +419,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.6</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.7</div>
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -508,7 +511,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.6</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.7</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -586,7 +589,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.6</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.7</div>
     </div>
 
     <audio id="dummy-audio" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" loop playsinline></audio>
@@ -2030,6 +2033,35 @@
         let listenerAdCheckInterval = null;
         let listenerLastTime = -1;
         let hostCurrentTime = 0;
+        let isWpOverlayActive = true;
+
+        function handleOverlayClick() {
+            if (isWpOverlayActive) {
+                if (listenerYTPlayer && typeof listenerYTPlayer.unMute === 'function') {
+                    listenerYTPlayer.unMute();
+                    const volSlider = document.getElementById('listener-wp-volume');
+                    if(volSlider) listenerYTPlayer.setVolume(volSlider.value);
+                    
+                    if (typeof listenerYTPlayer.getPlayerState === 'function' && listenerYTPlayer.getPlayerState() !== 1 && listenerYTPlayer.getPlayerState() !== 3) {
+                        listenerYTPlayer.playVideo();
+                    }
+                }
+                
+                const overlay = document.getElementById('listener-youtube-overlay');
+                if(overlay) {
+                    overlay.classList.remove('bg-black/80');
+                    const icon = document.getElementById('listener-overlay-icon');
+                    const text = document.getElementById('listener-overlay-text');
+                    if(icon) icon.style.display = 'none';
+                    if(text) text.style.display = 'none';
+                }
+                
+                isWpOverlayActive = false;
+                showToast("音声をONにして視聴を開始しました！", "info");
+            } else {
+                showToast('ホストが操作中です。音量は下部のバーで調整できます。', 'info');
+            }
+        }
 
         function startAdMonitor(playerInstance) {
             if (listenerAdCheckInterval) clearInterval(listenerAdCheckInterval);
@@ -2064,7 +2096,7 @@
                 } else {
                     if (isAdCurrentlyPlaying) {
                         isAdCurrentlyPlaying = false;
-                        if (overlay) overlay.style.pointerEvents = 'auto'; 
+                        if (overlay && !isWpOverlayActive) overlay.style.pointerEvents = 'auto'; 
                         
                         if (Math.abs(currentTime - hostCurrentTime) > 3) {
                             playerInstance.seekTo(hostCurrentTime, true);
