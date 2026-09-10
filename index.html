@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox v1.0.28</title>
+    <title>Remote Jukebox v1.0.29</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -189,7 +189,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.28</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.29</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -398,7 +398,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.28</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.29</p>
     </div>
 
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
@@ -553,7 +553,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.28
+                        v1.0.29
                     </div>
 
                 </div>
@@ -767,7 +767,7 @@
                                 </div>
                             </label>
                         </div>
-                        <div class="pt-8 text-center text-gray-700 text-[10px]">v1.0.28</div>
+                        <div class="pt-8 text-center text-gray-700 text-[10px]">v1.0.29</div>
                     </div>
                 </div>
             </div>
@@ -825,100 +825,107 @@
         </div>
 
         <!-- ========== 左ペイン: 映像とメーター (横画面時は左60%、縦画面時は上部) ========== -->
-        <div class="flex flex-col w-full landscape:w-[60%] shrink-0 landscape:shrink landscape:h-full bg-black relative border-b landscape:border-b-0 landscape:border-r border-gray-800 z-20">
-            <!-- 1. 映像エリア -->
-            <div class="relative w-full flex-1 flex flex-col justify-center overflow-hidden aspect-video landscape:aspect-auto">
-                <!-- 映像 (反転解除、object-containで16:9を維持) -->
-                <video id="camera-preview" autoplay muted playsinline class="w-full h-full object-contain relative z-10"></video>
-                <div id="camera-off-overlay" class="hidden absolute inset-0 bg-gray-900 flex flex-col items-center justify-center text-gray-500 font-bold gap-2 z-15">
+        <div class="flex flex-col w-full landscape:w-[60%] shrink-0 landscape:h-full bg-black relative border-b landscape:border-b-0 landscape:border-r border-gray-800 z-20">
+            
+            <!-- 1. 映像エリア (上に詰める) -->
+            <div id="camera-video-container" class="relative w-full flex-1 bg-black flex flex-col justify-start overflow-hidden">
+                
+                <!-- ステータス ＆ NowPlaying 帯 (上部固定) -->
+                <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
+                    <span id="camera-status" class="text-[11px] text-yellow-500 font-bold animate-pulse drop-shadow-md shrink-0">配信設定・待機中...</span>
+                    <div class="marquee-container h-4 flex-1">
+                        <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
+                            <span id="camera-now-playing">待機中...</span>
+                            <span id="camera-now-requester" class="text-indigo-300 font-normal"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 映像 -->
+                <video id="camera-preview" autoplay muted playsinline class="w-full aspect-video object-contain relative z-10 mt-6 transition-opacity duration-300"></video>
+                
+                <!-- 本当の映像OFFオーバーレイ -->
+                <div id="camera-off-overlay" class="hidden absolute inset-0 bg-gray-900 flex flex-col items-center justify-center text-gray-500 font-bold gap-2 z-15 mt-6">
                     <span class="text-3xl"><i class="fa-solid fa-video-slash"></i></span>
                     <span class="text-sm">映像OFF (音声のみ配信中)</span>
                 </div>
+                
+                <!-- ステルス用オーバーレイ (タップで解除) -->
+                <div id="camera-stealth-overlay" class="hidden absolute inset-0 bg-black z-40 flex flex-col items-center justify-center text-gray-500 gap-3 mt-6 cursor-pointer" onclick="toggleStealthMode()">
+                    <i class="fa-solid fa-eye-slash text-4xl"></i>
+                    <span class="text-xs font-bold text-center">画面ステルス中<br>(タップで解除)</span>
+                </div>
+
                 <!-- カメラ切り替えボタン (右下) -->
-                <button onclick="toggleCameraFacingMode()" class="absolute bottom-3 right-3 z-30 bg-gray-800/80 hover:bg-gray-700 text-white w-10 h-10 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)] flex items-center justify-center transition-transform active:scale-90 border border-gray-600">
+                <button onclick="toggleCameraFacingMode()" id="btn-cam-switch" class="absolute bottom-3 right-3 z-30 bg-gray-800/80 hover:bg-gray-700 text-white w-10 h-10 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)] flex items-center justify-center transition-transform active:scale-90 border border-gray-600">
                     <i class="fa-solid fa-camera-rotate text-lg"></i>
                 </button>
-                <!-- ステータス帯 -->
-                <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
-                    <span id="camera-status" class="text-[11px] text-yellow-500 font-bold animate-pulse drop-shadow-md">配信設定・待機中...</span>
+            </div>
+
+            <!-- 2. コントロールバー (黒帯) -->
+            <div class="flex-shrink-0 bg-[#111827] border-t border-gray-800 px-2 py-2 flex items-center justify-between z-30 shadow-md">
+                <!-- 配信前 -->
+                <div id="camera-setup-controls" class="w-full">
+                    <button onclick="startCameraStream()" id="btn-cam-start" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1 transition-transform active:scale-95">
+                        <i class="fa-solid fa-rocket"></i> 配信をスタートする
+                    </button>
+                </div>
+                <!-- 配信中 -->
+                <div id="camera-active-controls" class="hidden w-full flex items-center gap-1">
+                    <button onclick="toggleCameraMic()" id="btn-cam-mic" class="flex-1 bg-green-600 text-white font-bold py-2 rounded shadow flex justify-center items-center gap-1 text-[10px] transition-colors">
+                        <i class="fa-solid fa-microphone"></i>
+                    </button>
+                    <button onclick="toggleCameraVideo()" id="btn-cam-vid" class="flex-1 bg-green-600 text-white font-bold py-2 rounded shadow flex justify-center items-center gap-1 text-[10px] transition-colors">
+                        <i class="fa-solid fa-video"></i>
+                    </button>
+                    <button onclick="toggleStealthMode()" id="btn-cam-stealth" class="flex-1 bg-gray-700 text-gray-300 font-bold py-2 rounded shadow flex justify-center items-center gap-1 text-[10px] transition-colors border border-gray-600">
+                        <i class="fa-solid fa-eye-slash"></i> 隠す
+                    </button>
+                    <button onclick="refreshCameraStream()" class="flex-1 bg-indigo-600 text-white font-bold py-2 rounded shadow flex justify-center items-center gap-1 text-[10px] transition-colors">
+                        <i class="fa-solid fa-rotate-right"></i> 更新
+                    </button>
+                    <button onclick="stopCameraStream()" class="flex-1 bg-red-600 text-white font-bold py-2 rounded shadow flex justify-center items-center gap-1 text-[10px] transition-colors">
+                        <i class="fa-solid fa-stop"></i> 停止
+                    </button>
+                    <button onclick="document.getElementById('camera-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white shrink-0">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
                 </div>
             </div>
 
-            <!-- 2. オーディオメーター -->
-            <div class="w-full h-2 bg-gray-900 shrink-0 relative border-t border-gray-800">
+            <!-- 3. オーディオメーター -->
+            <div class="w-full h-1.5 bg-gray-900 shrink-0 relative border-t border-gray-800">
                 <canvas id="mic-meter" class="absolute inset-0 w-full h-full"></canvas>
             </div>
         </div>
 
-        <!-- ========== 右ペイン: コントロールとタブ (横画面時は右40%、縦画面時は下部) ========== -->
+        <!-- ========== 右ペイン: タブとコンテンツ (横画面時は右40%、縦画面時は下部) ========== -->
         <div class="flex-1 flex flex-col min-h-0 landscape:w-[40%] landscape:h-full bg-[#0e0e10] z-10">
-            <!-- 3. コントロールバー (設定呼び出しなど) -->
-            <div class="flex-shrink-0 flex justify-end items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 shadow-md">
-                <button onclick="document.getElementById('camera-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
-                    <i class="fa-solid fa-gear"></i>
-                </button>
+            <!-- タブヘッダー -->
+            <div class="flex bg-[#18181b] border-b border-gray-800 shrink-0 shadow-md z-10">
+                <button onclick="switchCameraMenuTab('chat')" id="camera-menu-tab-chat" class="flex-1 py-2.5 text-[11px] font-bold text-indigo-400 border-b-2 border-indigo-500 transition-colors">💬 コメント</button>
+                <button onclick="switchCameraMenuTab('users')" id="camera-menu-tab-users" class="flex-1 py-2.5 text-[11px] font-bold text-gray-500 border-b-2 border-transparent transition-colors">👥 参加者</button>
             </div>
-
-            <!-- 4. 基本コントロール (配信開始/停止など) -->
-            <div class="flex-shrink-0 bg-[#111827] border-b border-gray-800 px-3 py-3 shadow-md overflow-y-auto max-h-[40vh] landscape:max-h-[50vh]">
-                <!-- 配信前 -->
-                <div id="camera-setup-controls">
-                    <button onclick="startCameraStream()" id="btn-cam-start" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-lg shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95">
-                        <i class="fa-solid fa-rocket text-lg"></i> 配信をスタートする
-                    </button>
-                </div>
-                <!-- 配信中 -->
-                <div id="camera-active-controls" class="hidden space-y-2.5">
-                    <div class="flex gap-2">
-                        <button onclick="toggleCameraMic()" id="btn-cam-mic" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-2 transition-colors">
-                            <i class="fa-solid fa-microphone"></i> マイクON
-                        </button>
-                        <button onclick="toggleCameraVideo()" id="btn-cam-vid" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-2 transition-colors">
-                            <i class="fa-solid fa-video"></i> 映像ON
-                        </button>
+            
+            <!-- コンテンツエリア -->
+            <div class="flex-1 relative overflow-hidden">
+                <!-- 💬 コメント タブ -->
+                <div id="camera-menu-content-chat" class="absolute inset-0 flex flex-col">
+                    <div id="camera-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto pb-4 relative z-10"></div>
+                    <!-- チャット入力フローティング -->
+                    <div id="camera-chat-backdrop" class="chat-backdrop" onclick="closeCameraChatInput()"></div>
+                    <div id="camera-chat-input-container" class="flex-shrink-0 px-3 py-2 bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20 pb-safe">
+                        <input type="text" id="camera-chat-input" name="dummy-camera-chat" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusCameraChatInput()" onblur="blurCameraChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest(true, 'camera')" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
+                        <button onclick="sendChatRequest(true, 'camera')" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
                     </div>
-                    <div class="flex gap-2">
-                        <button onclick="toggleCameraRecording()" id="btn-cam-record" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-1.5 transition-colors border border-gray-600 text-xs">
-                            <i class="fa-solid fa-record-vinyl"></i> 同録
-                        </button>
-                        <button onclick="refreshCameraStream()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-1.5 transition-colors text-xs">
-                            <i class="fa-solid fa-rotate-right"></i> 更新
-                        </button>
-                        <button onclick="stopCameraStream()" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-1.5 transition-colors text-xs">
-                            <i class="fa-solid fa-stop"></i> 停止
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 5. タブメニューエリア (下部) -->
-            <div class="flex-1 flex flex-col min-h-0 bg-[#0e0e10]">
-                <!-- タブヘッダー -->
-                <div class="flex bg-[#18181b] border-b border-gray-800 shrink-0 shadow-md z-10">
-                    <button onclick="switchCameraMenuTab('chat')" id="camera-menu-tab-chat" class="flex-1 py-2.5 text-[11px] font-bold text-indigo-400 border-b-2 border-indigo-500 transition-colors">💬 コメント</button>
-                    <button onclick="switchCameraMenuTab('users')" id="camera-menu-tab-users" class="flex-1 py-2.5 text-[11px] font-bold text-gray-500 border-b-2 border-transparent transition-colors">👥 参加者</button>
                 </div>
                 
-                <!-- コンテンツエリア -->
-                <div class="flex-1 relative overflow-hidden">
-                    <!-- 💬 コメント タブ -->
-                    <div id="camera-menu-content-chat" class="absolute inset-0 flex flex-col">
-                        <div id="camera-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto pb-4 relative z-10"></div>
-                        <!-- チャット入力フローティング -->
-                        <div id="camera-chat-backdrop" class="chat-backdrop" onclick="closeCameraChatInput()"></div>
-                        <div id="camera-chat-input-container" class="flex-shrink-0 px-3 py-2 bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20 pb-safe">
-                            <input type="text" id="camera-chat-input" name="dummy-camera-chat" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusCameraChatInput()" onblur="blurCameraChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest(true, 'camera')" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
-                            <button onclick="sendChatRequest(true, 'camera')" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
-                        </div>
+                <!-- 👥 参加者 タブ -->
+                <div id="camera-menu-content-users" class="hidden absolute inset-0 overflow-y-auto p-3 bg-[#111827] pb-12">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-2 mb-3">
+                        <h3 class="font-bold text-gray-200 text-xs">参加者管理 <span id="camera-participant-count" class="text-indigo-300 ml-1"></span></h3>
                     </div>
-                    
-                    <!-- 👥 参加者 タブ -->
-                    <div id="camera-menu-content-users" class="hidden absolute inset-0 overflow-y-auto p-3 bg-[#111827] pb-12">
-                        <div class="flex justify-between items-center border-b border-gray-800 pb-2 mb-3">
-                            <h3 class="font-bold text-gray-200 text-xs">参加者管理 <span id="camera-participant-count" class="text-indigo-300 ml-1"></span></h3>
-                        </div>
-                        <div id="camera-participant-list" class="space-y-2"></div>
-                    </div>
+                    <div id="camera-participant-list" class="space-y-2"></div>
                 </div>
             </div>
         </div>
@@ -996,6 +1003,8 @@
         let listenerHasStream = false;
         let isWatchPartyEnabled = true;
         let remoteHasStream = false;
+
+        let isStealthMode = false;
 
         document.addEventListener('DOMContentLoaded', () => {
             const menuDetails = document.getElementById('listener-menu-details');
@@ -1594,12 +1603,11 @@
                 
                 conn.isAuthenticated = false;
 
-                if(!conn.peer.startsWith('cam-')) {
-                    connectedListeners[conn.peer] = {
-                        id: conn.peer, conn: conn, name: "名無し", isMuted: false, cameraStatus: 'none', isRemote: false, isObs: false, call: null, hasAnnounced: false, lastPongReceived: Date.now()
-                    };
-                    updateParticipantsUI();
-                }
+                // 修正: カメラ接続も connectedListeners に含める
+                connectedListeners[conn.peer] = {
+                    id: conn.peer, conn: conn, name: "名無し", isMuted: false, cameraStatus: 'none', isRemote: false, isObs: false, call: null, hasAnnounced: false, lastPongReceived: Date.now(), isCam: conn.peer.startsWith('cam-')
+                };
+                updateParticipantsUI();
 
                 conn.on('open', () => { 
                     conn.send({
@@ -1711,7 +1719,7 @@
                         });
                     }
 
-                    const isNew = (listener.name === "名無し" || !listener.hasAnnounced) && data.name !== "名無し" && !data.isObs && !data.isRemote && !isReconnected;
+                    const isNew = (listener.name === "名無し" || !listener.hasAnnounced) && data.name !== "名無し" && !data.isObs && !data.isRemote && !isReconnected && !listener.isCam;
                     listener.name = data.name;
                     listener.isRemote = data.isRemote || false;
                     listener.isObs = data.isObs || false;
@@ -1912,7 +1920,7 @@
             let validParticipantCount = 0;
 
             list.forEach(p => {
-                if(p.isObs) return; 
+                if(p.isObs || p.isCam) return; 
                 validParticipantCount++;
                 const div = document.createElement('div');
                 div.className = "flex items-center justify-between bg-gray-700 p-2 rounded text-sm mb-1";
@@ -1973,7 +1981,7 @@
         function broadcastState() {
             if(!isHost) return;
             const safeParticipants = Object.values(connectedListeners).map(p => ({
-                id: p.id, name: p.name, isMuted: p.isMuted, cameraStatus: p.cameraStatus, isRemote: p.isRemote, isObs: p.isObs
+                id: p.id, name: p.name, isMuted: p.isMuted, cameraStatus: p.cameraStatus, isRemote: p.isRemote, isObs: p.isObs, isCam: p.isCam
             }));
 
             let stateCurrentSong = currentSong ? { ...currentSong } : null;
@@ -2500,6 +2508,29 @@
             }
         }
 
+        function toggleStealthMode() {
+            isStealthMode = !isStealthMode;
+            const video = document.getElementById('camera-preview');
+            const overlay = document.getElementById('camera-stealth-overlay');
+            const btn = document.getElementById('btn-cam-stealth');
+            
+            if (isStealthMode) {
+                video.classList.add('opacity-0');
+                overlay.classList.remove('hidden');
+                btn.classList.replace('bg-gray-700', 'bg-red-700');
+                btn.classList.replace('text-gray-300', 'text-white');
+                btn.innerHTML = '<i class="fa-solid fa-eye"></i> 見る';
+                showToast("画面を隠蔽しました（配信は継続中）");
+            } else {
+                video.classList.remove('opacity-0');
+                overlay.classList.add('hidden');
+                btn.classList.replace('bg-red-700', 'bg-gray-700');
+                btn.classList.replace('text-white', 'text-gray-300');
+                btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i> 隠す';
+                showToast("画面を表示しました");
+            }
+        }
+
         function switchCameraMenuTab(tabId) {
             ['chat', 'users'].forEach(id => {
                 document.getElementById('camera-menu-content-' + id).classList.add('hidden');
@@ -2564,6 +2595,13 @@
                     listenerConn.send({ type: 'pong' });
                     return;
                 }
+                
+                if (data.type === 'sync_playback') {
+                    if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
+                        currentSong = { videoId: data.videoId };
+                    }
+                }
+                
                 if (data.type === 'state') {
                     saveGuestHistory(currentRoomId, data.hostName);
                     
@@ -2576,6 +2614,17 @@
                         }
                     } else {
                         cameraReadyToStart();
+                    }
+
+                    if(data.currentSong) currentSong = data.currentSong;
+                    const playingEl = document.getElementById('camera-now-playing');
+                    if(currentSong && playingEl) {
+                        playingEl.textContent = currentSong.title;
+                        const reqName = currentSong.isAnon ? '184(匿名)' : (currentSong.requester || "");
+                        document.getElementById('camera-now-requester').innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
+                    } else if (playingEl) {
+                        playingEl.textContent = "BGM停止中";
+                        document.getElementById('camera-now-requester').textContent = "";
                     }
 
                     if (data.chatHistory) {
@@ -2696,6 +2745,7 @@
             showToast("配信を停止しました");
             document.getElementById('camera-setup-controls').classList.remove('hidden');
             document.getElementById('camera-active-controls').classList.add('hidden');
+            if(isStealthMode) toggleStealthMode();
         }
 
         function drawMicMeter() {
@@ -2730,7 +2780,7 @@
             const audioTracks = cameraStream.getAudioTracks();
             if(audioTracks.length > 0) audioTracks[0].enabled = isMicOn;
             const btn = document.getElementById('btn-cam-mic');
-            btn.innerHTML = isMicOn ? '<i class="fa-solid fa-microphone"></i> マイクON' : '<i class="fa-solid fa-microphone-slash"></i> マイクOFF';
+            btn.innerHTML = isMicOn ? '<i class="fa-solid fa-microphone"></i>' : '<i class="fa-solid fa-microphone-slash"></i>';
             btn.classList.toggle('bg-green-600', isMicOn);
             btn.classList.toggle('bg-gray-600', !isMicOn);
         }
@@ -2741,7 +2791,7 @@
             const videoTracks = cameraStream.getVideoTracks();
             if(videoTracks.length > 0) videoTracks[0].enabled = isVideoOn;
             const btn = document.getElementById('btn-cam-vid');
-            btn.innerHTML = isVideoOn ? '<i class="fa-solid fa-video"></i> 映像ON' : '<i class="fa-solid fa-video-slash"></i> 映像OFF';
+            btn.innerHTML = isVideoOn ? '<i class="fa-solid fa-video"></i>' : '<i class="fa-solid fa-video-slash"></i>';
             btn.classList.toggle('bg-green-600', isVideoOn);
             btn.classList.toggle('bg-gray-600', !isVideoOn);
             document.getElementById('camera-off-overlay').classList.toggle('hidden', isVideoOn);
