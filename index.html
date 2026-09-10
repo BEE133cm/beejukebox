@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v1.0.7</title>
+    <title>Remote Jukebox v1.0.8</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -123,7 +123,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.7</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.8</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -311,7 +311,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.7</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.8</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -359,7 +359,7 @@
                 </div>
             </div>
             
-            <div class="mt-2 flex items-center gap-3 bg-gray-800 p-2 rounded-lg border border-gray-700">
+            <div id="listener-wp-volume-container" class="mt-2 flex items-center gap-3 bg-gray-800 p-2 rounded-lg border border-gray-700">
                 <span class="text-xs text-gray-400">🔈</span>
                 <input type="range" id="listener-wp-volume" min="0" max="100" value="50" class="flex-1 accent-red-500" oninput="changeWatchPartyVolume(this.value)">
                 <span class="text-xs text-gray-400">🔊</span>
@@ -419,7 +419,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.7</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.8</div>
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -472,7 +472,6 @@
             </button>
         </div>
 
-        <!-- チャット欄 (リモコン) -->
         <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 flex flex-col">
             <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
                 <h3 class="text-sm font-bold text-gray-300">💬 リアルタイムチャット</h3>
@@ -511,7 +510,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.7</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.8</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -589,8 +588,13 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.7</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.8</div>
     </div>
+
+    <!-- 全画面共通リロードボタン -->
+    <button onclick="location.reload()" class="fixed bottom-2 left-2 bg-gray-800/80 hover:bg-gray-700 border border-gray-600 text-white px-3 py-1 rounded shadow-lg text-xs font-bold z-[9999] backdrop-blur-sm transition-colors active:bg-gray-600">
+        🔄 画面を更新
+    </button>
 
     <audio id="dummy-audio" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" loop playsinline></audio>
     <video id="host-relay-video" class="hidden" autoplay playsinline muted></video>
@@ -664,10 +668,31 @@
             if (savedName && nameEl) nameEl.value = savedName;
             if (savedAnon !== null && anonEl) anonEl.checked = (savedAnon === 'true');
 
+            // スマホ（タッチデバイス）の音量バー非表示処理
+            const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+            if (isTouchDevice) {
+                const volContainer = document.getElementById('listener-wp-volume-container');
+                if (volContainer) volContainer.style.display = 'none';
+            }
+
             const params = new URLSearchParams(window.location.search);
             try {
                 if(params.has('portal')) {
                     initPortal(params.get('portal'));
+                } else if(params.has('setup_host')) {
+                    // リロードによるホスト画面の復帰処理
+                    currentRoomId = params.get('setup_host');
+                    const history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
+                    const item = history.find(h => h.roomId === currentRoomId);
+                    if(item) {
+                        document.getElementById('input-room-id').value = item.roomId;
+                        document.getElementById('input-host-name').value = item.hostName;
+                        document.getElementById('input-host-password').value = item.password || '';
+                        createRoom();
+                    } else {
+                        showView('setup-view');
+                        renderHostHistory();
+                    }
                 } else if(params.has('host')) {
                     showView('listener-view');
                     currentRoomId = params.get('host');
@@ -745,6 +770,10 @@
                 descEl.textContent = '配信するルームを選んでください';
             }
             renderPortalHistory();
+
+            const url = new URL(window.location);
+            url.searchParams.set('portal', mode);
+            history.replaceState(null, '', url);
         }
 
         function renderPortalHistory() {
@@ -971,6 +1000,10 @@
             document.getElementById('display-room-id').textContent = currentRoomId;
             isHost = true;
             generateURLs();
+
+            const url = new URL(window.location);
+            url.searchParams.set('setup_host', currentRoomId);
+            history.replaceState(null, '', url);
 
             peer = new Peer(`jukebox-${currentRoomId}`);
 
@@ -1787,6 +1820,11 @@
             } else {
                 setupCameraConnection();
             }
+
+            const url = new URL(window.location);
+            url.searchParams.delete('portal');
+            url.searchParams.set('cam', currentRoomId);
+            history.replaceState(null, '', url);
         }
 
         function setupCameraConnection() {
@@ -2050,6 +2088,7 @@
                 const overlay = document.getElementById('listener-youtube-overlay');
                 if(overlay) {
                     overlay.classList.remove('bg-black/80');
+                    overlay.style.backgroundColor = 'transparent';
                     const icon = document.getElementById('listener-overlay-icon');
                     const text = document.getElementById('listener-overlay-text');
                     if(icon) icon.style.display = 'none';
@@ -2077,12 +2116,17 @@
                 if (typeof playerInstance.isAdPlaying === 'function' && playerInstance.isAdPlaying()) {
                     detectedAd = true;
                 }
+
+                let currentUrl = "";
+                try { currentUrl = playerInstance.getVideoUrl() || ""; } catch(e){}
+                if (currentSong && currentSong.videoId && currentUrl && currentUrl.indexOf(currentSong.videoId) === -1) {
+                    detectedAd = true;
+                }
                 
-                if (state === 1) { 
+                if (state === 1 || state === 3) { 
                     let videoData = null;
                     try { videoData = playerInstance.getVideoData(); } catch(e){}
-                    
-                    if (currentTime === listenerLastTime || (videoData && videoData.video_id !== (currentSong ? currentSong.videoId : ""))) {
+                    if (videoData && videoData.video_id && currentSong && videoData.video_id !== currentSong.videoId) {
                         detectedAd = true;
                     }
                 }
@@ -2090,13 +2134,24 @@
                 if (detectedAd) {
                     if (!isAdCurrentlyPlaying) {
                         isAdCurrentlyPlaying = true;
-                        if (overlay) overlay.style.pointerEvents = 'none'; 
-                        showToast("広告中はスキップボタンが押せます", "info");
+                        if (overlay) {
+                            overlay.style.pointerEvents = 'none'; 
+                            overlay.style.display = 'none';
+                        }
+                        showToast("広告中は画面を操作できます", "info");
                     }
                 } else {
                     if (isAdCurrentlyPlaying) {
                         isAdCurrentlyPlaying = false;
-                        if (overlay && !isWpOverlayActive) overlay.style.pointerEvents = 'auto'; 
+                        if (overlay) {
+                            if (!isWpOverlayActive) {
+                                overlay.style.pointerEvents = 'auto'; 
+                                overlay.style.display = 'flex';
+                            } else {
+                                overlay.style.pointerEvents = 'auto';
+                                overlay.style.display = 'flex';
+                            }
+                        }
                         
                         if (Math.abs(currentTime - hostCurrentTime) > 3) {
                             playerInstance.seekTo(hostCurrentTime, true);
@@ -2360,6 +2415,14 @@
                 });
                 call.on('close', () => { if(!isObs && !isRemote && !isObsCam) resetListenerVideo(); });
             });
+
+            const url = new URL(window.location);
+            url.searchParams.delete('portal');
+            if (isRemote) url.searchParams.set('remote', currentRoomId);
+            else if (isObsCam) url.searchParams.set('obs_cam', currentRoomId);
+            else if (isObs) url.searchParams.set('obs', currentRoomId);
+            else url.searchParams.set('host', currentRoomId);
+            history.replaceState(null, '', url);
         }
 
         function resetListenerVideo() {
