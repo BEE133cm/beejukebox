@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v1.0.14</title>
+    <title>Remote Jukebox v1.0.15</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -66,7 +66,7 @@
         <span id="toast-msg"></span>
     </div>
 
-    <!-- リモコン用上部速報通知 (新規追加) -->
+    <!-- リモコン用上部速報通知 -->
     <div id="remote-top-notification" class="fixed top-0 left-0 w-full z-[9999] transform -translate-y-full transition-transform duration-300 ease-out flex justify-center pointer-events-none">
         <div class="bg-gray-900 border-b-2 border-indigo-500 shadow-[0_10px_25px_rgba(0,0,0,0.8)] rounded-b-2xl p-4 w-full max-w-md flex flex-col gap-3 pointer-events-auto backdrop-blur-md bg-opacity-95">
             <div class="flex justify-between items-center gap-3">
@@ -134,7 +134,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.14</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.15</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -160,14 +160,13 @@
 
     <!-- ================= 2. 配信者 (Host) 画面 ================= -->
     <div id="host-view" class="hidden w-full max-w-6xl flex-col gap-6">
-        <!-- 修正: ヘッダーに速報テロップ枠を追加 -->
         <div class="flex items-center justify-between bg-gray-800 p-4 rounded-xl border border-gray-700 hide-on-share gap-4">
             <div class="flex-shrink-0">
                 <h2 class="font-bold text-xl text-white">👑 配信コントロール</h2>
                 <p class="text-sm text-gray-400">ルームID: <span id="display-room-id" class="text-red-400 font-mono"></span></p>
             </div>
             
-            <!-- 速報テロップ (新規) -->
+            <!-- 速報テロップ -->
             <div class="flex-1 overflow-hidden flex items-center justify-center">
                 <div id="host-news-ticker" class="bg-gray-900/90 text-yellow-400 font-bold text-sm px-4 py-2 rounded-full border border-yellow-500/50 shadow-lg opacity-0 transition-opacity duration-300 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
                     <!-- メッセージがここに入ります -->
@@ -331,7 +330,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.14</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.15</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -450,7 +449,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.14</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.15</div>
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -547,7 +546,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.14</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.15</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ (既存モーダル) -->
@@ -635,7 +634,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.14</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.15</div>
     </div>
 
     <!-- 全画面共通リロードボタン -->
@@ -798,7 +797,7 @@
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
-        // --- 新規追加: ホスト用ニューステロップ (案A) ---
+        // --- ホスト用ニューステロップ ---
         let hostNewsTimeout = null;
         function showHostNews(msg) {
             if(!isHost) return;
@@ -813,7 +812,7 @@
             }
         }
 
-        // --- 新規追加: リモコン用上部ポップアップ通知 ---
+        // --- リモコン用上部ポップアップ通知 ---
         let remoteNotifTimeout = null;
         function showRemoteTopNotification(msg, actionHtml = '') {
             if(!isRemoteMode) return;
@@ -832,7 +831,9 @@
                 actionEl.classList.add('hidden');
             }
             
+            // 確実に表示・非表示を切り替えるようにクラスを整理
             panel.classList.remove('-translate-y-full');
+            panel.classList.add('translate-y-0');
             
             if(remoteNotifTimeout) clearTimeout(remoteNotifTimeout);
             // アクションボタンがある場合（承認待ち）は長めに表示
@@ -844,7 +845,10 @@
 
         function closeRemoteTopNotification() {
             const panel = document.getElementById('remote-top-notification');
-            if(panel) panel.classList.add('-translate-y-full');
+            if(panel) {
+                panel.classList.remove('translate-y-0');
+                panel.classList.add('-translate-y-full');
+            }
         }
 
         function handleRemoteCamRequestTop(action, targetId) {
@@ -2469,6 +2473,9 @@
                                 localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
                             }
                             pendingConnection = null;
+                            
+                            // ★ 追加：パスワード認証成功後にプロフィールを再送信し、ホストに管理者と認識させる
+                            sendProfileUpdate(isObs, isRemoteMode, isObsCam);
                         } else {
                             document.getElementById('password-error').classList.remove('hidden');
                             delete savedPasswords[currentRoomId];
