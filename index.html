@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox v1.0.26</title>
+    <title>Remote Jukebox v1.0.27</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -189,7 +189,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.26</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.27</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -398,12 +398,11 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.26</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.27</p>
     </div>
 
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
     <div id="listener-view" class="hidden fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex flex-col text-sm">
-        <!-- ボリューム・各種設定モーダル -->
         <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
             <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
                 <div class="flex justify-between items-center border-b border-gray-800 pb-3">
@@ -500,7 +499,6 @@
         <!-- 1.5 配信主からのコメント表示（テーマ） -->
         <div id="listener-theme-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
 
-        <!-- 2. コントロールバー (映像とコメントの間) -->
         <div id="listener-controls-bar" class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
             <!-- 映像切り替えタブ -->
             <div class="flex gap-2">
@@ -555,7 +553,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.26
+                        v1.0.27
                     </div>
 
                 </div>
@@ -580,7 +578,6 @@
                 </div>
             </div>
         </div>
-        
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -607,7 +604,6 @@
     <!-- ================= 6. リモコン画面 (新フルスクリーンUI) ================= -->
     <div id="remote-view" class="hidden fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex flex-col text-sm">
         
-        <!-- 設定モーダル -->
         <div id="remote-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
             <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
                 <div class="flex justify-between items-center border-b border-gray-800 pb-3">
@@ -677,7 +673,6 @@
         <!-- 1.5 テーマ表示 -->
         <div id="remote-theme-display-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
 
-        <!-- 2. コントロールバー (映像とメニューの間) -->
         <div class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
             <div class="flex gap-2">
                 <button onclick="switchRemoteLayer('cam')" id="remote-tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
@@ -772,7 +767,7 @@
                                 </div>
                             </label>
                         </div>
-                        <div class="pt-8 text-center text-gray-700 text-[10px]">v1.0.26</div>
+                        <div class="pt-8 text-center text-gray-700 text-[10px]">v1.0.27</div>
                     </div>
                 </div>
             </div>
@@ -792,78 +787,135 @@
         </div>
     </div>
 
-    <!-- ================= 7. カメラ送出用ビュー ================= -->
-    <div id="camera-view" class="hidden w-full max-w-md bg-gray-900 border border-gray-700 p-4 sm:p-6 rounded-2xl shadow-2xl relative" style="height: 100vh; overflow-y: auto;">
-        <div class="text-center mb-6">
-            <h2 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-video"></i> カメラ配信モード</h2>
-            <div id="camera-status" class="text-sm text-yellow-500 animate-pulse">配信設定・待機中...</div>
+    <!-- ================= 7. カメラ送出用ビュー (新フルスクリーンUI) ================= -->
+    <div id="camera-view" class="hidden fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex flex-col text-sm">
+        
+        <!-- 設定モーダル -->
+        <div id="camera-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
+            <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
+                <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                    <h3 class="text-white font-bold text-sm"><i class="fa-solid fa-gear"></i> 配信設定</h3>
+                    <button onclick="document.getElementById('camera-settings-modal').classList.add('hidden')" class="text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                
+                <div class="space-y-5">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1 font-bold"><i class="fa-solid fa-tv"></i> 画質 (解像度)</label>
+                        <select id="cam-res" class="w-full bg-gray-800 text-white rounded p-2 text-sm border border-gray-600 outline-none focus:border-indigo-500 mb-3">
+                            <option value="1920x1080">1080p (フルHD / 高画質・高負荷)</option>
+                            <option value="1280x720" selected>720p (HD / 標準・おすすめ)</option>
+                            <option value="854x480">480p (SD / 軽量・安定優先)</option>
+                        </select>
+                        
+                        <label class="block text-xs text-gray-400 mb-1 font-bold mt-2"><i class="fa-solid fa-signal"></i> 最大ビットレート (kbps)</label>
+                        <input type="number" id="cam-bitrate" value="2500" step="500" class="w-full bg-gray-800 text-white rounded p-2 text-sm border border-gray-600 outline-none focus:border-indigo-500" placeholder="例: 2500">
+                        <p class="text-[10px] text-gray-500 mt-1 leading-tight">※数値を上げるとモザイクが減りますがパケット消費と発熱が増加します。</p>
+                    </div>
+
+                    <div class="border-t border-gray-800 pt-4">
+                        <label class="block text-xs text-gray-400 mb-1 font-bold flex justify-between">
+                            <span><i class="fa-solid fa-microphone"></i> マイク音量ブースト</span>
+                            <span id="cam-mic-gain-val" class="text-white">1.0x</span>
+                        </label>
+                        <input type="range" id="cam-mic-gain" min="0" max="10" step="0.1" value="1" class="w-full accent-green-500" oninput="updateMicGain(this.value)">
+                        <p class="text-[10px] text-gray-500 mt-1 leading-tight">※スマホ側の声が小さい場合のみ数値を上げてください。最大10倍。</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 text-center">
-            <div class="w-full aspect-video bg-black rounded-lg overflow-hidden relative border border-gray-700 mb-4 shadow-inner">
-                <video id="camera-preview" autoplay muted playsinline class="w-full h-full object-cover transform scale-x-[-1]"></video>
-                <div id="camera-off-overlay" class="hidden absolute inset-0 bg-gray-900 flex flex-col items-center justify-center text-gray-500 font-bold gap-2">
-                    <span class="text-2xl"><i class="fa-solid fa-ban"></i></span>
-                    <span>映像OFF (音声のみ配信中)</span>
-                </div>
+        <!-- 1. 映像エリア (上部固定) -->
+        <div class="relative w-full bg-black shrink-0 z-20 flex flex-col justify-center overflow-hidden" style="aspect-ratio: 16/9;">
+            <!-- 映像 (反転解除) -->
+            <video id="camera-preview" autoplay muted playsinline class="w-full h-full object-cover relative z-10"></video>
+            <div id="camera-off-overlay" class="hidden absolute inset-0 bg-gray-900 flex flex-col items-center justify-center text-gray-500 font-bold gap-2 z-15">
+                <span class="text-3xl"><i class="fa-solid fa-video-slash"></i></span>
+                <span class="text-sm">映像OFF (音声のみ配信中)</span>
             </div>
-            
-            <div class="w-full h-4 bg-gray-900 rounded-full overflow-hidden mb-4 relative shadow-inner border border-gray-700">
-                <canvas id="mic-meter" class="absolute inset-0 w-full h-full"></canvas>
+            <!-- カメラ切り替えボタン (右下) -->
+            <button onclick="toggleCameraFacingMode()" class="absolute bottom-3 right-3 z-30 bg-gray-800/80 hover:bg-gray-700 text-white w-10 h-10 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)] flex items-center justify-center transition-transform active:scale-90 border border-gray-600">
+                <i class="fa-solid fa-camera-rotate text-lg"></i>
+            </button>
+            <!-- ステータス帯 -->
+            <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
+                <span id="camera-status" class="text-[11px] text-yellow-500 font-bold animate-pulse drop-shadow-md">配信設定・待機中...</span>
             </div>
+        </div>
 
-            <div id="camera-setup-controls" class="mb-4 space-y-4">
-                <div class="bg-gray-900 border border-gray-700 p-3 rounded-lg text-left shadow-inner">
-                    <label class="block text-xs text-gray-400 mb-1 font-bold"><i class="fa-solid fa-tv"></i> 画質 (解像度)</label>
-                    <select id="cam-res" class="w-full bg-gray-800 text-white rounded p-2 text-sm border border-gray-600 outline-none focus:border-blue-500 mb-3">
-                        <option value="1920x1080">1080p (フルHD / 高画質・高負荷)</option>
-                        <option value="1280x720" selected>720p (HD / 標準・おすすめ)</option>
-                        <option value="854x480">480p (SD / 軽量・安定優先)</option>
-                    </select>
-                    
-                    <label class="block text-xs text-gray-400 mb-1 font-bold"><i class="fa-solid fa-signal"></i> 最大ビットレート (kbps)</label>
-                    <input type="number" id="cam-bitrate" value="2500" step="500" class="w-full bg-gray-800 text-white rounded p-2 text-sm border border-gray-600 outline-none focus:border-blue-500" placeholder="例: 2500">
-                    <p class="text-[10px] text-gray-500 mt-1 leading-tight">※数値を上げるとモザイクが減りますが、パケット消費とスマホの発熱が増加します。</p>
-                </div>
+        <!-- 2. オーディオメーター -->
+        <div class="w-full h-2 bg-gray-900 shrink-0 relative border-b border-gray-800">
+            <canvas id="mic-meter" class="absolute inset-0 w-full h-full"></canvas>
+        </div>
 
-                <button onclick="startCameraStream()" id="btn-cam-start" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-lg font-bold flex items-center justify-center gap-2 text-lg shadow-lg transition-transform active:scale-95">
-                    <i class="fa-solid fa-rocket"></i> 配信をスタートする
+        <!-- 3. コントロールバー (設定呼び出しなど) -->
+        <div class="flex-shrink-0 flex justify-end items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
+            <button onclick="document.getElementById('camera-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </div>
+
+        <!-- 4. 基本コントロール (配信開始/停止など) -->
+        <div class="flex-shrink-0 bg-[#111827] border-b border-gray-800 px-3 py-3 z-10 shadow-md">
+            <!-- 配信前 -->
+            <div id="camera-setup-controls">
+                <button onclick="startCameraStream()" id="btn-cam-start" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-lg shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95">
+                    <i class="fa-solid fa-rocket text-lg"></i> 配信をスタートする
                 </button>
             </div>
-
-            <div id="camera-active-controls" class="hidden space-y-3">
-                <div class="bg-gray-900 border border-gray-700 p-3 rounded-lg shadow-inner mb-3 text-left">
-                    <label class="block text-xs text-gray-400 mb-1 font-bold flex justify-between">
-                        <span><i class="fa-solid fa-microphone"></i> マイク音量ブースト</span>
-                        <span id="cam-mic-gain-val" class="text-white">1.0x</span>
-                    </label>
-                    <input type="range" id="cam-mic-gain" min="0" max="10" step="0.1" value="1" class="w-full accent-green-500" oninput="updateMicGain(this.value)">
-                    <p class="text-[10px] text-gray-500 mt-1 leading-tight">※スマホ側の声が小さい場合のみ数値を上げてください。最大10倍。</p>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <button onclick="toggleCameraMic()" id="btn-cam-mic" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors shadow">
+            <!-- 配信中 -->
+            <div id="camera-active-controls" class="hidden space-y-2.5">
+                <div class="flex gap-2">
+                    <button onclick="toggleCameraMic()" id="btn-cam-mic" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-2 transition-colors">
                         <i class="fa-solid fa-microphone"></i> マイクON
                     </button>
-                    <button onclick="toggleCameraVideo()" id="btn-cam-vid" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors shadow">
+                    <button onclick="toggleCameraVideo()" id="btn-cam-vid" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-2 transition-colors">
                         <i class="fa-solid fa-video"></i> 映像ON
                     </button>
                 </div>
-                
-                <button onclick="toggleCameraRecording()" id="btn-cam-record" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors border border-gray-500 shadow">
-                    <i class="fa-solid fa-record-vinyl"></i> 同録スタート (スマホ内に録画)
-                </button>
-                
-                <button onclick="refreshCameraStream()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors shadow">
-                    <i class="fa-solid fa-rotate-right"></i> 映像・音声を更新
-                </button>
-
-                <button onclick="stopCameraStream()" class="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors shadow">
-                    <i class="fa-solid fa-stop"></i> 配信を停止する
-                </button>
+                <div class="flex gap-2">
+                    <button onclick="toggleCameraRecording()" id="btn-cam-record" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-1.5 transition-colors border border-gray-600 text-xs">
+                        <i class="fa-solid fa-record-vinyl"></i> 同録
+                    </button>
+                    <button onclick="refreshCameraStream()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-1.5 transition-colors text-xs">
+                        <i class="fa-solid fa-rotate-right"></i> 更新
+                    </button>
+                    <button onclick="stopCameraStream()" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-1.5 transition-colors text-xs">
+                        <i class="fa-solid fa-stop"></i> 停止
+                    </button>
+                </div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.26</div>
+
+        <!-- 5. タブメニューエリア (下部) -->
+        <div class="flex-1 flex flex-col min-h-0 bg-[#0e0e10]">
+            <!-- タブヘッダー -->
+            <div class="flex bg-[#18181b] border-b border-gray-800 shrink-0 shadow-md z-10">
+                <button onclick="switchCameraMenuTab('chat')" id="camera-menu-tab-chat" class="flex-1 py-2.5 text-[11px] font-bold text-indigo-400 border-b-2 border-indigo-500 transition-colors">💬 コメント</button>
+                <button onclick="switchCameraMenuTab('users')" id="camera-menu-tab-users" class="flex-1 py-2.5 text-[11px] font-bold text-gray-500 border-b-2 border-transparent transition-colors">👥 参加者</button>
+            </div>
+            
+            <!-- コンテンツエリア -->
+            <div class="flex-1 relative overflow-hidden">
+                <!-- 💬 コメント タブ -->
+                <div id="camera-menu-content-chat" class="absolute inset-0 flex flex-col">
+                    <div id="camera-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto pb-4 relative z-10"></div>
+                    <!-- チャット入力フローティング -->
+                    <div id="camera-chat-backdrop" class="chat-backdrop" onclick="closeCameraChatInput()"></div>
+                    <div id="camera-chat-input-container" class="flex-shrink-0 px-3 py-2 bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20 pb-safe">
+                        <input type="text" id="camera-chat-input" name="dummy-camera-chat" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusCameraChatInput()" onblur="blurCameraChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest(true, 'camera')" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
+                        <button onclick="sendChatRequest(true, 'camera')" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
+                    </div>
+                </div>
+                
+                <!-- 👥 参加者 タブ -->
+                <div id="camera-menu-content-users" class="hidden absolute inset-0 overflow-y-auto p-3 bg-[#111827] pb-12">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-2 mb-3">
+                        <h3 class="font-bold text-gray-200 text-xs">参加者管理 <span id="camera-participant-count" class="text-indigo-300 ml-1"></span></h3>
+                    </div>
+                    <div id="camera-participant-list" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 全画面共通リロードボタン (アイコン化) -->
@@ -1000,6 +1052,28 @@
             }, 200);
         }
 
+        // チャット入力欄フローティング機能のJS関数 (カメラ用)
+        function focusCameraChatInput() {
+            document.getElementById('camera-chat-input-container').classList.add('chat-input-floating');
+            document.getElementById('camera-chat-backdrop').classList.add('active');
+        }
+
+        function closeCameraChatInput() {
+            const input = document.getElementById('camera-chat-input');
+            if (input) input.blur();
+            document.getElementById('camera-chat-input-container').classList.remove('chat-input-floating');
+            document.getElementById('camera-chat-backdrop').classList.remove('active');
+        }
+
+        function blurCameraChatInputDelay() {
+            setTimeout(() => {
+                const input = document.getElementById('camera-chat-input');
+                if (document.activeElement !== input) {
+                    closeCameraChatInput();
+                }
+            }, 200);
+        }
+
         window.onload = () => {
             const unlockTTS = () => { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); };
             const rTts = document.getElementById('remote-tts-toggle');
@@ -1060,6 +1134,8 @@
                     initListener(false, true);
                 } else if(params.has('cam') || params.has('camera')) {
                     showView('camera-view');
+                    document.body.classList.remove('p-4', 'sm:p-8');
+                    document.body.classList.add('p-0', 'overflow-hidden');
                     currentRoomId = params.get('cam') || params.get('camera');
                     initCamera();
                 } else {
@@ -1081,14 +1157,16 @@
             const v = document.getElementById(viewId);
             if(v) {
                 v.classList.remove('hidden');
-                if(viewId === 'host-view' || viewId === 'listener-view' || viewId === 'remote-view') v.classList.add('flex');
+                if(viewId === 'host-view' || viewId === 'listener-view' || viewId === 'remote-view' || viewId === 'camera-view') v.classList.add('flex');
             }
         }
 
         function showToast(msg, type="info") {
             const toast = document.getElementById('toast');
             document.getElementById('toast-msg').innerHTML = msg;
-            toast.className = `toast bg-gray-800 border-l-4 p-4 rounded shadow-lg flex items-center gap-3 text-white ${type === 'error' ? 'border-red-500' : 'border-indigo-500'}`;
+            toast.className = `toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3 text-sm`;
+            if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
+            else toast.classList.replace('border-red-500', 'border-indigo-500');
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
@@ -1294,6 +1372,8 @@
                 initListener();
             } else if (currentPortalMode === 'cam' || currentPortalMode === 'camera') {
                 showView('camera-view');
+                document.body.classList.remove('p-4', 'sm:p-8');
+                document.body.classList.add('p-0', 'overflow-hidden');
                 initCamera();
             }
         }
@@ -1813,15 +1893,15 @@
 
         function updateParticipantsUI() {
             const hList = document.getElementById('host-participant-list');
-            if(hList) renderParticipantList(hList);
+            if(hList) renderParticipantList(hList, false, 'host');
             const rList = document.getElementById('remote-participant-list');
-            if(rList && isRemoteMode) renderParticipantList(rList, true);
+            if(rList && isRemoteMode) renderParticipantList(rList, true, 'remote');
         }
 
-        function renderParticipantList(container, isRemoteView = false) {
+        function renderParticipantList(container, isRemoteView = false, viewType = 'host') {
             if(!container) return;
             container.innerHTML = '';
-            const list = isRemoteView ? (window.remoteReceivedParticipants || []) : Object.values(connectedListeners);
+            const list = (viewType === 'camera' || viewType === 'remote') ? (window.remoteReceivedParticipants || []) : Object.values(connectedListeners);
             
             let validParticipantCount = 0;
 
@@ -1853,10 +1933,10 @@
                 container.appendChild(div);
             });
 
-            const countEl = document.getElementById(isRemoteView ? 'remote-participant-count' : 'host-participant-count');
+            const countEl = document.getElementById(viewType === 'camera' ? 'camera-participant-count' : (isRemoteView ? 'remote-participant-count' : 'host-participant-count'));
             if (countEl) countEl.textContent = `(現在: ${validParticipantCount}人)`;
 
-            const bUsers = isRemoteView ? (window.remoteBannedUsers || {}) : bannedUsers;
+            const bUsers = (viewType === 'camera' || viewType === 'remote') ? (window.remoteBannedUsers || {}) : bannedUsers;
             if(Object.keys(bUsers).length > 0) {
                 const banHeader = document.createElement('div');
                 banHeader.className = "text-xs font-bold text-red-400 mt-4 mb-2 border-b border-gray-700 pb-1";
@@ -2338,6 +2418,7 @@
         let currentCamWidth = 1280;
         let currentCamHeight = 720;
         let currentBitrate = 2500;
+        let currentFacingMode = 'environment';
 
         function applyCameraSettings() {
             const res = document.getElementById('cam-res').value.split('x');
@@ -2392,11 +2473,53 @@
             return cameraStream;
         }
 
+        function toggleCameraFacingMode() {
+            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+            if (camCall) {
+                refreshCameraStream();
+            } else {
+                navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: currentFacingMode, width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
+                    audio: true
+                }).then(stream => {
+                    if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+                    cameraStream = stream;
+                    const videoTrack = cameraStream.getVideoTracks()[0];
+                    if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
+                    document.getElementById('camera-preview').srcObject = stream;
+                    setupMicMeter();
+                }).catch(err => {
+                    showToast("カメラの切り替えに失敗しました", "error");
+                });
+            }
+        }
+
+        function switchCameraMenuTab(tabId) {
+            ['chat', 'users'].forEach(id => {
+                document.getElementById('camera-menu-content-' + id).classList.add('hidden');
+                const btn = document.getElementById('camera-menu-tab-' + id);
+                if (btn) {
+                    btn.classList.remove('text-indigo-400', 'border-indigo-500');
+                    btn.classList.add('text-gray-500', 'border-transparent');
+                }
+            });
+            document.getElementById('camera-menu-content-' + tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('camera-menu-tab-' + tabId);
+            if (activeBtn) {
+                activeBtn.classList.add('text-indigo-400', 'border-indigo-500');
+                activeBtn.classList.remove('text-gray-500', 'border-transparent');
+            }
+            if(tabId === 'chat') {
+                const chatList = document.getElementById('camera-chat-list');
+                if(chatList) chatList.scrollTop = chatList.scrollHeight;
+            }
+        }
+
         function initCamera() {
             document.getElementById('camera-status').textContent = "ホストに接続・認証中...";
             document.getElementById('camera-status').classList.replace('text-green-500', 'text-yellow-500');
             
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true })
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode }, audio: true })
                 .then(stream => {
                     cameraStream = stream;
                     document.getElementById('camera-preview').srcObject = stream;
@@ -2448,6 +2571,17 @@
                     } else {
                         cameraReadyToStart();
                     }
+
+                    if (data.chatHistory) {
+                        chatHistory = data.chatHistory;
+                        renderChatList('camera-chat-list', chatHistory, true);
+                    }
+                    if (data.participants) {
+                        window.remoteReceivedParticipants = data.participants;
+                        window.remoteBannedUsers = data.bannedUsers;
+                        renderParticipantList(document.getElementById('camera-participant-list'), true, 'camera');
+                    }
+
                 } else if (data.type === 'auth_response') {
                     if (data.success) {
                         hidePasswordModal();
@@ -2463,6 +2597,12 @@
                         delete savedPasswords[currentRoomId];
                         localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
                         showPasswordModal();
+                    }
+                } else if (data.type === 'new_chat') {
+                    if(!chatHistory.some(c => c.id === data.chat.id)) {
+                        chatHistory.push(data.chat);
+                        if(chatHistory.length > 100) chatHistory.shift();
+                        renderChatList('camera-chat-list', chatHistory, true);
                     }
                 }
             });
@@ -2483,7 +2623,7 @@
             document.getElementById('camera-status').classList.replace('text-green-500', 'text-yellow-500');
 
             navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment', width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
+                video: { facingMode: currentFacingMode, width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
                 audio: true
             }).then(stream => {
                 cameraStream = stream;
@@ -2502,7 +2642,7 @@
         }
         
         function executeCamCall(bitrate) {
-            document.getElementById('camera-status').innerHTML = '<i class="fa-solid fa-circle text-red-500"></i> 映像＋音声 配信中！';
+            document.getElementById('camera-status').innerHTML = '<i class="fa-solid fa-circle text-red-500 animate-pulse"></i> 映像＋音声 配信中！';
             document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-red-500');
             document.getElementById('camera-setup-controls').classList.add('hidden');
             document.getElementById('camera-active-controls').classList.remove('hidden');
@@ -2520,7 +2660,7 @@
             if(cameraStream) cameraStream.getTracks().forEach(t=>t.stop());
 
             navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment', width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
+                video: { facingMode: currentFacingMode, width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
                 audio: true
             }).then(stream => {
                 cameraStream = stream;
@@ -2605,7 +2745,7 @@
             const btn = document.getElementById('btn-cam-record');
             if (mediaRecorder && mediaRecorder.state === "recording") {
                 mediaRecorder.stop();
-                btn.innerHTML = '<i class="fa-solid fa-record-vinyl"></i> 同録スタート (スマホ内に録画)';
+                btn.innerHTML = '<i class="fa-solid fa-record-vinyl"></i> 同録';
                 btn.classList.replace('bg-red-700', 'bg-gray-700');
                 btn.classList.replace('hover:bg-red-600', 'hover:bg-gray-600');
                 btn.classList.remove('animate-pulse');
@@ -2628,7 +2768,7 @@
                         setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
                     };
                     mediaRecorder.start();
-                    btn.innerHTML = '<i class="fa-solid fa-circle text-red-500"></i> 同録中 (タップで停止保存)';
+                    btn.innerHTML = '<i class="fa-solid fa-circle text-red-500"></i> 同録中 (タップで停止)';
                     btn.classList.replace('bg-gray-700', 'bg-red-700');
                     btn.classList.replace('hover:bg-gray-600', 'hover:bg-red-600');
                     btn.classList.add('animate-pulse');
@@ -3257,7 +3397,7 @@
         }
 
         function sendChatRequest(isRemote = false, role = 'listener') {
-            const inputId = role === 'host' ? 'host-chat-input' : (isRemote ? 'remote-chat-input' : 'listener-chat-input');
+            const inputId = role === 'host' ? 'host-chat-input' : (role === 'camera' ? 'camera-chat-input' : (isRemote ? 'remote-chat-input' : 'listener-chat-input'));
             const text = document.getElementById(inputId).value.trim();
             if(!text) return;
 
@@ -3270,7 +3410,9 @@
                 return;
             }
 
-            if(isRemote) {
+            if(role === 'camera') {
+                sender = `🎥 カメラ配信`; senderReal = "カメラ配信";
+            } else if(isRemote) {
                 sender = `👑 配信管理者`; senderReal = "配信管理者";
             } else {
                 senderReal = document.getElementById('listener-name').value.trim() || "名無し";
@@ -3281,12 +3423,14 @@
             }
 
             if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'chat', text, sender, senderReal, isAnon, isRemote });
+                listenerConn.send({ type: 'chat', text, sender, senderReal, isAnon, isRemote: isRemote || role === 'camera' });
                 document.getElementById(inputId).value = '';
                 if (role === 'listener' && !isRemote) {
                     closeChatInput();
-                } else if (isRemote) {
+                } else if (isRemote && role !== 'camera') {
                     closeRemoteChatInput();
+                } else if (role === 'camera') {
+                    closeCameraChatInput();
                 }
             }
         }
@@ -3305,7 +3449,7 @@
             const container = document.getElementById(containerId);
             if(!container) return;
             
-            const isListenerView = containerId === 'listener-chat-list' || containerId === 'remote-chat-list';
+            const isListenerView = containerId === 'listener-chat-list' || containerId === 'remote-chat-list' || containerId === 'camera-chat-list';
 
             container.innerHTML = '';
             chats.forEach(c => {
@@ -3475,7 +3619,7 @@
                 const toggleEl = document.getElementById('remote-cam-approval-toggle');
                 if (toggleEl) toggleEl.checked = cameraApprovalMode;
 
-                renderParticipantList(document.getElementById('remote-participant-list'), true);
+                renderParticipantList(document.getElementById('remote-participant-list'), true, 'remote');
 
                 const hList = document.getElementById('remote-history-list');
                 if(hList && historyQueue) {
@@ -3497,7 +3641,6 @@
                     });
                 }
                 
-                // カメラ配信のボタンとタブの発光（リモコン用）
                 const btnRemote = document.getElementById('btn-remote-toggle-camera');
                 const tabRemoteCamIcon = document.querySelector('#remote-tab-cam i');
                 if(isLive) {
