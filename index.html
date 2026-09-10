@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox v1.0.22</title>
+    <title>Remote Jukebox v1.0.23</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <!-- アイコンフォント (FontAwesome) を追加 -->
@@ -160,7 +160,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.22</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.23</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -369,7 +369,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.22</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.23</p>
     </div>
 
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
@@ -527,7 +527,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.22
+                        v1.0.23
                     </div>
 
                 </div>
@@ -669,7 +669,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.22</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.23</p>
     </div>
 
     <div id="remote-cam-modal" class="hidden fixed inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
@@ -755,7 +755,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.22</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.23</div>
     </div>
 
     <!-- 全画面共通リロードボタン (アイコン化) -->
@@ -1448,24 +1448,40 @@
 
             if(data.type === 'update_profile') {
                 if(listener) {
+                    let isReconnected = false;
+                    let restoredCameraStatus = 'none';
+                    let restoredIsMuted = false;
+
                     if (data.uuid) {
                         Object.values(connectedListeners).forEach(oldP => {
                             if (oldP.uuid === data.uuid && oldP.id !== peerId) {
+                                isReconnected = true;
+                                restoredCameraStatus = oldP.cameraStatus;
+                                restoredIsMuted = oldP.isMuted;
                                 oldP.conn.close();
                                 delete connectedListeners[oldP.id];
                             }
                         });
                     }
 
-                    const isNew = (listener.name === "名無し" || !listener.hasAnnounced) && data.name !== "名無し" && !data.isObs && !data.isRemote;
+                    const isNew = (listener.name === "名無し" || !listener.hasAnnounced) && data.name !== "名無し" && !data.isObs && !data.isRemote && !isReconnected;
                     listener.name = data.name;
                     listener.isRemote = data.isRemote || false;
                     listener.isObs = data.isObs || false;
                     listener.uuid = data.uuid; 
                     listener.lastPongReceived = Date.now();
                     
+                    if (isReconnected) {
+                        listener.cameraStatus = restoredCameraStatus;
+                        listener.isMuted = restoredIsMuted;
+                    }
+
                     if (listener.isObs) {
                         listener.cameraStatus = 'approved';
+                        if (currentStreamToListeners && !listener.call) {
+                            sendStreamToPeer(listener.id);
+                        }
+                    } else if (isReconnected && listener.cameraStatus === 'approved') {
                         if (currentStreamToListeners && !listener.call) {
                             sendStreamToPeer(listener.id);
                         }
@@ -1477,6 +1493,8 @@
                         Object.values(connectedListeners).forEach(p => {
                             if (p.isRemote && p.conn.open) p.conn.send({type: 'remote_alert', msg: `<i class="fa-solid fa-door-open"></i> <b>${data.name}</b> が入室しました`});
                         });
+                    } else if (isReconnected) {
+                        listener.hasAnnounced = true;
                     }
 
                     updateParticipantsUI();
@@ -2700,7 +2718,13 @@
 
         function initListener(isObs = false, isRemote = false, isObsCam = false) {
             if (!isObs && !isRemote && !isObsCam) {
-                showNameModal();
+                const savedName = localStorage.getItem('jukebox_guest_name');
+                if (savedName) {
+                    document.getElementById('listener-name').value = savedName;
+                    startListenerConnection(false, false, false);
+                } else {
+                    showNameModal();
+                }
             } else {
                 startListenerConnection(isObs, isRemote, isObsCam);
             }
