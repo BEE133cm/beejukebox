@@ -2072,6 +2072,8 @@
         let listenerLastTime = -1;
         let hostCurrentTime = 0;
         let isWpOverlayActive = true;
+        let listenerStuckSeconds = 0;
+        let hostCurrentStatus = -1;
 
         function handleOverlayClick() {
             if (isWpOverlayActive) {
@@ -2129,6 +2131,20 @@
                     if (videoData && videoData.video_id && currentSong && videoData.video_id !== currentSong.videoId) {
                         detectedAd = true;
                     }
+                }
+
+                if (hostCurrentStatus === 1) { 
+                    if (Math.abs(currentTime - listenerLastTime) < 0.2) {
+                        listenerStuckSeconds++;
+                    } else {
+                        listenerStuckSeconds = 0;
+                    }
+                } else {
+                    listenerStuckSeconds = 0;
+                }
+
+                if (listenerStuckSeconds >= 3) {
+                    detectedAd = true; 
                 }
 
                 if (detectedAd) {
@@ -2206,6 +2222,7 @@
             const state = listenerYTPlayer.getPlayerState();
             const currentTime = listenerYTPlayer.getCurrentTime();
             hostCurrentTime = data.time; 
+            hostCurrentStatus = data.status;
             
             if (isAdCurrentlyPlaying) return;
 
