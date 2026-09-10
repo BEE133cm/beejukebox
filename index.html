@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Jukebox v1.0.9</title>
+    <title>Remote Jukebox v1.0.10</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -123,7 +123,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.9</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.10</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -311,7 +311,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.9</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.10</p>
     </div>
 
     <!-- ================= 3. リスナー画面 ================= -->
@@ -352,7 +352,7 @@
             
             <div id="listener-watch-party-wrapper" class="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-gray-700 shadow-inner">
                 <div id="listener-youtube-player" class="w-full h-full"></div>
-                <!-- 初回タップ用のオーバーレイ -->
+                <!-- 初回タップ用のオーバーレイ (タップ後非表示) -->
                 <div id="listener-youtube-overlay" class="absolute inset-0 z-10 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
                     <span id="listener-overlay-icon" class="text-4xl mb-2 hover:scale-110 transition-transform">▶</span>
                     <span id="listener-overlay-text" class="text-sm font-bold">タップして音声をONにして視聴開始</span>
@@ -388,8 +388,13 @@
                 <input type="checkbox" id="listener-anon" class="rounded bg-gray-900 border-gray-600 text-red-500 focus:ring-red-500">
                 <span>リスナー画面では匿名(184)にする</span>
             </label>
+            <!-- 同時視聴 ON/OFF トグル -->
+            <label class="flex items-center gap-2 text-sm text-gray-300 mb-2 cursor-pointer border-t border-gray-700 pt-3 mt-1">
+                <input type="checkbox" id="listener-wp-toggle" checked onchange="toggleWatchPartyEnable()" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-indigo-500">
+                <span class="font-bold">📺 Watch Party (同時視聴) を有効にする</span>
+            </label>
             <div>
-                <label class="flex items-center gap-1 text-sm text-gray-300 mb-1">
+                <label class="flex items-center gap-1 text-sm text-gray-300 mb-1 mt-2">
                     YouTube URL
                     <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold transition-colors">?</button>
                 </label>
@@ -419,7 +424,7 @@
                 <div id="listener-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400"></div>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.9</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.10</div>
     </div>
 
     <!-- ================= 4. 旧OBS用透過画面 (再生バーのみ) ================= -->
@@ -510,7 +515,7 @@
             <div id="remote-history-list" class="space-y-2 max-h-32 overflow-y-auto text-sm text-gray-400">
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.9</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.10</p>
     </div>
 
     <!-- リモコン用：カメラ承認ポップアップ -->
@@ -566,6 +571,16 @@
             </div>
 
             <div id="camera-active-controls" class="hidden space-y-3">
+                <!-- マイクブーストアンプ設定 (配信中も操作可能) -->
+                <div class="bg-gray-900 border border-gray-700 p-3 rounded-lg shadow-inner mb-3 text-left">
+                    <label class="block text-xs text-gray-400 mb-1 font-bold flex justify-between">
+                        <span>🎙️ マイク音量ブースト</span>
+                        <span id="cam-mic-gain-val" class="text-white">1.0x</span>
+                    </label>
+                    <input type="range" id="cam-mic-gain" min="0" max="10" step="0.1" value="1" class="w-full accent-green-500" oninput="updateMicGain(this.value)">
+                    <p class="text-[10px] text-gray-500 mt-1 leading-tight">※スマホ側の声が小さい場合のみ数値を上げてください。最大10倍。</p>
+                </div>
+
                 <div class="grid grid-cols-2 gap-3">
                     <button onclick="toggleCameraMic()" id="btn-cam-mic" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors shadow">
                         🎙️ マイクON
@@ -588,7 +603,7 @@
                 </button>
             </div>
         </div>
-        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.9</div>
+        <div class="fixed bottom-2 right-2 text-xs text-gray-600 font-mono">v1.0.10</div>
     </div>
 
     <!-- 全画面共通リロードボタン -->
@@ -647,6 +662,11 @@
         let isMicOn = true;
         let isVideoOn = true;
         let audioContext, analyser, microphone, meterDrawId;
+        
+        // --- Web Audio API アンプ用変数 ---
+        let gainNode = null;
+        let outDestination = null;
+
         let hostMediaConn = null; 
         let camCall = null;
         let currentStreamToListeners = null;
@@ -680,7 +700,6 @@
                 if(params.has('portal')) {
                     initPortal(params.get('portal'));
                 } else if(params.has('setup_host')) {
-                    // リロードによるホスト画面の復帰処理
                     currentRoomId = params.get('setup_host');
                     const history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
                     const item = history.find(h => h.roomId === currentRoomId);
@@ -1779,19 +1798,50 @@
             currentBitrate = parseInt(document.getElementById('cam-bitrate').value) || 2500;
         }
 
+        function updateMicGain(val) {
+            const displayVal = parseFloat(val).toFixed(1) + 'x';
+            document.getElementById('cam-mic-gain-val').textContent = displayVal;
+            if (gainNode) {
+                gainNode.gain.value = parseFloat(val);
+            }
+        }
+
         function setupMicMeter() {
             try {
                 if(!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 if(audioContext.state === 'suspended') audioContext.resume();
+                
                 if(analyser) analyser.disconnect();
                 if(microphone) microphone.disconnect();
+                if(gainNode) gainNode.disconnect();
                 
                 analyser = audioContext.createAnalyser();
                 microphone = audioContext.createMediaStreamSource(cameraStream);
-                microphone.connect(analyser);
+                
+                gainNode = audioContext.createGain();
+                const currentGain = document.getElementById('cam-mic-gain') ? parseFloat(document.getElementById('cam-mic-gain').value) : 1.0;
+                gainNode.gain.value = currentGain;
+                
+                outDestination = audioContext.createMediaStreamDestination();
+                
+                microphone.connect(gainNode);
+                gainNode.connect(outDestination);
+                gainNode.connect(analyser);
+                
                 analyser.fftSize = 256;
                 if(!meterDrawId) drawMicMeter();
-            } catch(e) {}
+            } catch(e) { console.error("Audio processing setup error:", e); }
+        }
+
+        function getProcessedStream() {
+            if (outDestination && cameraStream) {
+                const audioTracks = outDestination.stream.getAudioTracks();
+                const videoTracks = cameraStream.getVideoTracks();
+                if (audioTracks.length > 0 && videoTracks.length > 0) {
+                    return new MediaStream([videoTracks[0], audioTracks[0]]);
+                }
+            }
+            return cameraStream;
         }
 
         function initCamera() {
@@ -1905,7 +1955,8 @@
             document.getElementById('camera-setup-controls').classList.add('hidden');
             document.getElementById('camera-active-controls').classList.remove('hidden');
             
-            camCall = peer.call(`jukebox-${currentRoomId}`, cameraStream);
+            const streamToSend = getProcessedStream();
+            camCall = peer.call(`jukebox-${currentRoomId}`, streamToSend);
             setTimeout(() => applyBitrate(camCall, bitrate), 1000);
         }
 
@@ -1927,7 +1978,8 @@
                 document.getElementById('camera-preview').srcObject = stream;
                 setupMicMeter();
                 
-                camCall = peer.call(`jukebox-${currentRoomId}`, cameraStream);
+                const streamToSend = getProcessedStream();
+                camCall = peer.call(`jukebox-${currentRoomId}`, streamToSend);
                 setTimeout(() => applyBitrate(camCall, currentBitrate), 1000);
                 showToast("更新しました！", "info");
             }).catch(e => {
@@ -2038,6 +2090,7 @@
         let isRemoteMode = false;
         let isListenerVideoOpen = false;
         let listenerHasStream = false;
+        let isWatchPartyEnabled = true;
 
         let currentCamReqPeerId = null;
         function showCameraRequestModal(peerId, name) {
@@ -2067,12 +2120,8 @@
         }
 
         let listenerYTPlayer = null;
-        let isAdCurrentlyPlaying = false;
-        let listenerAdCheckInterval = null;
-        let listenerLastTime = -1;
-        let hostCurrentTime = 0;
         let isWpOverlayActive = true;
-        let listenerStuckSeconds = 0;
+        let hostCurrentTime = 0;
         let hostCurrentStatus = -1;
 
         function handleOverlayClick() {
@@ -2089,88 +2138,43 @@
                 
                 const overlay = document.getElementById('listener-youtube-overlay');
                 if(overlay) {
-                    overlay.style.display = 'none'; // タップしたら完全に非表示にする
+                    overlay.style.display = 'none'; 
                 }
                 
                 isWpOverlayActive = false;
                 showToast("音声をONにして視聴を開始しました！", "info");
             }
         }
-
-        function startAdMonitor(playerInstance) {
-            if (listenerAdCheckInterval) clearInterval(listenerAdCheckInterval);
+        
+        function toggleWatchPartyEnable() {
+            const toggle = document.getElementById('listener-wp-toggle');
+            isWatchPartyEnabled = toggle.checked;
             
-            listenerAdCheckInterval = setInterval(() => {
-                if (!playerInstance || typeof playerInstance.getPlayerState !== 'function') return;
-                
-                const state = playerInstance.getPlayerState();
-                const currentTime = playerInstance.getCurrentTime();
-                const overlay = document.getElementById('listener-youtube-overlay');
-                let detectedAd = false;
-                
-                if (typeof playerInstance.isAdPlaying === 'function' && playerInstance.isAdPlaying()) {
-                    detectedAd = true;
+            const wpContainer = document.getElementById('listener-watch-party-container');
+            if (!isWatchPartyEnabled) {
+                if (wpContainer) wpContainer.classList.add('hidden');
+                if (listenerYTPlayer && typeof listenerYTPlayer.pauseVideo === 'function') {
+                    listenerYTPlayer.pauseVideo();
                 }
-
-                let currentUrl = "";
-                try { currentUrl = playerInstance.getVideoUrl() || ""; } catch(e){}
-                if (currentSong && currentSong.videoId && currentUrl && currentUrl.indexOf(currentSong.videoId) === -1) {
-                    detectedAd = true;
-                }
-                
-                if (state === 1 || state === 3) { 
-                    let videoData = null;
-                    try { videoData = playerInstance.getVideoData(); } catch(e){}
-                    if (videoData && videoData.video_id && currentSong && videoData.video_id !== currentSong.videoId) {
-                        detectedAd = true;
-                    }
-                }
-
-                if (hostCurrentStatus === 1) { 
-                    if (Math.abs(currentTime - listenerLastTime) < 0.2) {
-                        listenerStuckSeconds++;
-                    } else {
-                        listenerStuckSeconds = 0;
-                    }
-                } else {
-                    listenerStuckSeconds = 0;
-                }
-
-                if (listenerStuckSeconds >= 3) {
-                    detectedAd = true; 
-                }
-
-                if (detectedAd) {
-                    if (!isAdCurrentlyPlaying) {
-                        isAdCurrentlyPlaying = true;
-                        if (overlay) {
-                            overlay.style.display = 'none'; // 広告中も非表示のまま
-                        }
-                        showToast("広告中は画面を操作できます", "info");
-                    }
-                } else {
-                    if (isAdCurrentlyPlaying) {
-                        isAdCurrentlyPlaying = false;
-                        if (overlay) {
-                            if (isWpOverlayActive) {
-                                overlay.style.display = 'flex'; // まだタップしてない場合は再表示
-                            } else {
-                                overlay.style.display = 'none'; // タップ済みなら再表示しない
-                            }
-                        }
-                        
-                        if (Math.abs(currentTime - hostCurrentTime) > 3) {
-                            playerInstance.seekTo(hostCurrentTime, true);
-                        }
-                    }
-                }
-                
-                listenerLastTime = currentTime;
-            }, 1000);
+                showToast("同時視聴をOFFにしました", "info");
+            } else {
+                showToast("同時視聴をONにしました。同期を再開します...", "info");
+            }
         }
 
         function handleSyncPlayback(data) {
             if (isHost) return;
+
+            if (!isWatchPartyEnabled) {
+                const wpContainer = document.getElementById('listener-watch-party-container');
+                if (wpContainer && !wpContainer.classList.contains('hidden')) {
+                    wpContainer.classList.add('hidden');
+                }
+                if (listenerYTPlayer && typeof listenerYTPlayer.pauseVideo === 'function' && listenerYTPlayer.getPlayerState() === 1) {
+                    listenerYTPlayer.pauseVideo();
+                }
+                return;
+            }
 
             const wpContainer = document.getElementById('listener-watch-party-container');
             if (wpContainer) wpContainer.classList.remove('hidden'); 
@@ -2183,11 +2187,10 @@
                 
                 let playerOptions = {
                     height: '100%', width: '100%',
-                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 1 },
+                    playerVars: { autoplay: 1, controls: 1, rel: 0, disablekb: 0 },
                     events: {
                         'onReady': (event) => {
                             event.target.mute(); 
-                            startAdMonitor(event.target);
                         }
                     }
                 };
@@ -2195,7 +2198,9 @@
                     playerOptions.videoId = data.videoId;
                 }
                 
-                listenerYTPlayer = new YT.Player('listener-youtube-player', playerOptions);
+                if (document.getElementById('listener-youtube-player')) {
+                    listenerYTPlayer = new YT.Player('listener-youtube-player', playerOptions);
+                }
                 return;
             }
 
@@ -2213,8 +2218,6 @@
             const currentTime = listenerYTPlayer.getCurrentTime();
             hostCurrentTime = data.time; 
             hostCurrentStatus = data.status;
-            
-            if (isAdCurrentlyPlaying) return;
 
             if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
                 currentSong = { videoId: data.videoId };
@@ -2223,7 +2226,7 @@
             }
 
             if (data.status === 1) { 
-                if (state !== 1) listenerYTPlayer.playVideo();
+                if (state !== 1 && state !== 3) listenerYTPlayer.playVideo();
                 
                 const diff = hostCurrentTime - currentTime;
                 
