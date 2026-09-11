@@ -77,13 +77,29 @@
                 "controls"
                 "sidebar";
             height: 100dvh;
+            position: relative;
         }
         
         #listener-nowplaying-bar { grid-area: video; z-index: 30; align-self: start; }
         
         /* 映像レイヤーの基本設定 (スマホ縦画面用) */
-        .layer-active { grid-area: video; z-index: 10; opacity: 1; pointer-events: auto; position: relative; width: 100%; height: 100%; }
-        .layer-inactive { grid-area: video; z-index: 0; opacity: 0; pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .layer-active, .layer-inactive {
+            grid-area: video;
+            width: 100%;
+            aspect-ratio: 16 / 9; /* 高さが潰れないようにアスペクト比を確保 */
+            background-color: black;
+            position: relative; /* absoluteにせず、Gridの特性で同じセル内で自然に重ねる */
+        }
+        .layer-active {
+            z-index: 10;
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .layer-inactive {
+            z-index: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
         
         #listener-theme-container { grid-area: theme; }
         #listener-controls-bar { grid-area: controls; }
@@ -107,7 +123,8 @@
                 grid-area: main; 
                 position: relative; 
                 width: 100%; 
-                height: 100%; 
+                height: 100%;
+                aspect-ratio: auto; /* PCでは親領域いっぱいに広げるために16:9を解除 */
                 z-index: 10;
             }
             
