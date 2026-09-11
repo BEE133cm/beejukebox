@@ -66,11 +66,14 @@
         .layer-hidden { opacity: 0; pointer-events: none; z-index: 0; }
         .layer-visible { opacity: 1; pointer-events: auto; z-index: 10; }
         
-        /* --- リスナー画面 PC/横画面レイアウト用のGrid --- */
+/* --- リスナー画面 スマホ縦画面レイアウト用のGrid --- */
         .listener-grid {
             display: grid;
             grid-template-columns: 1fr;
-            grid-template-rows: auto auto auto 1fr;
+            /* videoエリアの高さを制限し、残りをsidebarに */
+            /* 16:9の映像が入ることを想定し、最小値と最大値を設定するか、frで調整します */
+            grid-template-rows: min-content min-content min-content 1fr; 
+            /* もしくは、video部分の高さを計算やfrで明示的に指定する */
             grid-template-areas:
                 "video"
                 "theme"
@@ -82,13 +85,28 @@
         
         #listener-nowplaying-bar { grid-area: video; z-index: 30; align-self: start; }
         
-        /* 映像レイヤーの基本設定 (スマホ縦画面用) */
-        .layer-active, .layer-inactive {
+/* 映像レイヤーの基本設定 (スマホ縦画面用) */
+        /* 親のGridセル内で完全に重ねるために、片方を隠すか、absoluteを使う必要があります */
+        .layer-active {
             grid-area: video;
             width: 100%;
-            aspect-ratio: 16 / 9; /* 高さが潰れないようにアスペクト比を確保 */
+            aspect-ratio: 16 / 9;
             background-color: black;
-            position: relative; /* absoluteにせず、Gridの特性で同じセル内で自然に重ねる */
+            position: relative;
+            z-index: 10;
+            display: flex; /* 追加：中の要素を中央配置などするため */
+        }
+        .layer-inactive {
+            grid-area: video;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background-color: black;
+            position: absolute; /* 変更: 非アクティブなものはabsoluteにしてフローから外す */
+            top: 0; left: 0; /* 位置を固定 */
+            z-index: 0;
+            opacity: 0;
+            pointer-events: none;
+            display: none; /* 追加: 完全にフローから消す（PC時のPinPではJSでdisplayを変えるなどの対応が必要になるかもしれません） */
         }
         .layer-active {
             z-index: 10;
