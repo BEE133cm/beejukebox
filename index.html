@@ -1183,9 +1183,11 @@
             }, 200);
         }
 
-        // ====== 新規追加: リスナー画面のレイヤー切り替え制御 ======
+        // ====== リスナー画面のレイヤー切り替え制御 ======
+        let currentActiveLayer = 'wp'; 
+
         function handleOverlayClick(event) {
-            if (event) event.stopPropagation(); // イベントの伝播を止める
+            if (event) event.stopPropagation();
             if (isWpOverlayActive) {
                 if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
                     viewerYTPlayer.unMute();
@@ -1215,7 +1217,7 @@
         }
 
         function requestListenerCamera(event) {
-            if (event) event.stopPropagation(); // イベントの伝播を止める
+            if (event) event.stopPropagation();
             const btn = document.getElementById('btn-toggle-camera');
             if (btn && btn.disabled) return; 
 
@@ -1226,10 +1228,9 @@
         }
 
         function handleLayerClick(layer) {
-            // PCレイアウト(min-width: 1024px) かつ inactive なレイヤー(小窓)がクリックされた時だけ切り替え
+            // PCレイアウト(min-width: 1024px) かつ 違うレイヤーがクリックされた時だけ切り替え
             if (window.innerWidth >= 1024) {
-                const el = document.getElementById(`listener-${layer}-layer`);
-                if (el && el.classList.contains('layer-inactive')) {
+                if (layer !== currentActiveLayer) {
                     switchListenerLayer(layer);
                 }
             }
@@ -1240,13 +1241,32 @@
             const wpLayer = document.getElementById('listener-wp-layer');
             const tabCam = document.getElementById('tab-cam');
             const tabWp = document.getElementById('tab-wp');
+            const mainContainer = document.getElementById('listener-main-video-container');
+            const pinpContainer = document.getElementById('listener-pinp-container');
 
-            if (!camLayer || !wpLayer) return;
+            if (!camLayer || !wpLayer || !mainContainer || !pinpContainer) return;
+
+            currentActiveLayer = layer;
+            const isPC = window.innerWidth >= 1024;
 
             if(layer === 'cam') {
-                // カメラをメイン(active)へ、WPを小窓(inactive)へ
+                // カメラをアクティブ
                 camLayer.classList.replace('layer-inactive', 'layer-active');
                 wpLayer.classList.replace('layer-active', 'layer-inactive');
+                
+                // DOMの物理的な移動（重なりバグ防止）
+                if (isPC) {
+                    camLayer.classList.remove('mobile-stacked');
+                    wpLayer.classList.remove('mobile-stacked');
+                    mainContainer.appendChild(camLayer);
+                    pinpContainer.appendChild(wpLayer);
+                } else {
+                    camLayer.classList.add('mobile-stacked');
+                    wpLayer.classList.add('mobile-stacked');
+                    mainContainer.appendChild(wpLayer); 
+                    mainContainer.appendChild(camLayer); // 重ねる順番
+                }
+
                 if(tabCam && tabWp) {
                     tabCam.classList.add('bg-red-600', 'text-white');
                     tabCam.classList.remove('bg-gray-700', 'text-gray-400');
@@ -1254,9 +1274,22 @@
                     tabWp.classList.remove('bg-indigo-600', 'text-white');
                 }
             } else {
-                // WPをメイン(active)へ、カメラを小窓(inactive)へ
+                // WPをアクティブ
                 wpLayer.classList.replace('layer-inactive', 'layer-active');
                 camLayer.classList.replace('layer-active', 'layer-inactive');
+                
+                if (isPC) {
+                    camLayer.classList.remove('mobile-stacked');
+                    wpLayer.classList.remove('mobile-stacked');
+                    mainContainer.appendChild(wpLayer);
+                    pinpContainer.appendChild(camLayer);
+                } else {
+                    camLayer.classList.add('mobile-stacked');
+                    wpLayer.classList.add('mobile-stacked');
+                    mainContainer.appendChild(camLayer); 
+                    mainContainer.appendChild(wpLayer); // 重ねる順番
+                }
+
                 if(tabCam && tabWp) {
                     tabWp.classList.add('bg-indigo-600', 'text-white');
                     tabWp.classList.remove('bg-gray-700', 'text-gray-400');
@@ -1265,6 +1298,14 @@
                 }
             }
         }
+
+        // 画面サイズ変更時（スマホ横持ちなど）にレイアウトを自動再配置
+        window.addEventListener('resize', () => {
+            const listenerView = document.getElementById('listener-view');
+            if (listenerView && !listenerView.classList.contains('hidden')) {
+                switchListenerLayer(currentActiveLayer);
+            }
+        });
         // =======================================================
 
         window.onload = () => {
