@@ -66,6 +66,61 @@
         .layer-hidden { opacity: 0; pointer-events: none; z-index: 0; }
         .layer-visible { opacity: 1; pointer-events: auto; z-index: 10; }
         
+        /* --- 新規追加: リスナー画面 PC/横画面レイアウト用のGrid --- */
+        .listener-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto auto auto 1fr;
+            grid-template-areas:
+                "video"
+                "theme"
+                "controls"
+                "sidebar";
+            height: 100dvh;
+        }
+        #listener-nowplaying-bar { grid-area: video; z-index: 30; align-self: start; }
+        .layer-active { grid-area: video; z-index: 10; opacity: 1; pointer-events: auto; position: relative; }
+        .layer-inactive { grid-area: video; z-index: 0; opacity: 0; pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #listener-theme-container { grid-area: theme; }
+        #listener-controls-bar { grid-area: controls; }
+        #listener-sidebar-wrap { grid-area: sidebar; }
+
+        @media (min-width: 1024px) {
+            .listener-grid {
+                grid-template-columns: 1fr 380px;
+                grid-template-rows: auto auto auto 1fr;
+                grid-template-areas:
+                    "main sub"
+                    "main theme"
+                    "main controls"
+                    "main sidebar";
+            }
+            #listener-nowplaying-bar { grid-area: main; }
+            .layer-active { grid-area: main; }
+            .layer-inactive { 
+                grid-area: sub; z-index: 10; opacity: 1; pointer-events: auto; 
+                position: relative; width: 100%; height: auto; aspect-ratio: 16/9; 
+                border-bottom: 1px solid #1f2937;
+            }
+            .layer-inactive::after {
+                content: "タップでメイン画面に切り替え";
+                position: absolute; inset: 0; background: rgba(0,0,0,0.6);
+                color: white; display: flex; align-items: center; justify-content: center;
+                font-weight: bold; font-size: 0.9rem; opacity: 0; transition: opacity 0.2s;
+                cursor: pointer; z-index: 50;
+            }
+            .layer-inactive:hover::after { opacity: 1; }
+
+            /* PCでのチャットフローティング無効化 */
+            .chat-input-floating {
+                position: relative !important; top: auto !important; left: auto !important; right: auto !important;
+                z-index: 20 !important; padding: 0.5rem 0.75rem !important; border-top: 1px solid #1f2937 !important;
+                border-bottom: none !important; box-shadow: none !important; background: #18181b !important;
+            }
+            .chat-backdrop.active { opacity: 0 !important; pointer-events: none !important; }
+        }
+        /* ---------------------------------------------------- */
+
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
@@ -401,8 +456,8 @@
         <p class="text-center text-xs text-gray-500 mt-4">v1.0.29</p>
     </div>
 
-    <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
-    <div id="listener-view" class="hidden fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex flex-col text-sm">
+        <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
+    <div id="listener-view" class="hidden fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] listener-grid text-sm transition-all">
         <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
             <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
                 <div class="flex justify-between items-center border-b border-gray-800 pb-3">
@@ -461,38 +516,34 @@
             </div>
         </div>
 
-        <!-- 1. 映像エリア (上部固定) -->
-        <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden" style="aspect-ratio: 16/9;">
-            
-            <!-- NowPlaying帯 (映像上部) -->
-            <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
-                <div id="listener-eq" class="equalizer scale-75 shrink-0 origin-left"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
-                <div class="marquee-container h-4 flex-1">
-                    <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
-                        <span id="listener-now-playing">接続待ち...</span>
-                        <span id="listener-now-requester" class="text-indigo-300 font-normal"></span>
-                    </div>
+        <!-- NowPlaying帯 (映像上部) -->
+        <div id="listener-nowplaying-bar" class="bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 flex items-center gap-2 pointer-events-none w-full">
+            <div id="listener-eq" class="equalizer scale-75 shrink-0 origin-left"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
+            <div class="marquee-container h-4 flex-1">
+                <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
+                    <span id="listener-now-playing">接続待ち...</span>
+                    <span id="listener-now-requester" class="text-indigo-300 font-normal"></span>
                 </div>
             </div>
+        </div>
 
-            <!-- Stream映像レイヤー -->
-            <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
-                <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
-                    <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
-                </button>
-                <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
+        <!-- Stream映像レイヤー -->
+        <div id="listener-cam-layer" class="layer-inactive bg-black flex items-center justify-center overflow-hidden cursor-pointer transition-opacity duration-300" onclick="handleLayerClick('cam')">
+            <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
+                <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
+            </button>
+            <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
+        </div>
+        
+        <!-- Jukebox映像レイヤー -->
+        <div id="listener-wp-layer" class="layer-active bg-black flex items-center justify-center overflow-hidden cursor-pointer transition-opacity duration-300" onclick="handleLayerClick('wp')">
+            <div id="listener-youtube-player-wrapper" class="w-full h-full">
+                <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
             </div>
-            
-            <!-- Jukebox映像レイヤー -->
-            <div id="listener-wp-layer" class="absolute inset-0 layer-visible bg-black">
-                <div id="listener-youtube-player-wrapper" class="w-full h-full">
-                    <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
-                </div>
-                <!-- 初回タップ用オーバーレイ -->
-                <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
-                    <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
-                    <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
-                </div>
+            <!-- 初回タップ用オーバーレイ -->
+            <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
+                <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
+                <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
             </div>
         </div>
 
@@ -512,7 +563,7 @@
         </div>
 
         <!-- 3. スクロール領域 (リクエスト類 ＋ チャット) -->
-        <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0">
+        <div id="listener-sidebar-wrap" class="flex flex-col relative bg-[#0e0e10] min-h-0 border-t lg:border-t-0 border-gray-800">
             
             <!-- リクエスト・ステータス等（アコーディオン） -->
             <details id="listener-menu-details" class="bg-[#18181b] border-b border-gray-800 shrink-0 group z-10 relative">
@@ -2895,6 +2946,15 @@
                 showToast("音声をONにして視聴を開始しました！", "info");
             }
         }
+
+        function handleLayerClick(layer) {
+            if (window.innerWidth >= 1024) {
+                const el = document.getElementById(`listener-${layer}-layer`);
+                if (el.classList.contains('layer-inactive')) {
+                    switchListenerLayer(layer);
+                }
+            }
+        }
         
         function switchListenerLayer(layer) {
             const camLayer = document.getElementById('listener-cam-layer');
@@ -2903,15 +2963,15 @@
             const tabWp = document.getElementById('tab-wp');
 
             if(layer === 'cam') {
-                camLayer.classList.replace('layer-hidden', 'layer-visible');
-                wpLayer.classList.replace('layer-visible', 'layer-hidden');
+                camLayer.classList.replace('layer-inactive', 'layer-active');
+                wpLayer.classList.replace('layer-active', 'layer-inactive');
                 tabCam.classList.add('bg-red-600', 'text-white');
                 tabCam.classList.remove('bg-gray-700', 'text-gray-400');
                 tabWp.classList.add('bg-gray-700', 'text-gray-400');
                 tabWp.classList.remove('bg-indigo-600', 'text-white');
             } else {
-                wpLayer.classList.replace('layer-hidden', 'layer-visible');
-                camLayer.classList.replace('layer-visible', 'layer-hidden');
+                wpLayer.classList.replace('layer-inactive', 'layer-active');
+                camLayer.classList.replace('layer-active', 'layer-inactive');
                 tabWp.classList.add('bg-indigo-600', 'text-white');
                 tabWp.classList.remove('bg-gray-700', 'text-gray-400');
                 tabCam.classList.add('bg-gray-700', 'text-gray-400');
