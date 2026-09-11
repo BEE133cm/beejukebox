@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox v1.0.29</title>
+    <title>Remote Jukebox v1.0.31</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -66,7 +66,7 @@
         .layer-hidden { opacity: 0; pointer-events: none; z-index: 0; }
         .layer-visible { opacity: 1; pointer-events: auto; z-index: 10; }
         
-        /* --- 新規追加: リスナー画面 PC/横画面レイアウト用のGrid --- */
+        /* --- 修正: リスナー画面 PC/横画面レイアウト用のGrid --- */
         .listener-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -78,9 +78,10 @@
                 "sidebar";
             height: 100dvh;
         }
-        #listener-nowplaying-bar { grid-area: video; z-index: 30; align-self: start; }
-        .layer-active { grid-area: video; z-index: 10; opacity: 1; pointer-events: auto; position: relative; }
-        .layer-inactive { grid-area: video; z-index: 0; opacity: 0; pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #listener-nowplaying-bar { grid-area: video; z-index: 30; align-self: start; width: 100%; }
+        .layer-active { grid-area: video; z-index: 10; opacity: 1; pointer-events: auto; width: 100%; aspect-ratio: 16/9; position: relative; }
+        .layer-inactive { grid-area: video; z-index: 0; opacity: 0; pointer-events: none; width: 100%; aspect-ratio: 16/9; position: relative; }
+        
         #listener-theme-container { grid-area: theme; }
         #listener-controls-bar { grid-area: controls; }
         #listener-sidebar-wrap { grid-area: sidebar; }
@@ -96,10 +97,10 @@
                     "main sidebar";
             }
             #listener-nowplaying-bar { grid-area: main; }
-            .layer-active { grid-area: main; }
+            .layer-active { grid-area: main; aspect-ratio: auto; height: 100dvh; }
             .layer-inactive { 
-                grid-area: sub; z-index: 10; opacity: 1; pointer-events: auto; 
-                position: relative; width: 100%; height: auto; aspect-ratio: 16/9; 
+                grid-area: sub; z-index: 20; opacity: 1; pointer-events: auto; 
+                width: 100%; height: auto; aspect-ratio: 16/9; 
                 border-bottom: 1px solid #1f2937;
             }
             .layer-inactive::after {
@@ -244,7 +245,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.29</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.31</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -453,7 +454,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.29</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.31</p>
     </div>
 
         <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
@@ -604,7 +605,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.29
+                        v1.0.31
                     </div>
 
                 </div>
@@ -818,7 +819,7 @@
                                 </div>
                             </label>
                         </div>
-                        <div class="pt-8 text-center text-gray-700 text-[10px]">v1.0.29</div>
+                        <div class="pt-8 text-center text-gray-700 text-[10px]">v1.0.31</div>
                     </div>
                 </div>
             </div>
