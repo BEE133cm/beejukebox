@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox v1.0.31</title>
+    <title>Remote Jukebox v1.0.29</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -66,7 +66,7 @@
         .layer-hidden { opacity: 0; pointer-events: none; z-index: 0; }
         .layer-visible { opacity: 1; pointer-events: auto; z-index: 10; }
         
-        /* --- 修正: リスナー画面 PC/横画面レイアウト用のGrid --- */
+        /* --- リスナー画面 PC/横画面レイアウト用のGrid --- */
         .listener-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -78,14 +78,18 @@
                 "sidebar";
             height: 100dvh;
         }
-        #listener-nowplaying-bar { grid-area: video; z-index: 30; align-self: start; width: 100%; }
-        .layer-active { grid-area: video; z-index: 10; opacity: 1; pointer-events: auto; width: 100%; aspect-ratio: 16/9; position: relative; }
-        .layer-inactive { grid-area: video; z-index: 0; opacity: 0; pointer-events: none; width: 100%; aspect-ratio: 16/9; position: relative; }
+        
+        #listener-nowplaying-bar { grid-area: video; z-index: 30; align-self: start; }
+        
+        /* 映像レイヤーの基本設定 (スマホ縦画面用) */
+        .layer-active { grid-area: video; z-index: 10; opacity: 1; pointer-events: auto; position: relative; width: 100%; height: 100%; }
+        .layer-inactive { grid-area: video; z-index: 0; opacity: 0; pointer-events: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
         
         #listener-theme-container { grid-area: theme; }
         #listener-controls-bar { grid-area: controls; }
         #listener-sidebar-wrap { grid-area: sidebar; }
 
+        /* PC / 横画面レイアウト */
         @media (min-width: 1024px) {
             .listener-grid {
                 grid-template-columns: 1fr 380px;
@@ -97,22 +101,41 @@
                     "main sidebar";
             }
             #listener-nowplaying-bar { grid-area: main; }
-            .layer-active { grid-area: main; aspect-ratio: auto; height: 100dvh; }
+            
+            /* メイン映像 (左側広域) */
+            .layer-active { 
+                grid-area: main; 
+                position: relative; 
+                width: 100%; 
+                height: 100%; 
+                z-index: 10;
+            }
+            
+            /* PinP小窓映像 (右上) */
             .layer-inactive { 
-                grid-area: sub; z-index: 20; opacity: 1; pointer-events: auto; 
-                width: 100%; height: auto; aspect-ratio: 16/9; 
+                grid-area: sub; 
+                z-index: 20; 
+                opacity: 1; 
+                pointer-events: auto; 
+                position: relative; 
+                width: 100%; 
+                height: auto; 
+                aspect-ratio: 16/9; 
                 border-bottom: 1px solid #1f2937;
             }
+            
+            /* PinP小窓のホバーエフェクト */
             .layer-inactive::after {
                 content: "タップでメイン画面に切り替え";
                 position: absolute; inset: 0; background: rgba(0,0,0,0.6);
                 color: white; display: flex; align-items: center; justify-content: center;
                 font-weight: bold; font-size: 0.9rem; opacity: 0; transition: opacity 0.2s;
                 cursor: pointer; z-index: 50;
+                pointer-events: none; /* 下の要素へのクリックを通す */
             }
             .layer-inactive:hover::after { opacity: 1; }
 
-            /* PCでのチャットフローティング無効化 */
+            /* PCでのチャットフローティング無効化 (下部固定) */
             .chat-input-floating {
                 position: relative !important; top: auto !important; left: auto !important; right: auto !important;
                 z-index: 20 !important; padding: 0.5rem 0.75rem !important; border-top: 1px solid #1f2937 !important;
@@ -245,7 +268,7 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">v1.0.31</p>
+        <p class="text-center text-xs text-gray-500 mt-6">v1.0.29</p>
     </div>
 
     <!-- ================= 1.5. ポータル画面 ================= -->
@@ -454,11 +477,13 @@
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">v1.0.31</p>
+        <p class="text-center text-xs text-gray-500 mt-4">v1.0.29</p>
     </div>
 
-        <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
-    <div id="listener-view" class="hidden fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] listener-grid text-sm transition-all">
+    <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
+    <div id="listener-view" class="hidden fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] listener-grid text-sm transition-all overflow-hidden">
+        
+        <!-- 設定モーダル (最前面) -->
         <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
             <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
                 <div class="flex justify-between items-center border-b border-gray-800 pb-3">
@@ -530,7 +555,7 @@
 
         <!-- Stream映像レイヤー -->
         <div id="listener-cam-layer" class="layer-inactive bg-black flex items-center justify-center overflow-hidden cursor-pointer transition-opacity duration-300" onclick="handleLayerClick('cam')">
-            <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
+            <button onclick="requestListenerCamera(event)" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
                 <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
             </button>
             <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
@@ -542,7 +567,7 @@
                 <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
             </div>
             <!-- 初回タップ用オーバーレイ -->
-            <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
+            <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick(event)">
                 <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
                 <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
             </div>
@@ -605,7 +630,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.31
+                        v1.0.29
                     </div>
 
                 </div>
@@ -819,7 +844,7 @@
                                 </div>
                             </label>
                         </div>
-                        <div class="pt-8 text-center text-gray-700 text-[10px]">v1.0.31</div>
+                        <div class="pt-8 text-center text-gray-700 text-[10px]">v1.0.29</div>
                     </div>
                 </div>
             </div>
@@ -1140,6 +1165,90 @@
                 }
             }, 200);
         }
+
+        // ====== 新規追加: リスナー画面のレイヤー切り替え制御 ======
+        function handleOverlayClick(event) {
+            if (event) event.stopPropagation(); // イベントの伝播を止める
+            if (isWpOverlayActive) {
+                if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
+                    viewerYTPlayer.unMute();
+                    
+                    if(isRemoteMode) {
+                        const toggle = document.getElementById('toggle-remote-wp-mute');
+                        if(toggle) toggle.checked = true;
+                    } else {
+                        const toggle = document.getElementById('toggle-wp-mute');
+                        if(toggle) toggle.checked = true;
+                    }
+                    
+                    if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
+                        viewerYTPlayer.playVideo();
+                    }
+                }
+                
+                const overlayId = isRemoteMode ? 'remote-youtube-overlay' : 'listener-youtube-overlay';
+                const overlay = document.getElementById(overlayId);
+                if(overlay) {
+                    overlay.style.display = 'none'; 
+                }
+                
+                isWpOverlayActive = false;
+                showToast("音声をONにして視聴を開始しました！", "info");
+            }
+        }
+
+        function requestListenerCamera(event) {
+            if (event) event.stopPropagation(); // イベントの伝播を止める
+            const btn = document.getElementById('btn-toggle-camera');
+            if (btn && btn.disabled) return; 
+
+            if (listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'request_camera' });
+                if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+            }
+        }
+
+        function handleLayerClick(layer) {
+            // PCレイアウト(min-width: 1024px) かつ inactive なレイヤー(小窓)がクリックされた時だけ切り替え
+            if (window.innerWidth >= 1024) {
+                const el = document.getElementById(`listener-${layer}-layer`);
+                if (el && el.classList.contains('layer-inactive')) {
+                    switchListenerLayer(layer);
+                }
+            }
+        }
+        
+        function switchListenerLayer(layer) {
+            const camLayer = document.getElementById('listener-cam-layer');
+            const wpLayer = document.getElementById('listener-wp-layer');
+            const tabCam = document.getElementById('tab-cam');
+            const tabWp = document.getElementById('tab-wp');
+
+            if (!camLayer || !wpLayer) return;
+
+            if(layer === 'cam') {
+                // カメラをメイン(active)へ、WPを小窓(inactive)へ
+                camLayer.classList.replace('layer-inactive', 'layer-active');
+                wpLayer.classList.replace('layer-active', 'layer-inactive');
+                if(tabCam && tabWp) {
+                    tabCam.classList.add('bg-red-600', 'text-white');
+                    tabCam.classList.remove('bg-gray-700', 'text-gray-400');
+                    tabWp.classList.add('bg-gray-700', 'text-gray-400');
+                    tabWp.classList.remove('bg-indigo-600', 'text-white');
+                }
+            } else {
+                // WPをメイン(active)へ、カメラを小窓(inactive)へ
+                wpLayer.classList.replace('layer-inactive', 'layer-active');
+                camLayer.classList.replace('layer-active', 'layer-inactive');
+                if(tabCam && tabWp) {
+                    tabWp.classList.add('bg-indigo-600', 'text-white');
+                    tabWp.classList.remove('bg-gray-700', 'text-gray-400');
+                    tabCam.classList.add('bg-gray-700', 'text-gray-400');
+                    tabCam.classList.remove('bg-red-600', 'text-white');
+                }
+            }
+        }
+        // =======================================================
 
         window.onload = () => {
             const unlockTTS = () => { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); };
@@ -2919,67 +3028,6 @@
         let hostCurrentTime = 0;
         let hostCurrentStatus = -1;
 
-        function handleOverlayClick() {
-            if (isWpOverlayActive) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
-                    viewerYTPlayer.unMute();
-                    
-                    if(isRemoteMode) {
-                        const toggle = document.getElementById('toggle-remote-wp-mute');
-                        if(toggle) toggle.checked = true;
-                    } else {
-                        const toggle = document.getElementById('toggle-wp-mute');
-                        if(toggle) toggle.checked = true;
-                    }
-                    
-                    if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
-                        viewerYTPlayer.playVideo();
-                    }
-                }
-                
-                const overlayId = isRemoteMode ? 'remote-youtube-overlay' : 'listener-youtube-overlay';
-                const overlay = document.getElementById(overlayId);
-                if(overlay) {
-                    overlay.style.display = 'none'; 
-                }
-                
-                isWpOverlayActive = false;
-                showToast("音声をONにして視聴を開始しました！", "info");
-            }
-        }
-
-        function handleLayerClick(layer) {
-            if (window.innerWidth >= 1024) {
-                const el = document.getElementById(`listener-${layer}-layer`);
-                if (el.classList.contains('layer-inactive')) {
-                    switchListenerLayer(layer);
-                }
-            }
-        }
-        
-        function switchListenerLayer(layer) {
-            const camLayer = document.getElementById('listener-cam-layer');
-            const wpLayer = document.getElementById('listener-wp-layer');
-            const tabCam = document.getElementById('tab-cam');
-            const tabWp = document.getElementById('tab-wp');
-
-            if(layer === 'cam') {
-                camLayer.classList.replace('layer-inactive', 'layer-active');
-                wpLayer.classList.replace('layer-active', 'layer-inactive');
-                tabCam.classList.add('bg-red-600', 'text-white');
-                tabCam.classList.remove('bg-gray-700', 'text-gray-400');
-                tabWp.classList.add('bg-gray-700', 'text-gray-400');
-                tabWp.classList.remove('bg-indigo-600', 'text-white');
-            } else {
-                wpLayer.classList.replace('layer-inactive', 'layer-active');
-                camLayer.classList.replace('layer-active', 'layer-inactive');
-                tabWp.classList.add('bg-indigo-600', 'text-white');
-                tabWp.classList.remove('bg-gray-700', 'text-gray-400');
-                tabCam.classList.add('bg-gray-700', 'text-gray-400');
-                tabCam.classList.remove('bg-red-600', 'text-white');
-            }
-        }
-
         // リモコン用切り替え
         function switchRemoteLayer(layer) {
             const camLayer = document.getElementById('remote-cam-layer');
@@ -2987,20 +3035,26 @@
             const tabCam = document.getElementById('remote-tab-cam');
             const tabWp = document.getElementById('remote-tab-wp');
 
+            if (!camLayer || !wpLayer) return;
+
             if(layer === 'cam') {
                 camLayer.classList.replace('layer-hidden', 'layer-visible');
                 wpLayer.classList.replace('layer-visible', 'layer-hidden');
-                tabCam.classList.add('bg-red-600', 'text-white');
-                tabCam.classList.remove('bg-gray-700', 'text-gray-400');
-                tabWp.classList.add('bg-gray-700', 'text-gray-400');
-                tabWp.classList.remove('bg-indigo-600', 'text-white');
+                if(tabCam && tabWp) {
+                    tabCam.classList.add('bg-red-600', 'text-white');
+                    tabCam.classList.remove('bg-gray-700', 'text-gray-400');
+                    tabWp.classList.add('bg-gray-700', 'text-gray-400');
+                    tabWp.classList.remove('bg-indigo-600', 'text-white');
+                }
             } else {
                 wpLayer.classList.replace('layer-hidden', 'layer-visible');
                 camLayer.classList.replace('layer-visible', 'layer-hidden');
-                tabWp.classList.add('bg-indigo-600', 'text-white');
-                tabWp.classList.remove('bg-gray-700', 'text-gray-400');
-                tabCam.classList.add('bg-gray-700', 'text-gray-400');
-                tabCam.classList.remove('bg-red-600', 'text-white');
+                if(tabCam && tabWp) {
+                    tabWp.classList.add('bg-indigo-600', 'text-white');
+                    tabWp.classList.remove('bg-gray-700', 'text-gray-400');
+                    tabCam.classList.add('bg-gray-700', 'text-gray-400');
+                    tabCam.classList.remove('bg-red-600', 'text-white');
+                }
             }
         }
 
@@ -3406,8 +3460,10 @@
             else if(isObsCam) name = "OBSカメラ(映像+音声)";
             else if(isObs) name = "OBS(透過バー)";
             else {
-                name = document.getElementById('listener-name').value.trim() || "名無し";
-                const isAnon = document.getElementById('listener-anon').checked;
+                const nameEl = document.getElementById('listener-name');
+                name = nameEl ? nameEl.value.trim() : "名無し";
+                const anonEl = document.getElementById('listener-anon');
+                const isAnon = anonEl ? anonEl.checked : false;
                 localStorage.setItem('jukebox_guest_name', name);
                 localStorage.setItem('jukebox_guest_anon', isAnon);
             }
@@ -3419,15 +3475,7 @@
         const anonInput = document.getElementById('listener-anon');
         if(anonInput) anonInput.addEventListener('change', () => sendProfileUpdate(false, false));
 
-        function requestListenerCamera() {
-            const btn = document.getElementById('btn-toggle-camera');
-            if (btn && btn.disabled) return; 
-
-            if (listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'request_camera' });
-                if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
-            }
-        }
+        // requestListenerCamera() は上部に移動しました
         
         function requestRemoteCamera() {
             const btn = document.getElementById('btn-remote-toggle-camera');
