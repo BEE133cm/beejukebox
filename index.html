@@ -198,7 +198,6 @@
                 </div>
             </div>
 
-            <!-- チャット＆設定列 -->
             <div id="host-right-col" class="space-y-6 lg:col-span-1 hide-on-share">
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 flex flex-col" style="height: 350px;">
                     <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
@@ -415,20 +414,25 @@
             }
         }
 
+        // URL生成部分を独立したファイル群へのリンクに変更
         function generateURLs() {
-            const base = window.location.href.split('?')[0].split('#')[0];
-            ['url-listener', 'url-obs', 'url-obs-cam'].forEach(id => {
-                const el = document.getElementById(id);
-                if(el) {
-                    let type = id.replace('url-', '');
-                    let param = type === 'listener' ? 'host' : (type === 'obs-cam' ? 'obs_cam' : type);
-                    el.value = `${base}?${param}=${currentRoomId}`;
-                }
-            });
+            const currentHref = window.location.href.split('?')[0].split('#')[0];
+            const basePath = currentHref.substring(0, currentHref.lastIndexOf('/') + 1);
+
+            const elListener = document.getElementById('url-listener');
+            if(elListener) elListener.value = `${basePath}listner.html?host=${currentRoomId}`;
+
             const elRemote = document.getElementById('url-remote');
-            if(elRemote) elRemote.value = `${base}?portal=remote`;
+            if(elRemote) elRemote.value = `${basePath}controller.html?remote=${currentRoomId}`;
+
             const elCamera = document.getElementById('url-camera');
-            if(elCamera) elCamera.value = `${base}?portal=cam`;
+            if(elCamera) elCamera.value = `${basePath}camera.html?host=${currentRoomId}`;
+
+            const elObsCam = document.getElementById('url-obs-cam');
+            if(elObsCam) elObsCam.value = `${basePath}OBS.html?obs_cam=${currentRoomId}`;
+
+            const elObs = document.getElementById('url-obs');
+            if(elObs) elObs.value = `${basePath}OBS.html?obs=${currentRoomId}`;
         }
 
         function copyURL(inputId) {
