@@ -33,25 +33,6 @@
         .toast.show { transform: translateX(0); }
 
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
-
-        /* チャット入力フローティング作戦 (キーボード対策) */
-        .chat-backdrop {
-            position: absolute; inset: 0; background: rgba(0, 0, 0, 0.85); z-index: 30; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
-        }
-        .chat-backdrop.active { opacity: 1; pointer-events: auto; }
-        .chat-input-container { transition: all 0.2s ease; }
-        
-        @media (orientation: portrait) {
-            .chat-input-floating {
-                position: fixed !important; top: 35vh !important; left: 0 !important; right: 0 !important; z-index: 9999 !important;
-                padding: 15px !important; background: rgba(24, 24, 27, 0.98) !important;
-                border-top: 1px solid #4f46e5 !important; border-bottom: 1px solid #4f46e5 !important;
-                box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important;
-            }
-        }
-        @media (orientation: landscape) {
-            .chat-backdrop { display: none !important; }
-        }
     </style>
 </head>
 <body class="overflow-hidden relative h-[100dvh] flex flex-col bg-[#0e0e10]">
@@ -176,9 +157,12 @@
             <!-- 2. コントロールバー (黒帯) -->
             <div class="flex-shrink-0 bg-[#111827] border-t border-gray-800 px-2 py-2 flex items-center justify-between z-30 shadow-md">
                 <!-- 配信前 -->
-                <div id="camera-setup-controls" class="w-full">
-                    <button onclick="startCameraStream()" id="btn-cam-start" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1 transition-transform active:scale-95">
+                <div id="camera-setup-controls" class="w-full flex items-center gap-2">
+                    <button onclick="startCameraStream()" id="btn-cam-start" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1 transition-transform active:scale-95">
                         <i class="fa-solid fa-rocket"></i> 配信をスタートする
+                    </button>
+                    <button onclick="document.getElementById('camera-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white shrink-0">
+                        <i class="fa-solid fa-gear"></i>
                     </button>
                 </div>
                 <!-- 配信中 -->
@@ -223,12 +207,6 @@
                 <!-- 💬 コメント タブ -->
                 <div id="camera-menu-content-chat" class="absolute inset-0 flex flex-col">
                     <div id="camera-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto pb-4 relative z-10"></div>
-                    <!-- チャット入力フローティング -->
-                    <div id="camera-chat-backdrop" class="chat-backdrop" onclick="closeCameraChatInput()"></div>
-                    <div id="camera-chat-input-container" class="flex-shrink-0 px-3 py-2 bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20 pb-safe">
-                        <input type="text" id="camera-chat-input" name="dummy-camera-chat" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusCameraChatInput()" onblur="blurCameraChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest()" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
-                        <button onclick="sendChatRequest()" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
-                    </div>
                 </div>
                 
                 <!-- 👥 参加者 タブ -->
@@ -399,28 +377,6 @@
                 const chatList = document.getElementById('camera-chat-list');
                 if(chatList) chatList.scrollTop = chatList.scrollHeight;
             }
-        }
-
-        // フローティングチャット
-        function focusCameraChatInput() {
-            document.getElementById('camera-chat-input-container').classList.add('chat-input-floating');
-            document.getElementById('camera-chat-backdrop').classList.add('active');
-        }
-
-        function closeCameraChatInput() {
-            const input = document.getElementById('camera-chat-input');
-            if (input) input.blur();
-            document.getElementById('camera-chat-input-container').classList.remove('chat-input-floating');
-            document.getElementById('camera-chat-backdrop').classList.remove('active');
-        }
-
-        function blurCameraChatInputDelay() {
-            setTimeout(() => {
-                const input = document.getElementById('camera-chat-input');
-                if (document.activeElement !== input) {
-                    closeCameraChatInput();
-                }
-            }, 200);
         }
 
         // パスワード処理
@@ -802,19 +758,6 @@
                 btn.classList.replace('text-white', 'text-gray-300');
                 btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i> 隠す';
                 showToast("画面を表示しました");
-            }
-        }
-
-        // チャットと参加者
-        function sendChatRequest() {
-            const inputId = 'camera-chat-input';
-            const text = document.getElementById(inputId).value.trim();
-            if(!text) return;
-
-            if(dataConn && dataConn.open) {
-                dataConn.send({ type: 'chat', text, sender: "🎥 カメラ配信", senderReal: "カメラ配信", isAnon: false, isRemote: false, isCam: true });
-                document.getElementById(inputId).value = '';
-                closeCameraChatInput();
             }
         }
 
