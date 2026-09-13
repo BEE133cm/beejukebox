@@ -262,8 +262,8 @@
                 
                 <div class="flex items-center gap-3">
                     <!-- 音量調整バー (横画面/PC時のみ表示) -->
-                    <div class="hidden md:flex items-center gap-2 w-24">
-                        <i class="fa-solid fa-volume-low text-gray-400 text-[10px]"></i>
+                    <div id="wp-volume-control" class="hidden md:flex items-center gap-2 w-28 transition-opacity duration-300">
+                        <span class="text-[10px] text-gray-400 font-bold whitespace-nowrap"><i class="fa-solid fa-music"></i> 音量</span>
                         <input type="range" id="wp-volume-slider" min="0" max="100" value="100" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeWatchPartyVolume(this.value)">
                     </div>
                     <!-- 設定モーダル呼び出しボタン -->
@@ -474,7 +474,7 @@
                 camAudioOn: document.getElementById('toggle-cam-mute').checked,
                 wpAudioOn: document.getElementById('toggle-wp-mute').checked,
                 wpVideoOn: document.getElementById('toggle-wp-video').checked,
-                wpVolume: document.getElementById('wp-volume-slider').value
+                wpVolume: document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100
             };
             localStorage.setItem('jukebox_listener_settings', JSON.stringify(settings));
         }
@@ -590,6 +590,10 @@
                 if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
                     if (isWpMuteOn) {
                         viewerYTPlayer.unMute();
+                        const settings = loadListenerSettings();
+                        if (settings && settings.wpVolume !== undefined) {
+                            viewerYTPlayer.setVolume(parseInt(settings.wpVolume));
+                        }
                     } else {
                         viewerYTPlayer.mute();
                     }
@@ -623,6 +627,7 @@
             const wpLayer = document.getElementById('listener-wp-layer');
             const tabCam = document.getElementById('tab-cam');
             const tabWp = document.getElementById('tab-wp');
+            const volControl = document.getElementById('wp-volume-control');
 
             if(layer === 'cam') {
                 camLayer.classList.replace('layer-hidden', 'layer-visible');
@@ -631,6 +636,11 @@
                 tabCam.classList.remove('bg-gray-700', 'text-gray-400');
                 tabWp.classList.add('bg-gray-700', 'text-gray-400');
                 tabWp.classList.remove('bg-indigo-600', 'text-white');
+                
+                if(volControl) {
+                    volControl.classList.remove('md:flex');
+                    volControl.classList.add('hidden');
+                }
             } else {
                 wpLayer.classList.replace('layer-hidden', 'layer-visible');
                 camLayer.classList.replace('layer-visible', 'layer-hidden');
@@ -638,6 +648,11 @@
                 tabWp.classList.remove('bg-gray-700', 'text-gray-400');
                 tabCam.classList.add('bg-gray-700', 'text-gray-400');
                 tabCam.classList.remove('bg-red-600', 'text-white');
+                
+                if(volControl) {
+                    volControl.classList.remove('hidden');
+                    volControl.classList.add('md:flex');
+                }
             }
         }
 
@@ -734,7 +749,13 @@
             }
 
             if (data.status === 1) { 
-                if (state !== 1 && state !== 3) viewerYTPlayer.playVideo();
+                if (state !== 1 && state !== 3) {
+                    viewerYTPlayer.playVideo();
+                    const settings = loadListenerSettings();
+                    if(settings && settings.wpVolume !== undefined) {
+                        viewerYTPlayer.setVolume(parseInt(settings.wpVolume));
+                    }
+                }
                 
                 const diff = hostCurrentTime - currentTime;
                 
