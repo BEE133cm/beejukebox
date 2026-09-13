@@ -173,11 +173,12 @@
                                         <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                                     </label>
                                 </div>
-                                <div class="flex justify-between items-center mt-2 pl-4 border-l-2 border-gray-700 ml-1">
-                                    <span class="text-gray-400 text-xs font-bold whitespace-nowrap"><i class="fa-solid fa-bolt"></i> 音量ブースト</span>
-                                    <div class="flex items-center ml-4 flex-1 max-w-[160px]">
-                                        <input type="range" id="stream-boost-slider" min="1" max="50" step="0.5" value="2.0" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeStreamBoost(this.value)">
+                                <div class="flex flex-col mt-3 pl-2 border-l-2 border-gray-700 ml-1">
+                                    <span class="text-gray-400 text-xs font-bold mb-2"><i class="fa-solid fa-bolt text-yellow-500"></i> 音量ブースト (最大50倍)</span>
+                                    <div class="flex items-center">
+                                        <input type="range" id="stream-boost-slider" min="1" max="50" step="0.5" value="2.0" class="w-full h-1.5 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeStreamBoost(this.value)">
                                     </div>
+                                    <span class="text-[10px] text-gray-500 mt-1">※配信者の声が小さい場合のみ上げてください</span>
                                 </div>
                             </div>
                             
@@ -266,10 +267,12 @@
                     <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
                 </div>
 
-                <!-- Jukebox音量バー (WPタブ選択時のみ表示) -->
-                <div id="wp-volume-container" class="hidden items-center gap-2 flex-1 max-w-[150px] mx-4 transition-opacity duration-300">
-                    <span class="text-[10px] text-gray-400 font-bold whitespace-nowrap"><i class="fa-solid fa-volume-high"></i> 🎵音量</span>
-                    <input type="range" id="wp-volume-slider" min="0" max="100" value="100" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeWpVolume(this.value)">
+                <!-- Jukebox音量バー (WPタブ選択時かつ横画面時のみ表示) -->
+                <div class="hidden landscape:flex flex-1 max-w-[150px] mx-4 items-center">
+                    <div id="wp-volume-container" class="hidden items-center gap-2 w-full transition-opacity duration-300">
+                        <span class="text-[10px] text-gray-400 font-bold whitespace-nowrap"><i class="fa-solid fa-volume-high"></i> 🎵音量</span>
+                        <input type="range" id="wp-volume-slider" min="0" max="100" value="100" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeWpVolume(this.value)">
+                    </div>
                 </div>
 
                 <!-- 設定モーダル呼び出しボタン -->
@@ -322,7 +325,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.38
+                        v1.0.40
                     </div>
 
                 </div>
@@ -1081,7 +1084,7 @@
         function renderChatList(containerId, chats, isPrivileged) {
             const container = document.getElementById(containerId);
             if(!container) return;
-            
+
             container.innerHTML = '';
             chats.forEach(c => {
                 const div = document.createElement('div');
