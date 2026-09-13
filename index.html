@@ -198,6 +198,7 @@
                 </div>
             </div>
 
+            <!-- チャット＆設定列 -->
             <div id="host-right-col" class="space-y-6 lg:col-span-1 hide-on-share">
                 <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 flex flex-col" style="height: 350px;">
                     <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
@@ -294,6 +295,7 @@
         let bannedUsers = {}; 
         let cameraApprovalMode = false;
         let myList = [];
+        let approvedUsers = {}; // 一度承認したユーザーのUUIDを記憶
 
         let hostMediaConn = null; 
         let currentStreamToListeners = null;
@@ -414,26 +416,24 @@
             }
         }
 
-        // URL生成部分を独立したファイル群へのリンクに変更
-        // リモコンとカメラはパラメータなし（ポータル画面へ誘導）
         function generateURLs() {
-            const currentHref = window.location.href.split('?')[0].split('#')[0];
-            const basePath = currentHref.substring(0, currentHref.lastIndexOf('/') + 1);
+            const base = window.location.href.split('?')[0].split('#')[0];
+            const baseUrlPath = base.substring(0, base.lastIndexOf('/') + 1);
 
             const elListener = document.getElementById('url-listener');
-            if(elListener) elListener.value = `${basePath}listener.html?host=${currentRoomId}`;
+            if(elListener) elListener.value = `${baseUrlPath}listener.html?host=${currentRoomId}`;
 
             const elRemote = document.getElementById('url-remote');
-            if(elRemote) elRemote.value = `${basePath}controller.html`;
+            if(elRemote) elRemote.value = `${baseUrlPath}controller.html`;
 
             const elCamera = document.getElementById('url-camera');
-            if(elCamera) elCamera.value = `${basePath}camera.html`;
+            if(elCamera) elCamera.value = `${baseUrlPath}camera.html`;
 
             const elObsCam = document.getElementById('url-obs-cam');
-            if(elObsCam) elObsCam.value = `${basePath}OBS.html?obs_cam=${currentRoomId}`;
+            if(elObsCam) elObsCam.value = `${baseUrlPath}OBS.html?obs_cam=${currentRoomId}`;
 
             const elObs = document.getElementById('url-obs');
-            if(elObs) elObs.value = `${basePath}OBS.html?obs=${currentRoomId}`;
+            if(elObs) elObs.value = `${baseUrlPath}OBS.html?obs=${currentRoomId}`;
         }
 
         function copyURL(inputId) {
@@ -706,12 +706,16 @@
                         listener.isMuted = restoredIsMuted;
                     }
 
+                    if (listener.uuid && approvedUsers[listener.uuid]) {
+                        listener.cameraStatus = 'approved';
+                    }
+
                     if (listener.isObs || listener.isRemote) {
                         listener.cameraStatus = 'approved';
                         if (currentStreamToListeners && !listener.call) {
                             sendStreamToPeer(listener.id);
                         }
-                    } else if (isReconnected && listener.cameraStatus === 'approved') {
+                    } else if (listener.cameraStatus === 'approved') {
                         if (currentStreamToListeners && !listener.call) {
                             sendStreamToPeer(listener.id);
                         }
@@ -859,16 +863,25 @@
             if(!p) return;
             if(action === 'approve_cam') {
                 p.cameraStatus = 'approved';
+                if(p.uuid) {
+                    approvedUsers[p.uuid] = true;
+                    saveHostState();
+                }
                 if(currentStreamToListeners && !p.call) sendStreamToPeer(peerId);
                 showToast(`${p.name}の視聴を許可しました`);
             } else if(action === 'reject_cam') {
                 p.cameraStatus = 'none';
+                if(p.uuid) {
+                    delete approvedUsers[p.uuid];
+                    saveHostState();
+                }
                 showToast(`${p.name}の視聴を拒否しました`);
             } else if(action === 'mute') {
                 p.isMuted = !p.isMuted;
                 showToast(`${p.name}を${p.isMuted ? '投稿禁止' : '解除'}しました`);
             } else if(action === 'ban') {
                 bannedUsers[peerId] = { name: p.name, time: Date.now(), uuid: p.uuid }; 
+                if(p.uuid) delete approvedUsers[p.uuid];
                 saveHostState();
                 if(p.call) p.call.close();
                 p.conn.send({type: 'banned'});
@@ -1285,7 +1298,7 @@
                 loop: document.getElementById('bgm-loop') ? document.getElementById('bgm-loop').checked : true,
                 loopOne: document.getElementById('bgm-loop-one') ? document.getElementById('bgm-loop-one').checked : false
             };
-            const data = { queue, bgmQueue, historyQueue, chatHistory, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers, bgmSettings };
+            const data = { queue, bgmQueue, historyQueue, chatHistory, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers, bgmSettings, approvedUsers };
             localStorage.setItem('jukebox_state_' + currentRoomId, JSON.stringify(data));
         }
 
@@ -1302,6 +1315,7 @@
                     bgmResumeData = data.bgmResumeData || null;
                     cameraApprovalMode = !!data.cameraApprovalMode;
                     bannedUsers = data.bannedUsers || {};
+                    approvedUsers = data.approvedUsers || {};
                     
                     const camAppEl = document.getElementById('setting-cam-approval');
                     if(camAppEl) camAppEl.checked = cameraApprovalMode;
