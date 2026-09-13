@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox - Host</title>
+    <title>Remote Jukebox - Host Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #111827; color: white; overscroll-behavior-y: none; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        body { font-family: 'Inter', sans-serif; background-color: #0e0e10; color: #e4e4e7; overscroll-behavior-y: none; }
+        
+        /* ツール風の細くフラットなスクロールバー */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0e0e10; border-left: 1px solid #27272a; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 0px; }
         ::-webkit-scrollbar-thumb:hover { background: #52525b; }
 
         .marquee-container { overflow: hidden; white-space: nowrap; position: relative; width: 100%; display: flex; }
@@ -31,285 +33,371 @@
             transform: translateX(150%); transition: transform 0.3s ease-in-out;
         }
         .toast.show { transform: translateX(0); }
-        .youtube-hidden { position: absolute; width: 1px; height: 1px; top: -9999px; left: -9999px; }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
+
+        .youtube-hidden { position: absolute; width: 1px; height: 1px; top: -9999px; left: -9999px; opacity: 0; pointer-events: none; }
+
+        /* ツール風の入力フォームリセット */
+        input[type="text"], input[type="password"], input[type="number"], select {
+            background-color: #0e0e10;
+            border: 1px solid #3f3f46;
+            color: #e4e4e7;
+            border-radius: 2px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus, select:focus {
+            border-color: #6366f1;
+        }
+        button { border-radius: 2px; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col items-center relative m-0 p-0 overflow-hidden">
+<!-- フルスクリーン固定のツール風レイアウト -->
+<body class="h-[100dvh] w-full flex flex-col p-0 m-0 overflow-hidden text-sm">
 
     <!-- トースト通知 -->
-    <div id="toast" class="toast bg-[#18181b] border-l-4 border-indigo-500 text-gray-200 p-3 rounded-sm shadow-xl flex items-center gap-3 text-xs font-bold">
+    <div id="toast" class="toast bg-gray-800 border-l-4 border-indigo-500 text-white p-3 rounded-sm shadow-lg flex items-center gap-3 font-bold text-xs">
         <span id="toast-msg"></span>
     </div>
 
     <!-- ================= 1. ルーム作成画面 (初期画面) ================= -->
-    <div id="setup-view" class="w-full max-w-md bg-[#18181b] border border-gray-800 p-6 rounded shadow-2xl mt-10">
-        <h1 class="text-xl font-bold text-center mb-2 text-white tracking-wider"><i class="fa-solid fa-sliders text-indigo-400"></i> REMOTE JUKEBOX</h1>
-        <p class="text-gray-500 text-center text-xs mb-6 font-bold">配信者用管理コンソール</p>
+    <div id="setup-view" class="w-full max-w-sm bg-[#18181b] border border-gray-700 p-6 shadow-2xl m-auto relative overflow-hidden rounded-sm">
+        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-600 to-indigo-400"></div>
+        <h1 class="text-xl font-black text-center mb-1 text-white tracking-wide"><i class="fa-solid fa-music text-indigo-400"></i> REMOTE JUKEBOX</h1>
+        <p class="text-gray-500 text-center text-[10px] font-bold tracking-widest uppercase mb-6">Host Dashboard</p>
         
         <div class="space-y-4">
             <div>
-                <label class="block text-xs font-bold text-gray-400 mb-1">ルームID (半角英数字)</label>
-                <input type="text" id="input-room-id" placeholder="例: my-radio-123" class="w-full bg-[#0e0e10] text-white border border-gray-700 rounded-sm p-2 outline-none focus:border-indigo-500 text-sm">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-hashtag"></i> ROOM ID</label>
+                <input type="text" id="input-room-id" placeholder="Ex: my-radio-123" class="w-full p-2.5 text-xs shadow-inner">
             </div>
             <div>
-                <label class="block text-xs font-bold text-gray-400 mb-1">配信者の名前</label>
-                <input type="text" id="input-host-name" placeholder="例: 配信太郎" class="w-full bg-[#0e0e10] text-white border border-gray-700 rounded-sm p-2 outline-none focus:border-indigo-500 text-sm">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-user"></i> HOST NAME</label>
+                <input type="text" id="input-host-name" placeholder="Ex: 配信太郎" class="w-full p-2.5 text-xs shadow-inner">
             </div>
             <div class="border-t border-gray-800 pt-4 mt-2">
-                <label class="block text-xs font-bold text-gray-400 mb-1"><i class="fa-solid fa-lock"></i> 管理パスワード (任意)</label>
-                <input type="password" id="input-host-password" placeholder="例: 1234 (空欄ならパス不要)" class="w-full bg-[#0e0e10] text-white border border-gray-700 rounded-sm p-2 outline-none focus:border-indigo-500 text-sm">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-lock"></i> PASSWORD (OPTIONAL)</label>
+                <input type="password" id="input-host-password" placeholder="Ex: 1234" class="w-full p-2.5 text-xs shadow-inner">
+                <p class="text-[9px] text-gray-500 mt-1 leading-tight">※設定すると、コントローラーやカメラからの接続時にパスワードを要求します。</p>
             </div>
-            <button onclick="createRoom()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-sm transition-colors mt-4 text-sm tracking-wider">
-                ルームを作成 / 起動
+            <button onclick="createRoom()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 transition-colors shadow mt-2 text-xs uppercase tracking-wider">
+                Create Room
             </button>
             
-            <div class="border-t border-gray-800 pt-4 mt-6">
-                <h3 class="text-xs font-bold text-gray-500 mb-3"><i class="fa-regular fa-clock"></i> RECENT ROOMS</h3>
-                <div id="setup-history-list" class="flex flex-col gap-1.5 max-h-40 overflow-y-auto"></div>
+            <div class="border-t border-gray-800 pt-4 mt-4">
+                <h3 class="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-wider"><i class="fa-regular fa-clock"></i> Recent Rooms</h3>
+                <div id="setup-history-list" class="flex flex-col gap-1.5 max-h-32 overflow-y-auto pr-1">
+                    <!-- 履歴がここに入る -->
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- ================= 2. 配信者 (Host) 画面 (The Tool UI) ================= -->
-    <div id="host-view" class="hidden w-full h-[100dvh] flex-col bg-[#0e0e10] text-sm overflow-hidden">
+    <!-- ================= 2. 配信者 (Host) 画面 (The ツール風UI) ================= -->
+    <div id="host-view" class="hidden flex-col w-full h-full">
         
-        <!-- Header -->
-        <div class="flex-shrink-0 bg-[#18181b] border-b border-gray-800 p-3 flex justify-between items-center z-20 shadow-md">
-            <div class="flex-1 max-w-xl flex items-center gap-2">
-                <i class="fa-solid fa-bullhorn text-indigo-400"></i>
-                <input type="text" id="setting-theme" placeholder="テーマ・気分 (リスナーに表示)" class="flex-1 bg-[#09090b] border border-gray-700 text-white rounded-sm p-1.5 text-xs outline-none focus:border-indigo-500" onchange="updateHostSettings()">
+        <!-- ヘッダーダッシュボード (固定) -->
+        <header class="h-12 bg-[#18181b] border-b border-gray-700 flex items-center justify-between px-4 shrink-0 shadow-sm z-30">
+            <div class="flex items-center gap-4">
+                <h2 class="font-black text-sm text-gray-200 tracking-wider"><i class="fa-solid fa-crown text-yellow-500"></i> HOST DASHBOARD</h2>
+                <div class="hidden sm:flex items-center gap-2 border-l border-gray-700 pl-4">
+                    <span class="text-[10px] text-gray-500 font-bold uppercase">Room ID:</span>
+                    <span id="display-room-id" class="text-indigo-400 font-mono font-bold text-xs bg-[#0e0e10] border border-gray-800 px-2 py-0.5 rounded-sm"></span>
+                </div>
             </div>
-            <div id="connection-status" class="flex flex-col items-end gap-0.5 text-[10px] flex-shrink-0 ml-4">
-                <div class="flex items-center gap-1.5">
+            
+            <div class="flex-1 overflow-hidden flex items-center justify-center px-4">
+                <div id="host-news-ticker" class="text-yellow-400 font-bold text-xs opacity-0 transition-opacity duration-300 whitespace-nowrap overflow-hidden text-ellipsis"></div>
+            </div>
+
+            <div id="connection-status" class="flex items-center gap-3 shrink-0">
+                <span id="error-text" class="text-[10px] text-red-400 hidden font-bold"></span>
+                <div class="flex items-center gap-2 bg-[#0e0e10] border border-gray-800 px-2 py-1 rounded-sm">
                     <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse shadow-[0_0_5px_rgba(234,179,8,0.8)]" id="status-dot"></span>
-                    <span id="status-text" class="text-gray-300 font-bold tracking-widest">BOOTING...</span>
+                    <span id="status-text" class="text-[10px] font-bold text-gray-300">起動中...</span>
                 </div>
-                <span id="error-text" class="text-red-400 hidden"></span>
             </div>
+        </header>
+
+        <!-- スマホ用タブヘッダー (PCでは非表示) -->
+        <div id="mobile-tab-header" class="flex lg:hidden bg-[#18181b] border-b border-gray-800 shrink-0 z-20">
+            <button onclick="switchHostMobileTab('col1')" id="mobile-tab-col1" class="flex-1 py-2 text-[10px] font-bold text-indigo-400 border-b-2 border-indigo-500 transition-colors"><i class="fa-solid fa-desktop"></i> PREVIEW</button>
+            <button onclick="switchHostMobileTab('col2')" id="mobile-tab-col2" class="flex-1 py-2 text-[10px] font-bold text-gray-500 border-b-2 border-transparent transition-colors"><i class="fa-solid fa-list-ul"></i> QUEUE</button>
+            <button onclick="switchHostMobileTab('col3')" id="mobile-tab-col3" class="flex-1 py-2 text-[10px] font-bold text-gray-500 border-b-2 border-transparent transition-colors"><i class="fa-solid fa-gear"></i> SETTINGS</button>
         </div>
 
-        <!-- ニュースティッカー (Header下) -->
-        <div class="w-full h-0 relative flex justify-center z-50">
-            <div id="host-news-ticker" class="absolute top-2 bg-[#18181b] text-indigo-300 font-bold text-xs px-4 py-1.5 rounded-sm border border-indigo-500/30 shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none max-w-md truncate"></div>
-        </div>
-
-        <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
-            <!-- ========== LEFT PANEL: PREVIEW & CONTROLS ========== -->
-            <div id="host-col-1" class="flex-col w-full lg:w-7/12 border-r border-gray-800 bg-black relative flex">
+        <!-- 3カラムのメインペイン -->
+        <main class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+            
+            <!-- ===== Column 1: Preview & Mixer (左) ===== -->
+            <div id="host-col-1" class="flex flex-col w-full lg:w-5/12 h-full border-b lg:border-b-0 lg:border-r border-gray-800 bg-[#111827] overflow-y-auto p-3 gap-3">
                 
-                <!-- NOW PLAYING & Toggles -->
-                <div class="flex-shrink-0 bg-[#111827] border-b border-gray-800 p-2 flex justify-between items-center">
-                    <div class="flex-1 min-w-0 flex items-center gap-2 mr-4">
-                        <span class="text-red-500 font-bold text-[10px] border border-red-500 px-1 rounded-sm">NOW PLAYING</span>
-                        <div class="truncate text-gray-200 text-xs font-bold" id="host-now-playing">再生待機中...</div>
-                        <div class="truncate text-gray-500 text-[10px]" id="host-now-requester"></div>
+                <!-- スマホ用: 1行Now Playing (PCでは非表示) -->
+                <div id="mobile-now-playing-container" class="lg:hidden flex items-center gap-2 bg-[#0e0e10] border border-gray-700 p-2 rounded-sm shrink-0 shadow-sm">
+                    <span class="text-[9px] font-black text-red-500 tracking-widest shrink-0"><i class="fa-solid fa-play"></i> NOW:</span>
+                    <div class="marquee-container h-4 flex-1">
+                        <div class="marquee-content host-now-playing-text font-bold text-[10px] text-gray-100 tracking-wide">BGM停止中</div>
                     </div>
-                    <button onclick="toggleLightMode()" id="btn-light-mode" class="text-[10px] font-bold bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-sm transition-colors border border-gray-700 flex-shrink-0">
-                        <i class="fa-solid fa-video"></i> 映像ON
-                    </button>
                 </div>
 
-                <!-- MULTI-VIEW MONITORS -->
-                <div class="flex-1 flex bg-black min-h-[150px] lg:min-h-[250px] relative">
+                <!-- テーマ (独立表示) -->
+                <div class="flex items-center gap-2 bg-[#0e0e10] border border-gray-700 p-1.5 rounded-sm shrink-0 shadow-sm">
+                    <span class="bg-gray-800 text-yellow-500 text-[9px] font-black tracking-widest px-2 py-1 rounded-sm border border-gray-700">THEME</span>
+                    <input type="text" id="setting-theme" class="flex-1 bg-transparent outline-none text-xs text-white placeholder-gray-600 font-bold" placeholder="現在のテーマ・気分を入力して共有..." onchange="updateHostSettings()">
+                </div>
+
+                <!-- PC用 1行Now Playing & 映像ONボタン -->
+                <div class="flex justify-between items-center shrink-0">
+                    <div class="hidden lg:flex items-center gap-2 overflow-hidden flex-1 mr-4 bg-[#0e0e10] border border-gray-700 p-1.5 rounded-sm shadow-sm">
+                        <span class="text-[9px] font-black text-red-500 tracking-widest shrink-0"><i class="fa-solid fa-play"></i> NOW:</span>
+                        <div class="marquee-container h-4 flex-1">
+                            <div class="marquee-content host-now-playing-text font-bold text-[10px] text-gray-100 tracking-wide">BGM停止中</div>
+                        </div>
+                        <span class="host-now-requester-text text-gray-500 font-normal text-[10px] shrink-0 ml-2">---</span>
+                    </div>
+                    <div class="flex justify-end lg:shrink-0 w-full lg:w-auto">
+                        <button onclick="toggleLightMode()" id="btn-light-mode" class="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded-sm transition-colors flex items-center gap-1.5 font-bold shadow-sm">
+                            <i class="fa-solid fa-video"></i> 映像ON
+                        </button>
+                    </div>
+                </div>
+
+                <!-- マルチビュー (Jukebox & Stream) -->
+                <div class="flex flex-col lg:flex-row gap-2 shrink-0">
                     <!-- Jukebox Monitor -->
-                    <div class="flex-1 flex flex-col border-r border-gray-800">
-                        <div class="bg-[#18181b] text-[9px] text-gray-400 font-bold px-2 py-0.5 border-b border-gray-800 text-center tracking-widest">JUKEBOX (PGM)</div>
-                        <div id="youtube-player-container" class="flex-1 relative bg-black shadow-inner">
-                            <div id="youtube-player" class="w-full h-full"></div>
-                        </div>
+                    <div class="flex-1 bg-black border border-gray-700 relative aspect-video shadow-inner rounded-sm overflow-hidden">
+                        <div class="absolute top-1 left-1 bg-indigo-600/90 border border-indigo-400 px-1.5 py-0.5 text-[9px] font-bold z-10 text-white rounded-sm tracking-wider">JUKEBOX</div>
+                        <div id="youtube-player-container" class="w-full h-full"><div id="youtube-player"></div></div>
                     </div>
-                    <!-- Stream Monitor (Hidden on Mobile) -->
-                    <div class="hidden lg:flex flex-1 flex-col relative">
-                        <div class="bg-[#18181b] text-[9px] text-gray-400 font-bold px-2 py-0.5 border-b border-gray-800 text-center tracking-widest">STREAM (CAM)</div>
-                        <div class="flex-1 relative bg-[#09090b] flex items-center justify-center overflow-hidden shadow-inner">
-                            <span id="host-stream-offline" class="text-gray-700 font-bold tracking-widest text-xs">NO SIGNAL</span>
-                            <video id="host-stream-preview" autoplay playsinline muted class="hidden w-full h-full object-contain absolute inset-0 z-10"></video>
+                    <!-- Stream Monitor (PC Only) -->
+                    <div class="hidden lg:flex flex-1 bg-black border border-gray-700 relative aspect-video items-center justify-center shadow-inner rounded-sm overflow-hidden">
+                        <div class="absolute top-1 left-1 bg-red-600/90 border border-red-400 px-1.5 py-0.5 text-[9px] font-bold z-10 text-white rounded-sm tracking-wider">STREAM</div>
+                        <span id="host-stream-offline" class="text-gray-700 text-[10px] font-black tracking-widest z-0">NO SIGNAL</span>
+                        <video id="host-stream-preview" playsinline class="w-full h-full object-contain absolute inset-0 z-10 hidden"></video>
+                    </div>
+                </div>
+
+                <!-- スマホ用: 映像下のコントロールとリクエスト欄 (PCでは非表示) -->
+                <div id="mobile-controls-container" class="lg:hidden flex flex-col gap-2 shrink-0">
+                    <div class="flex justify-center gap-4">
+                        <button onclick="togglePlayHost()" class="btn-host-play bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-10 shadow transition-colors">
+                            <i class="fa-solid fa-play text-sm"></i>
+                        </button>
+                        <button onclick="playNext(true)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-10 shadow transition-colors">
+                            <i class="fa-solid fa-forward-step text-sm"></i>
+                        </button>
+                    </div>
+                    <div class="flex gap-1.5">
+                        <input type="text" id="host-request-url-mobile" placeholder="YouTube URLをリクエスト..." class="flex-1 p-2 text-[10px] shadow-inner bg-[#0e0e10] border border-gray-700 text-white">
+                        <button onclick="sendHostRequest('mobile')" class="bg-red-600 hover:bg-red-500 text-white px-3 rounded-sm text-[10px] font-bold transition-colors shadow-sm">追加</button>
+                    </div>
+                </div>
+
+                <!-- オーディオミキサー (PC Only) -->
+                <div id="host-audio-mixer" class="hidden lg:block bg-[#18181b] border border-gray-700 p-2.5 rounded-sm shrink-0 shadow-sm">
+                    <div class="text-[9px] font-black text-gray-500 mb-2 border-b border-gray-800 pb-1 tracking-widest">AUDIO MIXER (MONITORING)</div>
+                    <div class="space-y-2.5">
+                        <!-- Jukebox Vol -->
+                        <div class="flex items-center gap-3">
+                            <span class="w-14 text-[10px] font-bold text-indigo-400 tracking-wider">JUKEBOX</span>
+                            <button onclick="toggleHostJukeboxMute()" class="w-6 h-6 bg-[#0e0e10] hover:bg-gray-800 border border-gray-700 rounded-sm flex items-center justify-center text-gray-400 transition-colors shrink-0">
+                                <i id="icon-host-jukebox-mute" class="fa-solid fa-volume-high text-[10px]"></i>
+                            </button>
+                            <input type="range" id="host-jukebox-vol" min="0" max="100" value="100" class="flex-1 h-1.5 bg-gray-800 rounded-full appearance-none accent-indigo-500 cursor-pointer" oninput="changeHostJukeboxVol(this.value)">
+                        </div>
+                        <!-- Stream Vol -->
+                        <div class="flex items-center gap-3">
+                            <span class="w-14 text-[10px] font-bold text-red-400 tracking-wider">STREAM</span>
+                            <button onclick="toggleHostStreamMute()" class="w-6 h-6 bg-[#0e0e10] hover:bg-gray-800 border border-gray-700 rounded-sm flex items-center justify-center text-gray-400 transition-colors shrink-0">
+                                <i id="icon-host-stream-mute" class="fa-solid fa-volume-xmark text-[10px]"></i>
+                            </button>
+                            <input type="range" id="host-stream-vol" min="0" max="100" value="0" class="flex-1 h-1.5 bg-gray-800 rounded-full appearance-none accent-red-500 cursor-pointer" oninput="changeHostStreamVol(this.value)">
                         </div>
                     </div>
                 </div>
 
-                <!-- AUDIO MIXER & CONTROLS -->
-                <div class="flex-shrink-0 bg-[#18181b] border-t border-gray-800 p-3 flex flex-col gap-3">
-                    
-                    <!-- Audio Mixer (Hidden on Mobile) -->
-                    <div class="hidden lg:flex gap-6 border-b border-gray-800 pb-3">
-                        <div class="flex-1 flex items-center gap-2">
-                            <button onclick="toggleHostJukeboxMute()" class="text-gray-300 hover:text-white w-5 text-center"><i id="icon-host-jukebox-mute" class="fa-solid fa-volume-high"></i></button>
-                            <span class="text-[9px] text-gray-500 font-bold w-12 tracking-wider">JUKEBOX</span>
-                            <input type="range" id="host-jukebox-vol" min="0" max="100" value="100" class="flex-1 h-1.5 bg-gray-700 rounded-sm appearance-none cursor-pointer accent-indigo-500" oninput="changeHostJukeboxVol(this.value)">
-                        </div>
-                        <div class="flex-1 flex items-center gap-2">
-                            <button onclick="toggleHostStreamMute()" class="text-gray-500 hover:text-white w-5 text-center"><i id="icon-host-stream-mute" class="fa-solid fa-volume-xmark"></i></button>
-                            <span class="text-[9px] text-gray-500 font-bold w-12 tracking-wider">STREAM</span>
-                            <input type="range" id="host-stream-vol" min="0" max="100" value="0" class="flex-1 h-1.5 bg-gray-700 rounded-sm appearance-none cursor-pointer accent-green-500" oninput="changeHostStreamVol(this.value)">
-                        </div>
+                <!-- Controls & Request (PC Only) -->
+                <div id="pc-controls-container" class="hidden lg:flex bg-[#18181b] border border-gray-700 p-3 rounded-sm flex-col gap-2 shrink-0 shadow-sm mt-1">
+                    <div class="flex justify-center gap-4">
+                        <button onclick="togglePlayHost()" class="btn-host-play bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-8 transition-colors shadow">
+                            <i class="fa-solid fa-play text-sm"></i>
+                        </button>
+                        <button onclick="playNext(true)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-8 transition-colors shadow">
+                            <i class="fa-solid fa-forward-step text-sm"></i>
+                        </button>
                     </div>
-                    
-                    <!-- Transport & Request -->
-                    <div class="flex gap-2">
-                        <button onclick="togglePlayHost()" id="btn-host-play" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white w-10 h-9 rounded-sm transition-transform active:scale-95 flex items-center justify-center shadow-sm">
-                            <i class="fa-solid fa-play text-xs"></i>
-                        </button>
-                        <button onclick="playNext(true)" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white w-10 h-9 rounded-sm transition-transform active:scale-95 flex items-center justify-center shadow-sm">
-                            <i class="fa-solid fa-forward-step text-xs"></i>
-                        </button>
-                        <div class="flex-1 flex gap-2">
-                            <input type="text" id="host-request-url" placeholder="YouTube URLをリクエスト追加..." class="flex-1 bg-[#09090b] border border-gray-700 text-white rounded-sm px-2 text-xs outline-none focus:border-indigo-500">
-                            <button onclick="sendHostRequest()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 rounded-sm text-xs font-bold transition-colors">追加</button>
-                        </div>
+
+                    <!-- Hostからのリクエスト入力欄 -->
+                    <div class="border-t border-gray-800 pt-2 flex gap-1.5 shrink-0 mt-1">
+                        <input type="text" id="host-request-url-pc" placeholder="YouTube URLをリクエスト..." class="flex-1 p-1.5 text-[10px] bg-[#0e0e10] border border-gray-700 text-white">
+                        <button onclick="sendHostRequest('pc')" class="bg-red-600 hover:bg-red-500 text-white px-3 rounded-sm text-[10px] font-bold transition-colors shadow-sm">追加</button>
                     </div>
                 </div>
 
-                <!-- Mobile Only: Chat & Participants inside PREVIEW tab -->
-                <div id="mobile-chat-participant-container" class="lg:hidden flex-1 flex flex-col min-h-0 bg-[#0e0e10] border-t border-gray-800">
-                    <!-- Layout adjusted dynamically via adjustLayoutForMobile() -->
+                <!-- スマホ用: チャット＆参加者コンテナ (JSで移動させるプレースホルダー) -->
+                <div id="mobile-chat-participant-container" class="flex flex-col gap-3 lg:hidden shrink-0 pb-4"></div>
+            </div>
+
+            <!-- ===== Column 2: Queue & History (中央) ===== -->
+            <div id="host-col-2" class="hidden lg:flex flex-col w-full lg:w-3/12 h-full border-b lg:border-b-0 lg:border-r border-gray-800 bg-[#0e0e10]">
+                <!-- リクエストキュー (上半分) -->
+                <div class="h-1/2 flex flex-col border-b border-gray-800 p-2.5">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-1.5 mb-2 shrink-0">
+                        <h3 class="text-[10px] font-black text-gray-400 tracking-widest uppercase"><i class="fa-solid fa-list-ul"></i> REQUEST QUEUE</h3>
+                        <span class="text-[9px] bg-gray-800 px-1.5 py-0.5 rounded-sm text-gray-300 font-bold border border-gray-700" id="queue-badge">0</span>
+                    </div>
+                    <div id="host-queue-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0"></div>
+                </div>
+
+                <!-- 再生履歴 (下半分) -->
+                <div class="h-1/2 flex flex-col p-2.5">
+                    <h3 class="text-[10px] font-black text-gray-400 border-b border-gray-800 pb-1.5 mb-2 shrink-0 tracking-widest uppercase"><i class="fa-regular fa-clock"></i> HISTORY</h3>
+                    <div id="host-history-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0"></div>
                 </div>
             </div>
 
-            <!-- ========== MIDDLE PANEL: QUEUE & HISTORY ========== -->
-            <div id="host-col-2" class="hidden lg:flex flex-col w-full lg:w-3/12 border-r border-gray-800 bg-[#111827]">
-                <div class="flex-1 flex flex-col h-1/2 border-b border-gray-800">
-                    <h3 class="bg-[#18181b] text-[10px] text-gray-400 font-bold px-3 py-1.5 border-b border-gray-800 tracking-widest flex justify-between items-center shadow-sm z-10">
-                        <span><i class="fa-solid fa-list-ul"></i> QUEUE</span>
-                        <span id="queue-badge" class="bg-indigo-600 text-white px-1.5 py-0.5 rounded-sm text-[9px]">0</span>
-                    </h3>
-                    <div id="host-queue-list" class="flex-1 overflow-y-auto p-2 space-y-1 bg-[#0e0e10]"></div>
-                </div>
-                <div class="flex-1 flex flex-col h-1/2">
-                    <h3 class="bg-[#18181b] text-[10px] text-gray-400 font-bold px-3 py-1.5 border-b border-gray-800 tracking-widest shadow-sm z-10"><i class="fa-regular fa-clock"></i> HISTORY</h3>
-                    <div id="host-history-list" class="flex-1 overflow-y-auto p-2 space-y-1 bg-[#0e0e10]"></div>
-                </div>
-            </div>
-
-            <!-- ========== RIGHT PANEL: CHAT, USERS, BGM, SETTINGS ========== -->
-            <div id="host-col-3" class="hidden lg:flex flex-col w-full lg:w-2/12 bg-[#0e0e10]">
+            <!-- ===== Column 3: Chat & Settings (右) ===== -->
+            <div id="host-col-3" class="hidden lg:flex flex-col w-full lg:w-4/12 h-full bg-[#0e0e10]">
                 
-                <!-- Chat (PC Only - Top Half) -->
-                <div id="host-col-3-top" class="hidden lg:flex flex-col h-[40%] border-b border-gray-800">
-                    <div id="chat-container" class="flex-1 flex flex-col bg-[#111827]">
-                        <div class="flex justify-between items-center bg-[#18181b] px-2 py-1.5 border-b border-gray-800 shadow-sm z-10">
-                            <span class="text-[10px] font-bold text-gray-400 tracking-widest">CHAT</span>
-                            <label class="flex items-center gap-1 text-[9px] font-bold text-gray-500 cursor-pointer hover:text-gray-300">
-                                <input type="checkbox" id="host-tts-toggle" class="rounded-sm bg-gray-800 border-gray-600 text-indigo-500 focus:ring-indigo-500">
-                                <span>TTS 読上</span>
+                <!-- チャット (上半分 / スマホ時はcol1へ移動して非表示になる) -->
+                <div id="host-col-3-top" class="hidden lg:flex h-1/2 flex-col border-b border-gray-800 p-2.5">
+                    <div id="chat-container" class="flex flex-col h-full bg-[#111827] rounded-sm p-2 shadow-sm">
+                        <div class="flex justify-between items-center border-b border-gray-800 pb-1.5 mb-2 shrink-0">
+                            <h3 class="text-[10px] font-black text-gray-400 tracking-widest uppercase"><i class="fa-solid fa-comment-dots"></i> LIVE CHAT</h3>
+                            <label class="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 cursor-pointer hover:text-gray-200 transition-colors">
+                                <input type="checkbox" id="host-tts-toggle" class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500 focus:ring-transparent">
+                                <i class="fa-solid fa-head-side-waveform"></i> 読上
                             </label>
                         </div>
-                        <div id="host-chat-list" class="flex-1 overflow-y-auto p-2 space-y-1 bg-[#0e0e10]"></div>
-                        <div class="p-2 bg-[#18181b] border-t border-gray-800 flex gap-1.5 shrink-0">
-                            <input type="text" id="host-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest()" placeholder="チャット..." class="flex-1 bg-[#09090b] border border-gray-700 rounded-sm px-2 py-1 text-xs text-white outline-none focus:border-indigo-500">
-                            <button onclick="sendChatRequest()" class="bg-gray-700 hover:bg-gray-600 text-white px-2.5 rounded-sm text-xs font-bold transition-colors border border-gray-600"><i class="fa-solid fa-paper-plane"></i></button>
+                        <div id="host-chat-list" class="flex-1 overflow-y-auto space-y-1 pr-1 mb-2 min-h-0"></div>
+                        <div class="flex gap-1.5 shrink-0">
+                            <input type="text" id="host-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest()" placeholder="メッセージ..." class="flex-1 p-2 text-xs bg-[#0e0e10] border border-gray-700" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+                            <button onclick="sendChatRequest()" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 w-10 rounded-sm flex items-center justify-center transition-colors shadow-sm"><i class="fa-solid fa-paper-plane text-xs"></i></button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Tabs (Bottom Half on PC, Full on Mobile) -->
-                <div class="flex bg-[#18181b] border-b border-gray-800 shrink-0">
-                    <button onclick="switchHostSettingsTab('bgm')" id="tab-btn-bgm" class="flex-1 py-2 text-[10px] font-bold text-indigo-400 border-b-2 border-indigo-500 transition-colors">BGM</button>
-                    <button onclick="switchHostSettingsTab('settings')" id="tab-btn-settings" class="flex-1 py-2 text-[10px] font-bold text-gray-500 border-b-2 border-transparent transition-colors">SETTINGS</button>
-                </div>
-
-                <!-- Tab Contents -->
-                <div class="flex-1 relative overflow-hidden">
-                    
-                    <!-- Participants (Moved dynamically to Mobile PREVIEW Tab, or PC's Settings Tab bottom? No, PC has it below) -->
-                    <div id="participant-container" class="hidden lg:flex flex-col bg-[#111827] border-b border-gray-800 h-[35%] shrink-0">
-                        <div class="flex justify-between items-center bg-[#18181b] px-2 py-1.5 border-b border-gray-800 shadow-sm z-10">
-                            <span class="text-[10px] font-bold text-gray-400 tracking-widest" id="host-participant-count">USERS (0)</span>
-                            <label class="flex items-center gap-1 text-[9px] font-bold text-red-500 cursor-pointer hover:text-red-400">
-                                <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded-sm bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500">
-                                <span>視聴承認制</span>
-                            </label>
-                        </div>
-                        <div id="host-participant-list" class="flex-1 overflow-y-auto p-2 space-y-1 bg-[#0e0e10]"></div>
+                <!-- 設定タブエリア (下半分 / スマホ時は全画面) -->
+                <div class="flex-1 lg:h-1/2 flex flex-col">
+                    <!-- サブタブヘッダー -->
+                    <div class="flex bg-[#18181b] border-b border-gray-700 shrink-0 shadow-sm">
+                        <button onclick="switchHostSettingsTab('participants')" id="tab-btn-participants" class="hidden lg:block flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-indigo-500 text-indigo-400 transition-colors">PARTICIPANTS</button>
+                        <button onclick="switchHostSettingsTab('bgm')" id="tab-btn-bgm" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-transparent text-gray-500 hover:text-gray-300 transition-colors">BGM</button>
+                        <button onclick="switchHostSettingsTab('settings')" id="tab-btn-settings" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-transparent text-gray-500 hover:text-gray-300 transition-colors">SETTING/URL</button>
                     </div>
 
-                    <div class="flex-1 relative min-h-0">
-                        <!-- BGM Tab -->
-                        <div id="tab-content-bgm" class="absolute inset-0 flex flex-col bg-[#111827] p-3 space-y-3 overflow-y-auto">
+                    <!-- サブタブコンテンツ -->
+                    <div class="flex-1 overflow-y-auto p-2.5 relative min-h-0">
+                        
+                        <!-- 参加者管理タブ -->
+                        <div id="tab-content-participants" class="absolute inset-0 p-2.5 flex flex-col overflow-y-auto">
+                            <!-- JSで移動するコンテナ -->
+                            <div id="participant-container" class="flex flex-col h-full bg-[#111827] rounded-sm p-2 shadow-sm min-h-0">
+                                <div class="flex justify-between items-center mb-2 border-b border-gray-800 pb-1.5 shrink-0">
+                                    <h3 class="text-[10px] font-bold text-gray-400"><i class="fa-solid fa-users"></i> 参加者 <span id="host-participant-count" class="font-normal ml-1"></span></h3>
+                                    <label class="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 cursor-pointer hover:text-gray-200">
+                                        <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-red-500 focus:ring-transparent">
+                                        視聴承認制
+                                    </label>
+                                </div>
+                                <div id="host-participant-list" class="flex-1 space-y-1 pr-1 overflow-y-auto min-h-0"></div>
+                            </div>
+                        </div>
+
+                        <!-- BGMタブ -->
+                        <div id="tab-content-bgm" class="hidden absolute inset-0 p-2.5 flex flex-col overflow-y-auto space-y-3">
                             <div>
-                                <div class="flex gap-1 mb-1">
-                                    <input type="text" id="input-bgm-url" placeholder="URL / プレイリスト" class="flex-1 bg-[#09090b] border border-gray-700 rounded-sm px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500">
-                                    <button onclick="addBGM()" class="bg-gray-700 hover:bg-gray-600 text-white px-2.5 rounded-sm text-xs font-bold border border-gray-600">追加</button>
+                                <div class="flex gap-1.5 mb-2">
+                                    <input type="text" id="input-bgm-url" placeholder="YouTube URL" class="min-w-0 flex-1 p-2 text-[10px]">
+                                    <button onclick="addBGM()" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-3 rounded-sm text-[10px] font-bold transition-colors">追加</button>
+                                    <button onclick="saveToMyList()" title="マイリストに保存" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-yellow-500 px-2.5 rounded-sm text-[10px] transition-colors"><i class="fa-solid fa-star"></i></button>
                                 </div>
-                                <div class="flex gap-1 mt-1">
-                                    <select id="select-mylist" onchange="loadFromMyList()" class="flex-1 bg-[#09090b] border border-gray-700 rounded-sm px-2 py-1 text-[10px] text-gray-300 outline-none">
-                                        <option value="">★ マイリストから追加</option>
+                                <div class="flex flex-wrap gap-x-3 gap-y-1.5 mb-2 text-[9px] text-gray-400 border-b border-gray-800 pb-2 font-bold uppercase">
+                                    <label class="flex items-center gap-1 cursor-pointer hover:text-gray-200">
+                                        <input type="checkbox" id="bgm-shuffle" onchange="updateBGMPlaybackSettings()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500 focus:ring-transparent"> <i class="fa-solid fa-shuffle"></i> SHUF
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:text-gray-200">
+                                        <input type="checkbox" id="bgm-loop" checked onchange="updateBGMPlaybackSettings()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500 focus:ring-transparent"> <i class="fa-solid fa-repeat"></i> LOOP
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:text-gray-200">
+                                        <input type="checkbox" id="bgm-loop-one" onchange="updateBGMPlaybackSettings()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500 focus:ring-transparent"> <i class="fa-solid fa-rotate-right"></i> 1-TRK
+                                    </label>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="text-[9px] text-gray-500 font-bold block mb-1">★ LOAD FROM MY LIST</label>
+                                    <select id="select-mylist" onchange="loadFromMyList()" class="w-full p-1.5 text-[10px]">
+                                        <option value="">-- SELECT --</option>
                                     </select>
-                                    <button onclick="saveToMyList()" title="マイリストに保存" class="bg-yellow-700/50 hover:bg-yellow-600/50 text-yellow-500 border border-yellow-700/50 px-2.5 rounded-sm text-xs"><i class="fa-solid fa-star"></i></button>
                                 </div>
                             </div>
-                            <div class="flex gap-2 text-[10px] font-bold text-gray-400 bg-[#18181b] p-2 rounded-sm border border-gray-800 justify-around shadow-sm">
-                                <label class="flex items-center gap-1 cursor-pointer hover:text-white">
-                                    <input type="checkbox" id="bgm-shuffle" onchange="updateBGMPlaybackSettings()" class="rounded-sm bg-gray-800 border-gray-600 text-indigo-500 focus:ring-indigo-500">
-                                    <i class="fa-solid fa-shuffle"></i> SHUF
-                                </label>
-                                <label class="flex items-center gap-1 cursor-pointer hover:text-white">
-                                    <input type="checkbox" id="bgm-loop" checked onchange="updateBGMPlaybackSettings()" class="rounded-sm bg-gray-800 border-gray-600 text-indigo-500 focus:ring-indigo-500">
-                                    <i class="fa-solid fa-repeat"></i> LOOP
-                                </label>
-                                <label class="flex items-center gap-1 cursor-pointer hover:text-white">
-                                    <input type="checkbox" id="bgm-loop-one" onchange="updateBGMPlaybackSettings()" class="rounded-sm bg-gray-800 border-gray-600 text-indigo-500 focus:ring-indigo-500">
-                                    <i class="fa-solid fa-rotate-right"></i> ONE
-                                </label>
-                            </div>
-                            <div id="host-bgm-list" class="flex-1 space-y-1"></div>
-                        </div>
-
-                        <!-- SETTINGS Tab -->
-                        <div id="tab-content-settings" class="hidden absolute inset-0 flex flex-col bg-[#111827] p-3 space-y-4 overflow-y-auto">
-                            <div class="space-y-2">
-                                <h4 class="text-[10px] font-bold text-gray-500 border-b border-gray-800 pb-1 tracking-widest">HOST INFO</h4>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 mb-0.5">配信者の名前</label>
-                                    <input type="text" id="setting-host-name" class="w-full bg-[#09090b] border border-gray-700 rounded-sm px-2 py-1 text-xs text-white outline-none focus:border-indigo-500" onchange="updateHostSettings()">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 mb-0.5">動画尺制限 (分) ※0で無制限</label>
-                                    <input type="number" id="setting-duration" value="10" class="w-full bg-[#09090b] border border-gray-700 rounded-sm px-2 py-1 text-xs text-white outline-none focus:border-indigo-500" onchange="updateHostSettings()">
-                                </div>
-                            </div>
-
-                            <div class="space-y-2">
-                                <h4 class="text-[10px] font-bold text-gray-500 border-b border-gray-800 pb-1 tracking-widest">INVITE URLs</h4>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 mb-0.5"><i class="fa-solid fa-headphones"></i> Listener (リスナー用)</label>
-                                    <div class="flex gap-1"><input type="text" id="url-listener" readonly class="flex-1 bg-[#09090b] border border-gray-800 rounded-sm px-1.5 py-1 text-[10px] text-gray-500 outline-none"><button onclick="copyURL('url-listener')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[10px] font-bold">COPY</button></div>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-yellow-500 mb-0.5"><i class="fa-solid fa-crown"></i> Controller (リモコン用)</label>
-                                    <div class="flex gap-1"><input type="text" id="url-remote" readonly class="flex-1 bg-[#09090b] border border-gray-800 rounded-sm px-1.5 py-1 text-[10px] text-gray-500 outline-none"><button onclick="copyURL('url-remote')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[10px] font-bold">COPY</button></div>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-green-500 mb-0.5"><i class="fa-solid fa-camera"></i> Camera (カメラポータル)</label>
-                                    <div class="flex gap-1"><input type="text" id="url-camera" readonly class="flex-1 bg-[#09090b] border border-gray-800 rounded-sm px-1.5 py-1 text-[10px] text-gray-500 outline-none"><button onclick="copyURL('url-camera')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[10px] font-bold">COPY</button></div>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-blue-400 mb-0.5"><i class="fa-solid fa-tv"></i> OBS (映像+音声)</label>
-                                    <div class="flex gap-1"><input type="text" id="url-obs-cam" readonly class="flex-1 bg-[#09090b] border border-gray-800 rounded-sm px-1.5 py-1 text-[10px] text-gray-500 outline-none"><button onclick="copyURL('url-obs-cam')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[10px] font-bold">COPY</button></div>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-500 mb-0.5"><i class="fa-solid fa-tv"></i> OBS (オーバーレイのみ)</label>
-                                    <div class="flex gap-1"><input type="text" id="url-obs" readonly class="flex-1 bg-[#09090b] border border-gray-800 rounded-sm px-1.5 py-1 text-[10px] text-gray-500 outline-none"><button onclick="copyURL('url-obs')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[10px] font-bold">COPY</button></div>
-                                </div>
+                            <div class="flex-1 border-t border-gray-800 pt-2 min-h-0">
+                                <div id="host-bgm-list" class="space-y-1 max-h-full overflow-y-auto pr-1"></div>
                             </div>
                         </div>
+
+                        <!-- 設定・URLタブ -->
+                        <div id="tab-content-settings" class="hidden absolute inset-0 p-2.5 flex flex-col overflow-y-auto space-y-3">
+                            <!-- 基本設定 -->
+                            <div class="space-y-2 border-b border-gray-800 pb-3">
+                                <h3 class="text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-gear"></i> BASIC CONFIG</h3>
+                                <div>
+                                    <label class="block text-[9px] text-gray-500 mb-0.5">HOST NAME</label>
+                                    <input type="text" id="setting-host-name" class="w-full p-1.5 text-xs" onchange="updateHostSettings()">
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] text-gray-500 mb-0.5">MAX DURATION (MIN, 0=UNLIMITED)</label>
+                                    <input type="number" id="setting-duration" value="10" class="w-full p-1.5 text-xs" onchange="updateHostSettings()">
+                                </div>
+                            </div>
+                            
+                            <!-- URL群 -->
+                            <div class="space-y-2.5">
+                                <h3 class="text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-link"></i> SHARED URLs</h3>
+                                <div>
+                                    <label class="block text-[9px] font-bold text-gray-400 mb-0.5">LISTENER (VIEWER)</label>
+                                    <div class="flex gap-1.5">
+                                        <input type="text" id="url-listener" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
+                                        <button onclick="copyURL('url-listener')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] font-bold text-yellow-600 mb-0.5">REMOTE CONTROLLER</label>
+                                    <div class="flex gap-1.5">
+                                        <input type="text" id="url-remote" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
+                                        <button onclick="copyURL('url-remote')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] font-bold text-green-600 mb-0.5">CAMERA PORTAL</label>
+                                    <div class="flex gap-1.5">
+                                        <input type="text" id="url-camera" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
+                                        <button onclick="copyURL('url-camera')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] font-bold text-blue-600 mb-0.5">OBS (CAM + JUKEBOX)</label>
+                                    <div class="flex gap-1.5">
+                                        <input type="text" id="url-obs-cam" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
+                                        <button onclick="copyURL('url-obs-cam')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] font-bold text-gray-600 mb-0.5">OBS (JUKEBOX ONLY)</label>
+                                    <div class="flex gap-1.5">
+                                        <input type="text" id="url-obs" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
+                                        <button onclick="copyURL('url-obs')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- MOBILE TAB BAR -->
-        <div class="lg:hidden flex-shrink-0 bg-[#18181b] border-t border-gray-800 flex shadow-[0_-5px_10px_rgba(0,0,0,0.5)] z-30 pb-safe">
-            <button onclick="switchHostMobileTab('col1')" id="mobile-tab-col1" class="flex-1 py-2.5 text-[10px] font-bold text-indigo-400 border-t-2 border-indigo-500 flex flex-col items-center gap-1 transition-colors"><i class="fa-solid fa-video text-base"></i>PREVIEW</button>
-            <button onclick="switchHostMobileTab('col2')" id="mobile-tab-col2" class="flex-1 py-2.5 text-[10px] font-bold text-gray-500 border-t-2 border-transparent flex flex-col items-center gap-1 transition-colors"><i class="fa-solid fa-list-ul text-base"></i>QUEUE</button>
-            <button onclick="switchHostMobileTab('col3')" id="mobile-tab-col3" class="flex-1 py-2.5 text-[10px] font-bold text-gray-500 border-t-2 border-transparent flex flex-col items-center gap-1 transition-colors"><i class="fa-solid fa-gear text-base"></i>SETTINGS</button>
-        </div>
+        </main>
     </div>
 
     <!-- カメラ中継用のダミー要素 -->
     <audio id="dummy-audio" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" loop playsinline></audio>
-    <video id="host-relay-video" class="hidden" autoplay playsinline muted></video>
 
     <script>
         let peer = null;
@@ -338,47 +426,44 @@
         let hostMediaConn = null; 
         let currentStreamToListeners = null;
 
-        let isHostStateLoaded = false; 
-
         // スマホ用: DOMの動的配置変更処理
         function adjustLayoutForMobile() {
             const isMobile = window.innerWidth < 1024;
             const chatContainer = document.getElementById('chat-container');
             const participantContainer = document.getElementById('participant-container');
-            const mobileContainer = document.getElementById('mobile-chat-participant-container');
             const col3Top = document.getElementById('host-col-3-top');
+            const tabParticipants = document.getElementById('tab-content-participants');
+            const mobileContainer = document.getElementById('mobile-chat-participant-container');
             
             if (isMobile) {
-                if (chatContainer && chatContainer.parentNode !== mobileContainer) {
+                // スマホレイアウトに移動
+                if (chatContainer.parentNode !== mobileContainer) {
                     mobileContainer.appendChild(chatContainer);
                     chatContainer.classList.remove('h-full');
                     chatContainer.style.height = '280px';
                 }
-                if (participantContainer && participantContainer.parentNode !== mobileContainer) {
+                if (participantContainer.parentNode !== mobileContainer) {
                     mobileContainer.appendChild(participantContainer);
-                    participantContainer.classList.remove('hidden', 'lg:flex');
-                    participantContainer.classList.add('flex');
+                    participantContainer.classList.remove('h-full');
                     participantContainer.style.height = '250px';
                 }
             } else {
-                if (chatContainer && chatContainer.parentNode !== col3Top) {
-                    if(col3Top) {
-                        col3Top.appendChild(chatContainer);
-                        chatContainer.classList.add('h-full');
-                        chatContainer.style.height = '100%';
-                    }
+                // PCレイアウトに戻す
+                if (chatContainer.parentNode !== col3Top) {
+                    col3Top.appendChild(chatContainer);
+                    chatContainer.classList.add('h-full');
+                    chatContainer.style.height = '100%';
                 }
-                const col3TabArea = document.querySelector('#host-col-3 > .flex-1');
-                if (participantContainer && col3TabArea && participantContainer.parentNode !== col3TabArea) {
-                    col3TabArea.insertBefore(participantContainer, col3TabArea.firstChild);
-                    participantContainer.classList.add('hidden', 'lg:flex');
-                    participantContainer.classList.remove('flex');
-                    participantContainer.style.height = '35%';
+                if (participantContainer.parentNode !== tabParticipants) {
+                    tabParticipants.appendChild(participantContainer);
+                    participantContainer.classList.add('h-full');
+                    participantContainer.style.height = '100%';
                 }
             }
         }
         window.addEventListener('resize', adjustLayoutForMobile);
 
+        // スマホ用ペイン切り替え
         function switchHostMobileTab(tabName) {
             ['col1', 'col2', 'col3'].forEach(name => {
                 const btn = document.getElementById('mobile-tab-' + name);
@@ -411,7 +496,11 @@
                     col2.classList.add('hidden'); col2.classList.remove('flex');
                     col3.classList.remove('hidden'); col3.classList.add('flex');
                     
-                    if (document.getElementById('tab-btn-bgm').classList.contains('border-transparent') && document.getElementById('tab-btn-settings').classList.contains('border-transparent')) {
+                    // PARTICIPANTSが開いていたら隠れるため、BGMタブをデフォルト表示
+                    const partContent = document.getElementById('tab-content-participants');
+                    if(partContent && !partContent.classList.contains('hidden')) {
+                        switchHostSettingsTab('bgm');
+                    } else if (document.getElementById('tab-btn-bgm').classList.contains('border-transparent') && document.getElementById('tab-btn-settings').classList.contains('border-transparent')) {
                         switchHostSettingsTab('bgm');
                     }
                 }
@@ -420,17 +509,18 @@
 
         window.addEventListener('resize', () => {
             if(window.innerWidth >= 1024) {
-                const col1 = document.getElementById('host-col-1');
-                const col2 = document.getElementById('host-col-2');
-                const col3 = document.getElementById('host-col-3');
-                if(col1) { col1.classList.remove('hidden'); col1.classList.add('flex'); }
-                if(col2) { col2.classList.remove('hidden'); col2.classList.add('flex'); }
-                if(col3) { col3.classList.remove('hidden'); col3.classList.add('flex'); }
+                document.getElementById('host-col-1').classList.remove('hidden');
+                document.getElementById('host-col-1').classList.add('flex');
+                document.getElementById('host-col-2').classList.remove('hidden');
+                document.getElementById('host-col-2').classList.add('flex');
+                document.getElementById('host-col-3').classList.remove('hidden');
+                document.getElementById('host-col-3').classList.add('flex');
             }
         });
 
+        // サブタブ切り替え (Col 3 下半分)
         function switchHostSettingsTab(tabName) {
-            ['bgm', 'settings'].forEach(name => {
+            ['participants', 'bgm', 'settings'].forEach(name => {
                 const btn = document.getElementById('tab-btn-' + name);
                 const content = document.getElementById('tab-content-' + name);
                 if(btn) {
@@ -449,140 +539,62 @@
 
         // オーディオミキサー制御
         function toggleHostJukeboxMute() {
+            if(!player || typeof player.isMuted !== 'function') return;
+            const isMuted = player.isMuted();
             const icon = document.getElementById('icon-host-jukebox-mute');
-            if(!icon) return;
-            const isCurrentlyMuted = icon.classList.contains('fa-volume-xmark');
-
-            if(isCurrentlyMuted) {
+            if(isMuted) {
+                player.unMute();
                 icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
                 icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                if(player && typeof player.unMute === 'function') {
-                    player.unMute();
-                    const vol = document.getElementById('host-jukebox-vol').value;
-                    player.setVolume(vol);
-                }
+                const vol = document.getElementById('host-jukebox-vol').value;
+                player.setVolume(vol);
             } else {
+                player.mute();
                 icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
                 icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
-                if(player && typeof player.mute === 'function') {
-                    player.mute();
-                }
             }
-            saveHostState();
         }
         function changeHostJukeboxVol(val) {
             if(player && typeof player.setVolume === 'function') {
                 player.setVolume(val);
-            }
-            if(val > 0) {
-                const icon = document.getElementById('icon-host-jukebox-mute');
-                if (icon && icon.classList.contains('fa-volume-xmark')) {
+                if(val > 0 && player.isMuted()) {
+                    player.unMute();
+                    const icon = document.getElementById('icon-host-jukebox-mute');
                     icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
                     icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                    if(player && typeof player.unMute === 'function') {
-                        player.unMute();
-                    }
                 }
             }
-            saveHostState();
         }
 
         function toggleHostStreamMute() {
             const vid = document.getElementById('host-stream-preview');
+            if(!vid) return;
+            vid.muted = !vid.muted;
             const icon = document.getElementById('icon-host-stream-mute');
-            if(!icon) return;
-            const isCurrentlyMuted = icon.classList.contains('fa-volume-xmark');
-            
-            if(isCurrentlyMuted) {
-                icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                if (vid) {
-                    vid.muted = false;
-                    vid.play().catch(e=>{});
-                }
-            } else {
+            if(vid.muted) {
                 icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
                 icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
-                if (vid) {
-                    vid.muted = true;
-                }
+            } else {
+                icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
+                icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
+                vid.play().catch(e=>{});
             }
-            saveHostState();
         }
         function changeHostStreamVol(val) {
             const vid = document.getElementById('host-stream-preview');
-            if (vid) {
-                vid.volume = val / 100;
-            }
-            if(val > 0) {
+            if(!vid) return;
+            vid.volume = val / 100;
+            if(val > 0 && vid.muted) {
+                vid.muted = false;
                 const icon = document.getElementById('icon-host-stream-mute');
-                if (icon && icon.classList.contains('fa-volume-xmark')) {
-                    icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                    icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                    if (vid) {
-                        vid.muted = false;
-                        vid.play().catch(e=>{});
-                    }
-                }
+                icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
+                icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
+                vid.play().catch(e=>{});
             }
-            saveHostState();
-        }
-
-        function renderHostHistory() {
-            const list = document.getElementById('setup-history-list');
-            if(!list) return;
-            const history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
-            
-            if(history.length === 0) {
-                list.innerHTML = '<p class="text-gray-600 text-center text-xs py-4 font-bold">過去の作成履歴はありません</p>';
-                return;
-            }
-
-            list.innerHTML = '';
-            history.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'bg-[#0e0e10] p-2.5 rounded-sm flex justify-between items-center cursor-pointer hover:bg-gray-800 transition border border-gray-800 hover:border-indigo-500/50 mb-1.5 shadow-inner group';
-                div.innerHTML = `
-                    <div class="flex-1 min-w-0" onclick="joinFromHostHistory('${item.roomId}', '${item.hostName}', '${item.password || ''}')">
-                        <div class="font-bold text-gray-200 text-xs truncate group-hover:text-indigo-400 transition-colors">${item.hostName} の部屋</div>
-                        <div class="text-[9px] text-gray-500 font-mono mt-0.5 tracking-wider">ID: ${item.roomId}</div>
-                    </div>
-                    <button class="text-gray-600 hover:text-red-400 px-2 transition-colors" onclick="deleteHostHistory('${item.roomId}', event)"><i class="fa-solid fa-trash-can"></i></button>
-                `;
-                list.appendChild(div);
-            });
-        }
-
-        function saveHostHistory(roomId, hostName, password) {
-            if(!roomId) return;
-            let history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
-            history = history.filter(h => h.roomId !== roomId);
-            history.unshift({ roomId: roomId, hostName: hostName || roomId, password: password || '', time: Date.now() });
-            if(history.length > 10) history = history.slice(0, 10);
-            localStorage.setItem('jukebox_host_history', JSON.stringify(history));
-        }
-
-        function deleteHostHistory(roomId, event) {
-            if(event) event.stopPropagation();
-            let history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
-            history = history.filter(h => h.roomId !== roomId);
-            localStorage.setItem('jukebox_host_history', JSON.stringify(history));
-            renderHostHistory();
-            showToast("履歴を削除しました");
-        }
-
-        function joinFromHostHistory(roomId, hostName, password) {
-            const idInput = document.getElementById('input-room-id');
-            const nameInput = document.getElementById('input-host-name');
-            const passInput = document.getElementById('input-host-password');
-            if(idInput) idInput.value = roomId;
-            if(nameInput) nameInput.value = hostName;
-            if(passInput) passInput.value = password || '';
-            createRoom();
         }
 
         window.onload = () => {
-            adjustLayoutForMobile(); 
+            adjustLayoutForMobile(); // 初期レイアウト調整
             
             const unlockTTS = () => { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); };
             const hTts = document.getElementById('host-tts-toggle');
@@ -603,12 +615,9 @@
                     const history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
                     const item = history.find(h => h.roomId === currentRoomId);
                     if(item) {
-                        const idInput = document.getElementById('input-room-id');
-                        const nameInput = document.getElementById('input-host-name');
-                        const passInput = document.getElementById('input-host-password');
-                        if(idInput) idInput.value = item.roomId;
-                        if(nameInput) nameInput.value = item.hostName;
-                        if(passInput) passInput.value = item.password || '';
+                        document.getElementById('input-room-id').value = item.roomId;
+                        document.getElementById('input-host-name').value = item.hostName;
+                        document.getElementById('input-host-password').value = item.password || '';
                         createRoom();
                     } else {
                         showView('setup-view');
@@ -639,15 +648,12 @@
 
         function showToast(msg, type="info") {
             const toast = document.getElementById('toast');
-            const toastMsg = document.getElementById('toast-msg');
-            if(toastMsg) toastMsg.innerHTML = msg;
-            if(toast) {
-                toast.className = `toast bg-[#18181b] border-l-4 border-indigo-500 text-gray-200 p-3 rounded-sm shadow-xl flex items-center gap-3 text-xs font-bold`;
-                if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
-                else toast.classList.replace('border-red-500', 'border-indigo-500');
-                toast.classList.add('show');
-                setTimeout(() => toast.classList.remove('show'), 3000);
-            }
+            document.getElementById('toast-msg').innerHTML = msg;
+            toast.className = `toast bg-[#18181b] border-l-4 border-indigo-500 text-gray-200 p-3 rounded-sm shadow-xl flex items-center gap-3 text-xs font-bold`;
+            if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
+            else toast.classList.replace('border-red-500', 'border-indigo-500');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
         let hostNewsTimeout = null;
@@ -676,14 +682,9 @@
 
         function createRoom() {
             try {
-                const idInputEl = document.getElementById('input-room-id');
-                const nameInputEl = document.getElementById('input-host-name');
-                const passInputEl = document.getElementById('input-host-password');
-                
-                const idInput = idInputEl ? idInputEl.value.trim() : '';
-                const nameInput = nameInputEl ? nameInputEl.value.trim() : '';
-                const passInput = passInputEl ? passInputEl.value.trim() : '';
-                
+                const idInput = document.getElementById('input-room-id').value.trim();
+                const nameInput = document.getElementById('input-host-name').value.trim();
+                const passInput = document.getElementById('input-host-password').value.trim(); 
                 if(!idInput) { showToast("ルームIDを入力してください", "error"); return; }
                 
                 let baseId = idInput.replace(/[^a-zA-Z0-9-]/g, '');
@@ -731,16 +732,64 @@
         }
 
         function copyURL(inputId) {
-            const el = document.getElementById(inputId);
-            if(el) {
-                el.select();
-                document.execCommand("copy");
-                showToast("URLをコピーしました！");
+            document.getElementById(inputId).select();
+            document.execCommand("copy");
+            showToast("URLをコピーしました！");
+        }
+
+        function renderHostHistory() {
+            const list = document.getElementById('setup-history-list');
+            if(!list) return;
+            const history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
+            
+            if(history.length === 0) {
+                list.innerHTML = '<p class="text-gray-600 text-center text-xs py-4 font-bold">過去の作成履歴はありません</p>';
+                return;
             }
+
+            list.innerHTML = '';
+            history.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'bg-[#0e0e10] p-2.5 rounded-sm flex justify-between items-center cursor-pointer hover:bg-gray-800 transition border border-gray-800 hover:border-indigo-500/50 mb-1.5 shadow-inner group';
+                div.innerHTML = `
+                    <div class="flex-1 min-w-0" onclick="joinFromHostHistory('${item.roomId}', '${item.hostName}', '${item.password || ''}')">
+                        <div class="font-bold text-gray-200 text-xs truncate group-hover:text-indigo-400 transition-colors">${item.hostName} の部屋</div>
+                        <div class="text-[9px] text-gray-500 font-mono mt-0.5 tracking-wider">ID: ${item.roomId}</div>
+                    </div>
+                    <button class="text-gray-600 hover:text-red-400 px-2 transition-colors" onclick="deleteHostHistory('${item.roomId}', event)"><i class="fa-solid fa-trash-can"></i></button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function saveHostHistory(roomId, hostName, password) {
+            if(!roomId) return;
+            let history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
+            history = history.filter(h => h.roomId !== roomId);
+            history.unshift({ roomId: roomId, hostName: hostName || roomId, password: password || '', time: Date.now() });
+            if(history.length > 10) history = history.slice(0, 10);
+            localStorage.setItem('jukebox_host_history', JSON.stringify(history));
+        }
+
+        function deleteHostHistory(roomId, event) {
+            event.stopPropagation();
+            let history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
+            history = history.filter(h => h.roomId !== roomId);
+            localStorage.setItem('jukebox_host_history', JSON.stringify(history));
+            renderHostHistory();
+            showToast("履歴を削除しました");
+        }
+
+        function joinFromHostHistory(roomId, hostName, password) {
+            document.getElementById('input-room-id').value = roomId;
+            document.getElementById('input-host-name').value = hostName;
+            document.getElementById('input-host-password').value = password || '';
+            createRoom();
         }
 
         function initHost() {
             showView('host-view');
+            document.getElementById('display-room-id').textContent = currentRoomId;
             generateURLs();
 
             const url = new URL(window.location);
@@ -750,16 +799,10 @@
             peer = new Peer(`jukebox-${currentRoomId}`);
 
             peer.on('open', (id) => {
-                const statusDot = document.getElementById('status-dot');
-                if (statusDot) {
-                    statusDot.classList.replace('bg-yellow-500', 'bg-green-500');
-                    statusDot.classList.replace('shadow-[0_0_5px_rgba(234,179,8,0.8)]', 'shadow-[0_0_5px_rgba(34,197,94,0.8)]');
-                }
-                const statusText = document.getElementById('status-text');
-                if (statusText) statusText.textContent = "ONLINE / WAITING";
-                const errorText = document.getElementById('error-text');
-                if (errorText) errorText.classList.add('hidden');
-                
+                document.getElementById('status-dot').classList.replace('bg-yellow-500', 'bg-green-500');
+                document.getElementById('status-dot').classList.replace('shadow-[0_0_5px_rgba(234,179,8,0.8)]', 'shadow-[0_0_5px_rgba(34,197,94,0.8)]');
+                document.getElementById('status-text').textContent = "ONLINE / WAITING";
+                document.getElementById('error-text').classList.add('hidden');
                 loadHostState(); 
                 loadYouTubeAPI(); 
                 
@@ -806,18 +849,12 @@
             });
 
             peer.on('error', (err) => {
-                const statusDot = document.getElementById('status-dot');
-                if (statusDot) {
-                    statusDot.classList.replace('bg-green-500', 'bg-red-500');
-                    statusDot.classList.replace('shadow-[0_0_5px_rgba(34,197,94,0.8)]', 'shadow-[0_0_5px_rgba(239,68,68,0.8)]');
-                }
-                const statusText = document.getElementById('status-text');
-                if (statusText) statusText.textContent = "ERROR";
+                document.getElementById('status-dot').classList.replace('bg-green-500', 'bg-red-500');
+                document.getElementById('status-dot').classList.replace('shadow-[0_0_5px_rgba(34,197,94,0.8)]', 'shadow-[0_0_5px_rgba(239,68,68,0.8)]');
+                document.getElementById('status-text').textContent = "ERROR";
                 const errTxt = document.getElementById('error-text');
-                if (errTxt) {
-                    errTxt.textContent = err.type;
-                    errTxt.classList.remove('hidden');
-                }
+                errTxt.textContent = err.type;
+                errTxt.classList.remove('hidden');
             });
 
             peer.on('connection', (conn) => {
@@ -898,26 +935,18 @@
                     hostMediaConn = call;
                     call.answer();
                     call.on('stream', (stream) => {
+                        // Multi-view: Preview incoming stream
                         const previewVid = document.getElementById('host-stream-preview');
                         if (previewVid) {
                             previewVid.srcObject = stream;
                             previewVid.classList.remove('hidden');
-                            const streamOffline = document.getElementById('host-stream-offline');
-                            if (streamOffline) streamOffline.classList.add('hidden');
-                            
-                            const muteIcon = document.getElementById('icon-host-stream-mute');
-                            if(muteIcon) previewVid.muted = muteIcon.classList.contains('fa-volume-xmark');
-                            const streamVol = document.getElementById('host-stream-vol');
-                            if(streamVol) previewVid.volume = streamVol.value / 100;
-                            
+                            document.getElementById('host-stream-offline').classList.add('hidden');
+                            // Use mixer state to set initial mute
+                            previewVid.muted = document.getElementById('icon-host-stream-mute').classList.contains('fa-volume-xmark');
                             previewVid.play().catch(e=>{});
                         }
                         
-                        const relayVid = document.getElementById('host-relay-video');
-                        if (relayVid) { relayVid.srcObject = stream; relayVid.play().catch(e=>{}); }
-                        const dummyAudio = document.getElementById('dummy-audio');
-                        if(dummyAudio) dummyAudio.play().catch(e=>{});
-                        
+                        document.getElementById('dummy-audio').play().catch(e=>{});
                         broadcastStreamToListeners(stream);
                     });
                     call.on('close', () => {
@@ -926,8 +955,7 @@
                         if(previewVid) {
                             previewVid.srcObject = null;
                             previewVid.classList.add('hidden');
-                            const streamOffline = document.getElementById('host-stream-offline');
-                            if (streamOffline) streamOffline.classList.remove('hidden');
+                            document.getElementById('host-stream-offline').classList.remove('hidden');
                         }
                     });
                 }
@@ -1105,10 +1133,9 @@
             }
         }
 
-        function sendHostRequest() {
-            const urlEl = document.getElementById('host-request-url');
-            if(!urlEl) return;
-            const url = urlEl.value;
+        function sendHostRequest(mode = 'pc') {
+            const inputId = mode === 'mobile' ? 'host-request-url-mobile' : 'host-request-url-pc';
+            const url = document.getElementById(inputId).value;
             if(!url) return;
             const vid = extractVideoId(url);
             if(vid) {
@@ -1128,16 +1155,14 @@
                 if(!currentSong || currentSong.isBGM) {
                     if(player && typeof player.getPlayerState === 'function') playNext();
                 }
-                urlEl.value = '';
+                document.getElementById(inputId).value = '';
             } else {
                 showToast("無効なYouTube URLです", "error");
             }
         }
 
         function toggleCamApproval() {
-            const approvalEl = document.getElementById('setting-cam-approval');
-            if(!approvalEl) return;
-            cameraApprovalMode = approvalEl.checked;
+            cameraApprovalMode = document.getElementById('setting-cam-approval').checked;
             if(!cameraApprovalMode) {
                 Object.values(connectedListeners).forEach(p => {
                     if(!p.isRemote && !p.isObs) {
@@ -1206,7 +1231,7 @@
             
             let validParticipantCount = 0;
             Object.values(connectedListeners).forEach(p => { if(!p.isObs && !p.isCam) validParticipantCount++; });
-            if (countEl) countEl.textContent = `USERS (${validParticipantCount})`;
+            if (countEl) countEl.textContent = `(${validParticipantCount})`;
         }
 
         function renderParticipantList(container) {
@@ -1260,15 +1285,10 @@
         }
 
         function updateHostSettings() {
-            const hostNameEl = document.getElementById('setting-host-name');
-            if(hostNameEl) hostName = hostNameEl.value || "配信太郎";
-            const themeEl = document.getElementById('setting-theme');
-            if(themeEl) hostTheme = themeEl.value;
-            const durEl = document.getElementById('setting-duration');
-            if(durEl) {
-                durationLimit = parseInt(durEl.value) * 60;
-                if(isNaN(durationLimit)) durationLimit = 0;
-            }
+            hostName = document.getElementById('setting-host-name').value || "配信太郎";
+            hostTheme = document.getElementById('setting-theme').value;
+            durationLimit = parseInt(document.getElementById('setting-duration').value) * 60;
+            if(isNaN(durationLimit)) durationLimit = 0;
             saveHostState();
             broadcastState();
         }
@@ -1297,21 +1317,339 @@
             Object.values(connectedListeners).forEach(p => { if(p.conn.open) p.conn.send(state); });
         }
 
-        function saveHostState() {
-            if (!isHostStateLoaded) return; 
+        function loadYouTubeAPI() {
+            if (window.YT && window.YT.Player) {
+                if (document.getElementById('youtube-player')) {
+                    initPlayer();
+                }
+            } else if (!document.getElementById('youtube-api-script')) {
+                const tag = document.createElement('script');
+                tag.id = 'youtube-api-script';
+                tag.src = 'https://www.youtube.com/iframe_api';
+                const firstScriptTag = document.getElementsByTagName('script')[0];
+                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            }
+        }
+        
+        window.onYouTubeIframeAPIReady = function() { 
+            if (document.getElementById('youtube-player')) {
+                initPlayer(); 
+            }
+        };
 
+        function initPlayer() {
+            if(player && typeof player.playVideo === 'function') return;
+            if(!document.getElementById('youtube-player')) return; 
+            player = new YT.Player('youtube-player', {
+                height: '100%', width: '100%',
+                playerVars: { autoplay: 1, controls: 1, rel: 0 },
+                events: { 
+                    'onReady': (event) => {
+                        const vol = document.getElementById('host-jukebox-vol').value;
+                        event.target.setVolume(vol);
+                        onPlayerReady(event);
+                    }, 
+                    'onStateChange': onPlayerStateChange 
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            if(currentSong) {
+                if (currentSong.listId) player.loadPlaylist({list: currentSong.listId, index: currentSong.playlistIndex || 0, startSeconds: currentSong.startSeconds || 0});
+                else player.loadVideoById({videoId: currentSong.videoId, startSeconds: currentSong.startSeconds || 0});
+            } else if (queue.length > 0 || bgmQueue.length > 0) playNext();
+        }
+
+        let durationCheckTimeout = null;
+
+        function onPlayerStateChange(event) {
+            updateUI(); 
+            if (event.data === YT.PlayerState.PLAYING) {
+                
+                // ミキサーの音量を強制反映 (PCでの自動再生時リセット対策)
+                const vol = document.getElementById('host-jukebox-vol').value;
+                player.setVolume(vol);
+                if (document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-high')) {
+                    player.unMute();
+                } else {
+                    player.mute();
+                }
+
+                if (currentSong && currentSong.isBGM && currentSong.listId && !currentSong._settingsApplied) {
+                    currentSong._settingsApplied = true;
+                    if (typeof player.setShuffle === 'function') {
+                        player.setShuffle(document.getElementById('bgm-shuffle').checked);
+                    }
+                    if (typeof player.setLoop === 'function') {
+                        player.setLoop(document.getElementById('bgm-loop').checked);
+                    }
+                }
+
+                if(currentSong) {
+                    try {
+                        let videoData = player.getVideoData();
+                        if(videoData && videoData.title && currentSong.title === "取得中...") {
+                            currentSong.title = videoData.title;
+                            updateUI();
+                        }
+                    } catch(e) {}
+                }
+                
+                if(currentSong && !currentSong.isBGM && durationLimit > 0) {
+                    if(durationCheckTimeout) clearTimeout(durationCheckTimeout);
+                    durationCheckTimeout = setTimeout(() => {
+                        const dur = player.getDuration();
+                        if(dur > durationLimit) {
+                            showToast(`曲が長すぎるためスキップしました(${Math.floor(dur/60)}分)`, "error");
+                            playNext(true);
+                        }
+                    }, 1000); 
+                }
+            } 
+            else if (event.data === YT.PlayerState.ENDED) {
+                if (currentSong && currentSong.isBGM && document.getElementById('bgm-loop-one') && document.getElementById('bgm-loop-one').checked) {
+                    player.seekTo(0);
+                    player.playVideo();
+                    return;
+                }
+                playNext();
+            }
+        }
+
+        function togglePlayHost() {
+            if(!player || !currentSong || typeof player.getPlayerState !== 'function') return;
+            if(player.getPlayerState() === 1) player.pauseVideo();
+            else player.playVideo();
+        }
+
+        function playNext(forceSkip = false) {
+            if (!player || typeof player.loadVideoById !== 'function') return;
+
+            if (currentSong && !currentSong.isBGM) {
+                historyQueue.unshift(currentSong);
+                if (historyQueue.length > 20) historyQueue.pop();
+            }
+
+            if (currentSong && currentSong.isBGM && queue.length > 0 && !forceSkip) {
+                bgmResumeData = {
+                    videoId: currentSong.videoId, listId: currentSong.listId, title: currentSong.title,
+                    time: player.getCurrentTime(), playlistIndex: player.getPlaylistIndex ? player.getPlaylistIndex() : 0
+                };
+            }
+
+            if (queue.length > 0) {
+                currentSong = queue.shift();
+                player.loadVideoById({videoId: currentSong.videoId});
+            } 
+            else if (bgmResumeData) {
+                currentSong = {
+                    id: 'bgm-resumed', videoId: bgmResumeData.videoId, listId: bgmResumeData.listId,
+                    title: bgmResumeData.title, requester: 'BGM RESUMED', isBGM: true,
+                    startSeconds: bgmResumeData.time, playlistIndex: bgmResumeData.playlistIndex
+                };
+                if (currentSong.listId) player.loadPlaylist({list: currentSong.listId, index: bgmResumeData.playlistIndex, startSeconds: bgmResumeData.time});
+                else player.loadVideoById({videoId: currentSong.videoId, startSeconds: bgmResumeData.time});
+                bgmResumeData = null; 
+            }
+            else if (bgmQueue.length > 0) {
+                let bgm;
+                let shuffleOn = document.getElementById('bgm-shuffle') && document.getElementById('bgm-shuffle').checked;
+                let loopOn = document.getElementById('bgm-loop') && document.getElementById('bgm-loop').checked;
+
+                if (shuffleOn && bgmQueue.length > 1 && !bgmQueue[0].isPlaylist) {
+                    let randomIndex = Math.floor(Math.random() * bgmQueue.length);
+                    bgm = bgmQueue.splice(randomIndex, 1)[0];
+                } else {
+                    bgm = bgmQueue.shift();
+                }
+
+                if (loopOn) {
+                    bgmQueue.push(bgm); 
+                }
+                
+                if(bgm.isPlaylist) {
+                    currentSong = { id: 'bgm-pl', videoId: '', listId: bgm.listId, title: '📁 プレイリスト', requester: 'BGM', isBGM: true };
+                    player.loadPlaylist({list: bgm.listId});
+                } else {
+                    currentSong = { id: 'bgm-' + generateId(), videoId: bgm.videoId, listId: null, title: bgm.title || "取得中...", requester: 'BGM', isBGM: true };
+                    player.loadVideoById({videoId: currentSong.videoId});
+                }
+            } else {
+                currentSong = null;
+                player.stopVideo();
+            }
+            saveHostState();
+            updateUI();
+        }
+
+        function extractVideoId(url) {
+            const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/);
+            return match ? match[1] : null;
+        }
+
+        function extractPlaylistId(url) {
+            const match = url.match(/[?&]list=([^#\&\?]+)/);
+            return match ? match[1] : null;
+        }
+
+        function addBGM() {
+            const url = document.getElementById('input-bgm-url').value;
+            if(!url) return;
+
+            const listId = extractPlaylistId(url);
+            if(listId) {
+                bgmQueue.push({ isPlaylist: true, listId: listId, rawUrl: url, title: "📁 プレイリスト" });
+                showToast("プレイリストを追加しました");
+                updateAndSaveBGM();
+            } else {
+                const vid = extractVideoId(url);
+                if(vid) {
+                    const bgmItem = { isPlaylist: false, videoId: vid, rawUrl: url, title: "取得中..." };
+                    bgmQueue.push(bgmItem);
+                    showToast("BGMを追加しました");
+                    updateAndSaveBGM();
+                    
+                    fetchYouTubeTitle(vid).then(title => {
+                        const bItem = bgmQueue.find(b => b.videoId === vid);
+                        if(bItem) { bItem.title = title; updateAndSaveBGM(); }
+                    });
+                } else showToast("無効なURLです", "error");
+            }
+            document.getElementById('input-bgm-url').value = '';
+        }
+
+        function updateAndSaveBGM() {
+            saveHostState();
+            updateUI();
+            if(!currentSong && player && typeof player.getPlayerState === 'function') playNext();
+        }
+
+        function updateBGMPlaybackSettings() {
+            saveHostState();
+            if (player && typeof player.setShuffle === 'function' && currentSong && currentSong.isBGM && currentSong.listId) {
+                player.setShuffle(document.getElementById('bgm-shuffle').checked);
+                player.setLoop(document.getElementById('bgm-loop').checked);
+            }
+        }
+
+        function toggleLightMode() {
+            isLightMode = !isLightMode;
+            const container = document.getElementById('youtube-player-container');
+            const btn = document.getElementById('btn-light-mode');
+            if(isLightMode) {
+                container.classList.add('youtube-hidden');
+                btn.innerHTML = '<i class="fa-solid fa-ban text-red-500"></i> 映像OFF';
+            } else {
+                container.classList.remove('youtube-hidden');
+                btn.innerHTML = '<i class="fa-solid fa-video"></i> 映像ON';
+            }
+        }
+
+        function updateUI() {
+            if(currentSong) {
+                document.querySelectorAll('.host-now-playing-text').forEach(el => el.textContent = currentSong.title);
+                document.querySelectorAll('.host-now-requester-text').forEach(el => {
+                    el.innerHTML = `<i class="fa-solid fa-user text-gray-600 text-[10px]"></i> ${currentSong.requester || ""}`;
+                });
+                document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
+            } else {
+                document.querySelectorAll('.host-now-playing-text').forEach(el => el.textContent = "STOPPED");
+                document.querySelectorAll('.host-now-requester-text').forEach(el => el.textContent = "---");
+            }
+
+            document.querySelectorAll('.btn-host-play').forEach(btn => {
+                if (player && typeof player.getPlayerState === 'function') {
+                    const isPlaying = player.getPlayerState() === 1;
+                    btn.innerHTML = isPlaying 
+                        ? `<i class="fa-solid fa-pause text-sm"></i>` 
+                        : `<i class="fa-solid fa-play text-sm ml-0.5"></i>`;
+                }
+            });
+
+            const qList = document.getElementById('host-queue-list');
+            const qBadge = document.getElementById('queue-badge');
+            if(qList) {
+                qList.innerHTML = '';
+                if(qBadge) qBadge.textContent = queue.length;
+                
+                queue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-[#18181b] p-2 rounded-sm border border-gray-800 text-[10px] mb-1.5 shadow-sm";
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-gray-600 font-black w-4 text-center">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-300 truncate font-bold">${q.title}</p>
+                                <p class="text-[9px] text-gray-500 truncate mt-0.5"><i class="fa-solid fa-user"></i> ${q.requesterReal || q.requester} ${q.isRemote ? '<span class="text-yellow-600 ml-1 font-bold">ADMIN</span>' : ''}</p>
+                            </div>
+                        </div>
+                        <button onclick="removeQueue('${q.id}')" class="text-gray-600 hover:text-red-500 px-2 flex-shrink-0 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                    `;
+                    qList.appendChild(div);
+                });
+            }
+
+            const hostHist = document.getElementById('host-history-list');
+            if(hostHist) {
+                hostHist.innerHTML = '';
+                historyQueue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-[#18181b] border border-gray-800 p-2 rounded-sm text-[10px] mb-1.5";
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden flex-1">
+                            <span class="text-gray-700 font-black w-4 text-center">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-400 truncate font-medium">${q.title}</p>
+                                <p class="text-[9px] text-gray-600 truncate"><i class="fa-solid fa-user"></i> ${q.requesterReal}</p>
+                            </div>
+                        </div>
+                        <button onclick="reRequestHost('${q.videoId}', '${q.requesterReal}')" class="text-[9px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded-sm flex-shrink-0 transition-colors font-bold">RE-REQ</button>
+                    `;
+                    hostHist.appendChild(div);
+                });
+            }
+
+            const bList = document.getElementById('host-bgm-list');
+            if(bList) {
+                bList.innerHTML = '';
+                bgmQueue.forEach((b, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex justify-between bg-[#0e0e10] border border-gray-800 p-2 rounded-sm items-center mb-1";
+                    div.innerHTML = `
+                        <span class="text-gray-400 truncate text-[10px] flex-1 font-medium">${b.title || '取得中...'}</span>
+                        <button onclick="removeBGM(${idx})" class="text-gray-600 hover:text-red-500 px-2 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                    `;
+                    bList.appendChild(div);
+                });
+            }
+
+            renderChatList('host-chat-list', chatHistory);
+            broadcastState();
+        }
+
+        function reRequestHost(videoId, reqName) {
+            queue.push({ id: generateId(), videoId: videoId, title: "取得中...", requester: reqName, requesterReal: reqName, isAnon: false });
+            showToast("再リクエストしました");
+            updateUI();
+            
+            fetchYouTubeTitle(videoId).then(title => {
+                const qItem = queue[queue.length - 1];
+                if(qItem && qItem.videoId === videoId) { qItem.title = title; updateUI(); }
+            });
+            if(!currentSong || currentSong.isBGM) playNext();
+        }
+
+        function removeQueue(id) { queue = queue.filter(q => q.id !== id); saveHostState(); updateUI(); }
+        function removeBGM(idx) { bgmQueue.splice(idx, 1); saveHostState(); updateUI(); }
+
+        function saveHostState() {
             const bgmSettings = {
                 shuffle: document.getElementById('bgm-shuffle') ? document.getElementById('bgm-shuffle').checked : false,
                 loop: document.getElementById('bgm-loop') ? document.getElementById('bgm-loop').checked : true,
                 loopOne: document.getElementById('bgm-loop-one') ? document.getElementById('bgm-loop-one').checked : false
             };
-            const audioMixerSettings = {
-                jukeboxVol: document.getElementById('host-jukebox-vol') ? document.getElementById('host-jukebox-vol').value : 100,
-                jukeboxMuted: document.getElementById('icon-host-jukebox-mute') ? document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-xmark') : false,
-                streamVol: document.getElementById('host-stream-vol') ? document.getElementById('host-stream-vol').value : 0,
-                streamMuted: document.getElementById('icon-host-stream-mute') ? document.getElementById('icon-host-stream-mute').classList.contains('fa-volume-xmark') : true
-            };
-            const data = { queue, bgmQueue, historyQueue, chatHistory, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers, bgmSettings, approvedUsers, audioMixerSettings };
+            const data = { queue, bgmQueue, historyQueue, chatHistory, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers, bgmSettings, approvedUsers };
             localStorage.setItem('jukebox_state_' + currentRoomId, JSON.stringify(data));
         }
 
@@ -1333,67 +1671,23 @@
                     const camAppEl = document.getElementById('setting-cam-approval');
                     if(camAppEl) camAppEl.checked = cameraApprovalMode;
                     
-                    if(data.hostName) { hostName = data.hostName; const hnEl = document.getElementById('setting-host-name'); if(hnEl) hnEl.value = hostName; }
-                    if(data.hostTheme) { hostTheme = data.hostTheme; const thEl = document.getElementById('setting-theme'); if(thEl) thEl.value = hostTheme; }
-                    if(data.durationLimit !== undefined) { durationLimit = data.durationLimit; const duEl = document.getElementById('setting-duration'); if(duEl) duEl.value = durationLimit / 60; }
+                    if(data.hostName) { hostName = data.hostName; document.getElementById('setting-host-name').value = hostName; }
+                    if(data.hostTheme) { hostTheme = data.hostTheme; document.getElementById('setting-theme').value = hostTheme; }
+                    if(data.durationLimit !== undefined) { durationLimit = data.durationLimit; document.getElementById('setting-duration').value = durationLimit / 60; }
                     
                     if(data.bgmSettings) {
-                        const bgmShuf = document.getElementById('bgm-shuffle'); if(bgmShuf) bgmShuf.checked = data.bgmSettings.shuffle;
-                        const bgmLoop = document.getElementById('bgm-loop'); if(bgmLoop) bgmLoop.checked = data.bgmSettings.loop;
-                        const bgmLoopOne = document.getElementById('bgm-loop-one'); if(bgmLoopOne) bgmLoopOne.checked = data.bgmSettings.loopOne;
-                    }
-
-                    if(data.audioMixerSettings) {
-                        const hbVol = document.getElementById('host-jukebox-vol');
-                        if(hbVol) hbVol.value = data.audioMixerSettings.jukeboxVol;
-                        const jIcon = document.getElementById('icon-host-jukebox-mute');
-                        if (jIcon) {
-                            if (data.audioMixerSettings.jukeboxMuted) {
-                                jIcon.classList.replace('fa-volume-high', 'fa-volume-xmark');
-                                jIcon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
-                            } else {
-                                jIcon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                                jIcon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                            }
-                        }
-
-                        if (player && typeof player.setVolume === 'function') {
-                            player.setVolume(data.audioMixerSettings.jukeboxVol);
-                            if (data.audioMixerSettings.jukeboxMuted) player.mute();
-                            else player.unMute();
-                        }
-
-                        const hsVol = document.getElementById('host-stream-vol');
-                        if(hsVol) hsVol.value = data.audioMixerSettings.streamVol;
-                        const sIcon = document.getElementById('icon-host-stream-mute');
-                        if (sIcon) {
-                            if (data.audioMixerSettings.streamMuted) {
-                                sIcon.classList.replace('fa-volume-high', 'fa-volume-xmark');
-                                sIcon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
-                            } else {
-                                sIcon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                                sIcon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                            }
-                        }
-
-                        const streamVid = document.getElementById('host-stream-preview');
-                        if (streamVid) {
-                            streamVid.volume = data.audioMixerSettings.streamVol / 100;
-                            streamVid.muted = data.audioMixerSettings.streamMuted;
-                        }
+                        if(document.getElementById('bgm-shuffle')) document.getElementById('bgm-shuffle').checked = data.bgmSettings.shuffle;
+                        if(document.getElementById('bgm-loop')) document.getElementById('bgm-loop').checked = data.bgmSettings.loop;
+                        if(document.getElementById('bgm-loop-one')) document.getElementById('bgm-loop-one').checked = data.bgmSettings.loopOne;
                     }
 
                     updateUI();
                 }
             } catch(e) { console.warn("Failed to load host state", e); }
-            
-            isHostStateLoaded = true; 
         }
 
         function saveToMyList() {
-            const urlEl = document.getElementById('input-bgm-url');
-            if(!urlEl) return;
-            const url = urlEl.value;
+            const url = document.getElementById('input-bgm-url').value;
             if(!url) return showToast("URLを入力してください", "error");
             const name = prompt("このURLをマイリストに保存します。\n名前を付けてください:", "お気に入りBGM");
             if(name) {
@@ -1409,7 +1703,7 @@
         function updateMyListSelect() {
             const sel = document.getElementById('select-mylist');
             if(!sel) return;
-            sel.innerHTML = '<option value="">★ マイリストから追加</option>';
+            sel.innerHTML = '<option value="">-- SELECT --</option>';
             myList.forEach((item, idx) => {
                 const opt = document.createElement('option');
                 opt.value = idx;
@@ -1420,11 +1714,10 @@
 
         function loadFromMyList() {
             const sel = document.getElementById('select-mylist');
-            if(sel && sel.value === "") return;
-            const urlInput = document.getElementById('input-bgm-url');
-            if(urlInput && sel) urlInput.value = myList[sel.value].url;
+            if(sel.value === "") return;
+            document.getElementById('input-bgm-url').value = myList[sel.value].url;
             addBGM();
-            if(sel) sel.value = ""; 
+            sel.value = ""; 
         }
 
         function applyBitrate(call, bitrateKbps) {
@@ -1471,16 +1764,14 @@
 
         function sendChatRequest() {
             const inputId = 'host-chat-input';
-            const inputEl = document.getElementById(inputId);
-            if(!inputEl) return;
-            const text = inputEl.value.trim();
+            const text = document.getElementById(inputId).value.trim();
             if(!text) return;
 
             const sender = `👑 ${hostName}`;
             const senderReal = hostName;
             
             handleHostData({type: 'chat', text: text, sender: sender, senderReal: senderReal, isAnon: false, isRemote: true}, {peer: 'host-self'});
-            inputEl.value = '';
+            document.getElementById(inputId).value = '';
         }
 
         function deleteChat(id) {
@@ -1531,363 +1822,6 @@
             ut.lang = 'ja-JP';
             window.speechSynthesis.speak(ut);
         }
-
-        function loadYouTubeAPI() {
-            if (window.YT && window.YT.Player) {
-                if (document.getElementById('youtube-player')) {
-                    initPlayer();
-                }
-            } else if (!document.getElementById('youtube-api-script')) {
-                const tag = document.createElement('script');
-                tag.id = 'youtube-api-script';
-                tag.src = 'https://www.youtube.com/iframe_api';
-                const firstScriptTag = document.getElementsByTagName('script')[0];
-                if (firstScriptTag && firstScriptTag.parentNode) {
-                    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-                } else {
-                    document.head.appendChild(tag);
-                }
-            }
-        }
-        
-        window.onYouTubeIframeAPIReady = function() { 
-            if (document.getElementById('youtube-player')) {
-                initPlayer(); 
-            }
-        };
-
-        function initPlayer() {
-            if(player && typeof player.playVideo === 'function') return;
-            if(!document.getElementById('youtube-player')) return; 
-            player = new YT.Player('youtube-player', {
-                height: '100%', width: '100%',
-                playerVars: { autoplay: 1, controls: 1, rel: 0 },
-                events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
-            });
-        }
-
-        function onPlayerReady(event) {
-            try {
-                const saved = localStorage.getItem('jukebox_state_' + currentRoomId);
-                if(saved) {
-                    const data = JSON.parse(saved);
-                    if(data.audioMixerSettings) {
-                        player.setVolume(data.audioMixerSettings.jukeboxVol);
-                        if(data.audioMixerSettings.jukeboxMuted) player.mute();
-                        else player.unMute();
-                    }
-                }
-            } catch(e) {}
-
-            if(currentSong) {
-                if (currentSong.listId) player.loadPlaylist({list: currentSong.listId, index: currentSong.playlistIndex || 0, startSeconds: currentSong.startSeconds || 0});
-                else player.loadVideoById({videoId: currentSong.videoId, startSeconds: currentSong.startSeconds || 0});
-            } else if (queue.length > 0 || bgmQueue.length > 0) playNext();
-        }
-
-        let durationCheckTimeout = null;
-
-        function onPlayerStateChange(event) {
-            updateUI(); 
-            if (event.data === YT.PlayerState.PLAYING) {
-                try {
-                    const saved = localStorage.getItem('jukebox_state_' + currentRoomId);
-                    if(saved) {
-                        const data = JSON.parse(saved);
-                        if(data.audioMixerSettings) {
-                            player.setVolume(data.audioMixerSettings.jukeboxVol);
-                            if(data.audioMixerSettings.jukeboxMuted) player.mute();
-                            else player.unMute();
-                        }
-                    }
-                } catch(e) {}
-
-                if (currentSong && currentSong.isBGM && currentSong.listId && !currentSong._settingsApplied) {
-                    currentSong._settingsApplied = true;
-                    if (typeof player.setShuffle === 'function') {
-                        const bgmShuf = document.getElementById('bgm-shuffle');
-                        player.setShuffle(bgmShuf ? bgmShuf.checked : false);
-                    }
-                    if (typeof player.setLoop === 'function') {
-                        const bgmLoop = document.getElementById('bgm-loop');
-                        player.setLoop(bgmLoop ? bgmLoop.checked : false);
-                    }
-                }
-
-                if(currentSong) {
-                    try {
-                        let videoData = player.getVideoData();
-                        if(videoData && videoData.title && currentSong.title === "取得中...") {
-                            currentSong.title = videoData.title;
-                            updateUI();
-                        }
-                    } catch(e) {}
-                }
-                
-                if(currentSong && !currentSong.isBGM && durationLimit > 0) {
-                    if(durationCheckTimeout) clearTimeout(durationCheckTimeout);
-                    durationCheckTimeout = setTimeout(() => {
-                        const dur = player.getDuration();
-                        if(dur > durationLimit) {
-                            showToast(`曲が長すぎるためスキップしました(${Math.floor(dur/60)}分)`, "error");
-                            playNext(true);
-                        }
-                    }, 1000); 
-                }
-            } 
-            else if (event.data === YT.PlayerState.ENDED) {
-                const bgmLoopOne = document.getElementById('bgm-loop-one');
-                if (currentSong && currentSong.isBGM && bgmLoopOne && bgmLoopOne.checked) {
-                    player.seekTo(0);
-                    player.playVideo();
-                    return;
-                }
-                playNext();
-            }
-        }
-
-        function togglePlayHost() {
-            if(!player || !currentSong || typeof player.getPlayerState !== 'function') return;
-            if(player.getPlayerState() === 1) player.pauseVideo();
-            else player.playVideo();
-        }
-
-        function playNext(forceSkip = false) {
-            if (!player || typeof player.loadVideoById !== 'function') return;
-
-            if (currentSong && !currentSong.isBGM) {
-                historyQueue.unshift(currentSong);
-                if (historyQueue.length > 20) historyQueue.pop();
-            }
-
-            if (currentSong && currentSong.isBGM && queue.length > 0 && !forceSkip) {
-                bgmResumeData = {
-                    videoId: currentSong.videoId, listId: currentSong.listId, title: currentSong.title,
-                    time: player.getCurrentTime(), playlistIndex: player.getPlaylistIndex ? player.getPlaylistIndex() : 0
-                };
-            }
-
-            if (queue.length > 0) {
-                currentSong = queue.shift();
-                player.loadVideoById({videoId: currentSong.videoId});
-            } 
-            else if (bgmResumeData) {
-                currentSong = {
-                    id: 'bgm-resumed', videoId: bgmResumeData.videoId, listId: bgmResumeData.listId,
-                    title: bgmResumeData.title, requester: '🎵 待機BGM (再開)', isBGM: true,
-                    startSeconds: bgmResumeData.time, playlistIndex: bgmResumeData.playlistIndex
-                };
-                if (currentSong.listId) player.loadPlaylist({list: currentSong.listId, index: bgmResumeData.playlistIndex, startSeconds: bgmResumeData.time});
-                else player.loadVideoById({videoId: currentSong.videoId, startSeconds: bgmResumeData.time});
-                bgmResumeData = null; 
-            }
-            else if (bgmQueue.length > 0) {
-                let bgm;
-                const bgmShuf = document.getElementById('bgm-shuffle');
-                const bgmLoop = document.getElementById('bgm-loop');
-                let shuffleOn = bgmShuf && bgmShuf.checked;
-                let loopOn = bgmLoop && bgmLoop.checked;
-
-                if (shuffleOn && bgmQueue.length > 1 && !bgmQueue[0].isPlaylist) {
-                    let randomIndex = Math.floor(Math.random() * bgmQueue.length);
-                    bgm = bgmQueue.splice(randomIndex, 1)[0];
-                } else {
-                    bgm = bgmQueue.shift();
-                }
-
-                if (loopOn) {
-                    bgmQueue.push(bgm); 
-                }
-                
-                if(bgm.isPlaylist) {
-                    currentSong = { id: 'bgm-pl', videoId: '', listId: bgm.listId, title: '📁 プレイリスト', requester: '🎵 待機BGM', isBGM: true };
-                    player.loadPlaylist({list: bgm.listId});
-                } else {
-                    currentSong = { id: 'bgm-' + generateId(), videoId: bgm.videoId, listId: null, title: bgm.title || "取得中...", requester: '🎵 待機BGM', isBGM: true };
-                    player.loadVideoById({videoId: currentSong.videoId});
-                }
-            } else {
-                currentSong = null;
-                player.stopVideo();
-            }
-            saveHostState();
-            updateUI();
-        }
-
-        function extractVideoId(url) {
-            const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/);
-            return match ? match[1] : null;
-        }
-
-        function extractPlaylistId(url) {
-            const match = url.match(/[?&]list=([^#\&\?]+)/);
-            return match ? match[1] : null;
-        }
-
-        function addBGM() {
-            const urlEl = document.getElementById('input-bgm-url');
-            if(!urlEl) return;
-            const url = urlEl.value;
-            if(!url) return;
-
-            const listId = extractPlaylistId(url);
-            if(listId) {
-                bgmQueue.push({ isPlaylist: true, listId: listId, rawUrl: url, title: "📁 プレイリスト" });
-                showToast("プレイリストを追加しました");
-                updateAndSaveBGM();
-            } else {
-                const vid = extractVideoId(url);
-                if(vid) {
-                    const bgmItem = { isPlaylist: false, videoId: vid, rawUrl: url, title: "取得中..." };
-                    bgmQueue.push(bgmItem);
-                    showToast("BGMを追加しました");
-                    updateAndSaveBGM();
-                    
-                    fetchYouTubeTitle(vid).then(title => {
-                        const bItem = bgmQueue.find(b => b.videoId === vid);
-                        if(bItem) { bItem.title = title; updateAndSaveBGM(); }
-                    });
-                } else showToast("無効なURLです", "error");
-            }
-            urlEl.value = '';
-        }
-
-        function updateAndSaveBGM() {
-            saveHostState();
-            updateUI();
-            if(!currentSong && player && typeof player.getPlayerState === 'function') playNext();
-        }
-
-        function updateBGMPlaybackSettings() {
-            saveHostState();
-            if (player && typeof player.setShuffle === 'function' && currentSong && currentSong.isBGM && currentSong.listId) {
-                const bgmShuf = document.getElementById('bgm-shuffle');
-                player.setShuffle(bgmShuf ? bgmShuf.checked : false);
-                const bgmLoop = document.getElementById('bgm-loop');
-                player.setLoop(bgmLoop ? bgmLoop.checked : false);
-            }
-        }
-
-        function toggleLightMode() {
-            isLightMode = !isLightMode;
-            const container = document.getElementById('youtube-player-container');
-            const btn = document.getElementById('btn-light-mode');
-            if(isLightMode) {
-                if(container) container.classList.add('youtube-hidden');
-                if(btn) {
-                    btn.innerHTML = '<i class="fa-solid fa-ban"></i> 映像OFF';
-                    btn.classList.replace('bg-gray-800', 'bg-red-900');
-                    btn.classList.replace('hover:bg-gray-700', 'hover:bg-red-800');
-                    btn.classList.replace('border-gray-700', 'border-red-900');
-                }
-            } else {
-                if(container) container.classList.remove('youtube-hidden');
-                if(btn) {
-                    btn.innerHTML = '<i class="fa-solid fa-video"></i> 映像ON';
-                    btn.classList.replace('bg-red-900', 'bg-gray-800');
-                    btn.classList.replace('hover:bg-red-800', 'hover:bg-gray-700');
-                    btn.classList.replace('border-red-900', 'border-gray-700');
-                }
-            }
-        }
-
-        function updateUI() {
-            const hostNpText = document.getElementById('host-now-playing');
-            const hostNpReq = document.getElementById('host-now-requester');
-            
-            if(currentSong) {
-                if(hostNpText) hostNpText.textContent = currentSong.title;
-                if(hostNpReq) hostNpReq.textContent = currentSong.requester || "";
-                document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
-            } else {
-                if(hostNpText) hostNpText.textContent = "BGM停止中";
-                if(hostNpReq) hostNpReq.textContent = "---";
-            }
-
-            const playBtn = document.getElementById('btn-host-play');
-            if(playBtn && player && typeof player.getPlayerState === 'function') {
-                const isPlaying = player.getPlayerState() === 1;
-                playBtn.innerHTML = isPlaying 
-                    ? `<i class="fa-solid fa-pause text-xs"></i>` 
-                    : `<i class="fa-solid fa-play text-xs"></i>`;
-            }
-
-            const qList = document.getElementById('host-queue-list');
-            if(qList) {
-                qList.innerHTML = '';
-                queue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-[#18181b] p-2 rounded-sm text-[10px] mb-1.5 shadow-sm border border-gray-800";
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-gray-500 font-bold w-4 text-center">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-white truncate font-bold text-[11px]">${q.title}</p>
-                                <p class="text-[9px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.requesterReal || q.requester} ${q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-500"></i>)' : ''}</p>
-                            </div>
-                        </div>
-                        <button onclick="removeQueue('${q.id}')" class="text-gray-600 hover:text-red-400 px-2 flex-shrink-0 transition-colors"><i class="fa-solid fa-xmark"></i></button>
-                    `;
-                    qList.appendChild(div);
-                });
-            }
-            
-            const qBadge = document.getElementById('queue-badge');
-            if(qBadge) qBadge.textContent = queue.length;
-
-            const hostHist = document.getElementById('host-history-list');
-            if(hostHist) {
-                hostHist.innerHTML = '';
-                historyQueue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-[#18181b] border border-gray-800 p-2 rounded-sm text-[10px] mb-1.5 shadow-sm";
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden flex-1">
-                            <span class="text-gray-500 font-bold w-4 text-center">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-400 truncate font-bold text-[11px]">${q.title}</p>
-                                <p class="text-[9px] text-gray-600 truncate"><i class="fa-solid fa-user"></i> ${q.requesterReal}</p>
-                            </div>
-                        </div>
-                        <button onclick="reRequestHost('${q.videoId}', '${q.requesterReal}')" class="text-[9px] bg-gray-800 hover:bg-gray-700 text-indigo-400 border border-gray-700 px-2 py-1 rounded-sm flex-shrink-0 transition-colors shadow-sm"><i class="fa-solid fa-rotate-right"></i></button>
-                    `;
-                    hostHist.appendChild(div);
-                });
-            }
-
-            const bList = document.getElementById('host-bgm-list');
-            if(bList) {
-                bList.innerHTML = '';
-                bgmQueue.forEach((b, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex justify-between bg-[#0e0e10] border border-gray-800 p-2 rounded-sm items-center mb-1 shadow-inner";
-                    div.innerHTML = `
-                        <span class="text-gray-300 truncate text-[10px] font-bold flex-1">${b.title || '取得中...'}</span>
-                        <button onclick="removeBGM(${idx})" class="text-gray-600 hover:text-red-400 px-2 transition-colors"><i class="fa-solid fa-xmark text-xs"></i></button>
-                    `;
-                    bList.appendChild(div);
-                });
-            }
-
-            renderChatList('host-chat-list', chatHistory);
-            broadcastState();
-        }
-
-        function reRequestHost(videoId, reqName) {
-            queue.push({ id: generateId(), videoId: videoId, title: "取得中...", requester: reqName, requesterReal: reqName, isAnon: false });
-            showToast("再リクエストしました");
-            updateUI();
-            
-            fetchYouTubeTitle(videoId).then(title => {
-                const qItem = queue[queue.length - 1];
-                if(qItem && qItem.videoId === videoId) { qItem.title = title; updateUI(); }
-            });
-            if(!currentSong || currentSong.isBGM) playNext();
-        }
-
-        function removeQueue(id) { queue = queue.filter(q => q.id !== id); saveHostState(); updateUI(); }
-        function removeBGM(idx) { bgmQueue.splice(idx, 1); saveHostState(); updateUI(); }
-
     </script>
 </body>
 </html>
