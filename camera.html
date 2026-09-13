@@ -159,7 +159,10 @@
                 <!-- 配信前 -->
                 <div id="camera-setup-controls" class="w-full flex items-center gap-2">
                     <button onclick="startCameraStream()" id="btn-cam-start" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1 transition-transform active:scale-95">
-                        <i class="fa-solid fa-rocket"></i> 配信をスタートする
+                        <i class="fa-solid fa-camera"></i> カメラ
+                    </button>
+                    <button onclick="startScreenStream()" id="btn-screen-start" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1 transition-transform active:scale-95">
+                        <i class="fa-solid fa-desktop"></i> 画面共有
                     </button>
                     <button onclick="document.getElementById('camera-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white shrink-0">
                         <i class="fa-solid fa-gear"></i>
@@ -250,6 +253,7 @@
         let currentCamHeight = 720;
         let currentBitrate = 2500;
         let currentFacingMode = 'environment';
+        let currentStreamMode = 'camera'; // 'camera' or 'screen'
 
         function showToast(msg, type="info") {
             const toast = document.getElementById('toast');
@@ -547,6 +551,11 @@
                 if(gainNode) gainNode.disconnect();
                 
                 analyser = audioContext.createAnalyser();
+                
+                // 音声トラックがあるかチェック（画面共有で音声を含めなかった場合対策）
+                const audioTracks = cameraStream.getAudioTracks();
+                if (audioTracks.length === 0) return; 
+
                 microphone = audioContext.createMediaStreamSource(cameraStream);
                 
                 gainNode = audioContext.createGain();
@@ -625,6 +634,7 @@
                 video: { facingMode: currentFacingMode, width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
                 audio: true
             }).then(stream => {
+                currentStreamMode = 'camera';
                 cameraStream = stream;
                 const videoTrack = cameraStream.getVideoTracks()[0];
                 if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
@@ -637,6 +647,44 @@
             }).catch(err => {
                 showToast("カメラの再取得に失敗しました", "error");
                 document.getElementById('camera-status').textContent = "エラーが発生しました";
+            });
+        }
+
+        function startScreenStream() {
+            applyCameraSettings();
+            
+            if(cameraStream) { cameraStream.getTracks().forEach(t=>t.stop()); }
+            
+            document.getElementById('camera-status').textContent = "画面共有を開始しています...";
+            document.getElementById('camera-status').classList.replace('text-green-500', 'text-yellow-500');
+
+            navigator.mediaDevices.getDisplayMedia({
+                video: { width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    systemAudio: "include"
+                }
+            }).then(stream => {
+                currentStreamMode = 'screen';
+                cameraStream = stream;
+                
+                // 画面共有がブラウザ側で停止された場合の処理
+                const videoTrack = stream.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.onended = () => { if (isStreaming) stopCameraStream(); };
+                }
+
+                document.getElementById('camera-preview').srcObject = stream;
+                setupMicMeter();
+
+                executeCamCall(currentBitrate);
+
+            }).catch(err => {
+                showToast("画面共有がキャンセルされました", "error");
+                document.getElementById('camera-status').textContent = "配信準備完了";
+                document.getElementById('camera-status').classList.replace('text-yellow-500', 'text-green-500');
             });
         }
         
@@ -660,24 +708,52 @@
             applyCameraSettings();
             if(cameraStream) cameraStream.getTracks().forEach(t=>t.stop());
 
-            navigator.mediaDevices.getUserMedia({
-                video: { facingMode: currentFacingMode, width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
-                audio: true
-            }).then(stream => {
-                cameraStream = stream;
-                const videoTrack = cameraStream.getVideoTracks()[0];
-                if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
+            if (currentStreamMode === 'screen') {
+                navigator.mediaDevices.getDisplayMedia({
+                    video: { width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        systemAudio: "include"
+                    }
+                }).then(stream => {
+                    cameraStream = stream;
+                    const videoTrack = stream.getVideoTracks()[0];
+                    if (videoTrack) {
+                        videoTrack.onended = () => { if (isStreaming) stopCameraStream(); };
+                    }
+                    document.getElementById('camera-preview').srcObject = stream;
+                    setupMicMeter();
+                    
+                    const streamToSend = getProcessedStream();
+                    camCall = peer.call(`jukebox-${currentRoomId}`, streamToSend);
+                    setTimeout(() => applyBitrate(camCall, currentBitrate), 1000);
+                    showToast("更新しました！", "info");
+                }).catch(e => {
+                    showToast("更新エラー: " + e, "error");
+                    stopCameraStream();
+                });
+            } else {
+                navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: currentFacingMode, width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
+                    audio: true
+                }).then(stream => {
+                    cameraStream = stream;
+                    const videoTrack = cameraStream.getVideoTracks()[0];
+                    if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
 
-                document.getElementById('camera-preview').srcObject = stream;
-                setupMicMeter();
-                
-                const streamToSend = getProcessedStream();
-                camCall = peer.call(`jukebox-${currentRoomId}`, streamToSend);
-                setTimeout(() => applyBitrate(camCall, currentBitrate), 1000);
-                showToast("更新しました！", "info");
-            }).catch(e => {
-                showToast("更新エラー: " + e, "error");
-            });
+                    document.getElementById('camera-preview').srcObject = stream;
+                    setupMicMeter();
+                    
+                    const streamToSend = getProcessedStream();
+                    camCall = peer.call(`jukebox-${currentRoomId}`, streamToSend);
+                    setTimeout(() => applyBitrate(camCall, currentBitrate), 1000);
+                    showToast("更新しました！", "info");
+                }).catch(e => {
+                    showToast("更新エラー: " + e, "error");
+                });
+            }
         }
 
         function stopCameraStream() {
@@ -718,6 +794,10 @@
         }
 
         function toggleCameraFacingMode() {
+            if (currentStreamMode === 'screen') {
+                showToast("画面共有中はカメラの切り替えはできません", "error");
+                return;
+            }
             currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
             if (camCall) {
                 refreshCameraStream();
