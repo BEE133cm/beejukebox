@@ -98,9 +98,10 @@
                 box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important;
             }
         }
-        /* 横画面時はバックドロップ等フローティング効果を無効化 */
-        @media (orientation: landscape) {
+        /* 横画面時や横幅が広い時はバックドロップ等フローティング効果を無効化 */
+        @media (min-width: 768px), (orientation: landscape) {
             .chat-backdrop { display: none !important; }
+            .chat-input-floating { position: relative !important; top: auto !important; z-index: 20 !important; padding: auto !important; background: transparent !important; border: none !important; box-shadow: none !important; }
         }
     </style>
 </head>
@@ -152,7 +153,7 @@
     </div>
 
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
-    <div id="listener-view" class="flex fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex-col landscape:flex-row text-sm">
+    <div id="listener-view" class="flex fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex-col md:flex-row text-sm">
         <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
             <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
                 <div class="flex justify-between items-center border-b border-gray-800 pb-3">
@@ -165,13 +166,6 @@
                     <div>
                         <h4 class="text-xs font-bold text-gray-500 mb-3 uppercase">メディア設定</h4>
                         <div class="space-y-4">
-                            <div class="flex justify-between items-center">
-                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-video"></i> カメラの自動受信</span>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="toggle-auto-cam" class="sr-only peer" onchange="toggleAutoCamFromSwitch(this.checked)">
-                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-                                </label>
-                            </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-volume-high"></i> Streamの音声</span>
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -219,10 +213,10 @@
         </div>
 
         <!-- ========== 左ペイン: 映像とコントロール (横画面時は残り幅全占有) ========== -->
-        <div class="flex flex-col w-full landscape:w-auto landscape:flex-1 landscape:h-full shrink-0 relative z-20 bg-black">
+        <div class="flex flex-col w-full md:w-auto md:flex-1 md:h-full shrink-0 relative z-20 bg-black">
             
             <!-- 1. 映像エリア (上部固定 / 横画面時は全画面) -->
-            <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden aspect-video landscape:aspect-auto landscape:flex-1">
+            <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden aspect-video md:aspect-auto md:flex-1">
                 
                 <!-- NowPlaying帯 (映像上部) -->
                 <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
@@ -274,7 +268,7 @@
         </div> <!-- 左ペイン終了 -->
 
         <!-- ========== 右ペイン: スクロール領域 (リクエスト類 ＋ チャット) ========== -->
-        <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0 landscape:w-[320px] lg:landscape:w-[400px] landscape:flex-none landscape:border-l landscape:border-gray-800">
+        <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0 md:w-[320px] lg:w-[400px] md:flex-none md:border-l md:border-gray-800">
             
             <!-- リクエスト・ステータス等（アコーディオン） -->
             <details id="listener-menu-details" class="bg-[#18181b] border-b border-gray-800 shrink-0 group z-10 relative">
@@ -378,14 +372,6 @@
         let hostCurrentStatus = -1;
         let pendingConnection = null;
 
-        // 【追加】カメラ自動受信のフラグ管理
-        let isAutoCam = localStorage.getItem('jukebox_auto_cam') === 'true';
-
-        function toggleAutoCamFromSwitch(isOn) {
-            isAutoCam = isOn;
-            localStorage.setItem('jukebox_auto_cam', isOn);
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
             const menuDetails = document.getElementById('listener-menu-details');
             if (menuDetails) {
@@ -431,10 +417,6 @@
             const anonEl = document.getElementById('listener-anon');
             if (savedName && nameEl) nameEl.value = savedName;
             if (savedAnon !== null && anonEl) anonEl.checked = (savedAnon === 'true');
-
-            // 【追加】設定モーダルの自動受信トグルの初期化
-            const autoCamToggle = document.getElementById('toggle-auto-cam');
-            if (autoCamToggle) autoCamToggle.checked = isAutoCam;
 
             const params = new URLSearchParams(window.location.search);
             try {
@@ -842,12 +824,6 @@
             if (listenerConn && listenerConn.open) {
                 listenerConn.send({ type: 'request_camera' });
                 if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
-                
-                // 【追加】自発的に一度リクエストしたら、以後は自動で受信(申請)するように設定をONにする
-                isAutoCam = true;
-                localStorage.setItem('jukebox_auto_cam', 'true');
-                const autoCamToggle = document.getElementById('toggle-auto-cam');
-                if(autoCamToggle) autoCamToggle.checked = true;
             }
         }
 
@@ -993,19 +969,9 @@
                     } else {
                         btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
                     }
-
-                    // 【追加】自動でカメラを開く処理
-                    if (isAutoCam && !window.hasAutoRequestedCam) {
-                        if (!myData || (myData.cameraStatus !== 'requested' && myData.cameraStatus !== 'approved')) {
-                            window.hasAutoRequestedCam = true;
-                            // 安定して送信するために少し遅延させる
-                            setTimeout(() => { requestListenerCamera(); }, 500);
-                        }
-                    }
                 }
                 if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
             } else { 
-                window.hasAutoRequestedCam = false;
                 resetListenerVideo(); 
                 if(btn) {
                     btn.textContent = "配信はオフラインです"; 
