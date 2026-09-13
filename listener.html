@@ -87,7 +87,7 @@
             }
             .chat-input-floating {
                 position: fixed !important;
-                top: 35vh !important; 
+                top: 48vh !important; /* ← 35vhから48vhに下げ、Streamボタン付近に配置 */
                 left: 0 !important;
                 right: 0 !important;
                 z-index: 9999 !important;
@@ -152,7 +152,6 @@
     </div>
 
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
-    <!-- 変更点: landscape:flex-row を md:flex-row に変更し、幅基準で切り替えるようにしました -->
     <div id="listener-view" class="flex fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex-col md:flex-row text-sm">
         <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
             <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
@@ -212,15 +211,13 @@
             </div>
         </div>
 
-        <!-- ========== 左ペイン: 映像とコントロール (一定幅以上の時は残り幅全占有) ========== -->
-        <!-- 変更点: landscapeプレフィックスをmdプレフィックスに変更 -->
+        <!-- ========== 左ペイン: 映像とコントロール ========== -->
         <div class="flex flex-col w-full md:w-auto md:flex-1 md:h-full shrink-0 relative z-20 bg-black">
             
-            <!-- 1. 映像エリア (上部固定 / 広い画面時は全画面) -->
-            <!-- 変更点: landscapeプレフィックスをmdプレフィックスに変更 -->
+            <!-- 1. 映像エリア -->
             <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden aspect-video md:aspect-auto md:flex-1">
                 
-                <!-- NowPlaying帯 (映像上部) -->
+                <!-- NowPlaying帯 -->
                 <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
                     <div id="listener-eq" class="equalizer scale-75 shrink-0 origin-left"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
                     <div class="marquee-container h-4 flex-1">
@@ -270,7 +267,6 @@
         </div> <!-- 左ペイン終了 -->
 
         <!-- ========== 右ペイン: スクロール領域 (リクエスト類 ＋ チャット) ========== -->
-        <!-- 変更点: landscapeプレフィックスをmdプレフィックスに変更 -->
         <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0 md:w-[320px] lg:w-[400px] md:flex-none md:border-l md:border-gray-800">
             
             <!-- リクエスト・ステータス等（アコーディオン） -->
