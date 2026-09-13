@@ -112,6 +112,15 @@
                         <input type="range" id="cam-mic-gain" min="0" max="10" step="0.1" value="1" class="w-full accent-green-500" oninput="updateMicGain(this.value)">
                         <p class="text-[10px] text-gray-500 mt-1 leading-tight">※スマホ側の声が小さい場合のみ数値を上げてください。最大10倍。</p>
                     </div>
+
+                    <div class="border-t border-gray-800 pt-4">
+                        <label class="block text-xs text-gray-400 mb-1 font-bold flex justify-between">
+                            <span><i class="fa-solid fa-desktop"></i> 共有画面の音量 (システム音)</span>
+                            <span id="cam-sys-gain-val" class="text-white">100%</span>
+                        </label>
+                        <input type="range" id="cam-sys-gain" min="0" max="1" step="0.05" value="1" class="w-full accent-indigo-500" oninput="updateSysGain(this.value)">
+                        <p class="text-[10px] text-gray-500 mt-1 leading-tight">※画面共有時のゲーム音やBGMの音量を調整します。</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -159,10 +168,10 @@
                 <!-- 配信前 -->
                 <div id="camera-setup-controls" class="w-full flex items-center gap-2">
                     <button onclick="startCameraStream()" id="btn-cam-start" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1 transition-transform active:scale-95">
-                        <i class="fa-solid fa-camera"></i> カメラ
+                        <i class="fa-solid fa-camera"></i> カメラ配信
                     </button>
                     <button onclick="startScreenStream()" id="btn-screen-start" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded text-xs flex items-center justify-center gap-1 transition-transform active:scale-95">
-                        <i class="fa-solid fa-desktop"></i> 画面共有
+                        <i class="fa-solid fa-desktop"></i> 画面＋マイク
                     </button>
                     <button onclick="document.getElementById('camera-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white shrink-0">
                         <i class="fa-solid fa-gear"></i>
@@ -231,21 +240,26 @@
         let pendingConnection = null;
         let savedPasswords = JSON.parse(localStorage.getItem('jukebox_passwords')) || {};
         
-        let localStream = null;
-        let isAudioEnabled = true;
-        let isVideoEnabled = true;
         let isStreaming = false;
         
         let chatHistory = []; 
         let currentSong = null;
 
         // オーディオと映像設定
-        let cameraStream = null;
+        let cameraStream = null; // 映像を含むメインストリーム
+        let micStream = null;    // マイクのストリーム
+        let sysStream = null;    // 画面共有(システム)のストリーム
+        
         let isMicOn = true;
         let isVideoOn = true;
-        let audioContext, analyser, microphone, meterDrawId;
-        let gainNode = null;
+        
+        let audioContext, analyser, meterDrawId;
+        let microphoneSource = null;
+        let systemAudioSource = null;
+        let micGainNode = null;
+        let sysGainNode = null;
         let outDestination = null;
+        
         let camCall = null;
         let isStealthMode = false;
 
@@ -419,8 +433,10 @@
             navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode }, audio: true })
                 .then(stream => {
                     cameraStream = stream;
+                    micStream = stream; // プレビュー段階では同じストリームを扱う
+                    sysStream = null;
                     document.getElementById('camera-preview').srcObject = stream;
-                    setupMicMeter();
+                    setupAudioMixer();
                 })
                 .catch(err => {
                     showToast("カメラ/マイクが取得できませんでした", "error");
@@ -525,7 +541,7 @@
             }
         }
 
-        // カメラとマイクの制御
+        // カメラとマイク・画面共有の制御
         function applyCameraSettings() {
             const res = document.getElementById('cam-res').value.split('x');
             currentCamWidth = parseInt(res[0]);
@@ -536,37 +552,57 @@
         function updateMicGain(val) {
             const displayVal = parseFloat(val).toFixed(1) + 'x';
             document.getElementById('cam-mic-gain-val').textContent = displayVal;
-            if (gainNode) {
-                gainNode.gain.value = parseFloat(val);
+            if (micGainNode) {
+                micGainNode.gain.value = parseFloat(val);
             }
         }
 
-        function setupMicMeter() {
+        function updateSysGain(val) {
+            const displayVal = Math.round(val * 100) + '%';
+            document.getElementById('cam-sys-gain-val').textContent = displayVal;
+            if (sysGainNode) {
+                sysGainNode.gain.value = parseFloat(val);
+            }
+        }
+
+        function setupAudioMixer() {
             try {
                 if(!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 if(audioContext.state === 'suspended') audioContext.resume();
                 
+                // クリーンアップ
                 if(analyser) analyser.disconnect();
-                if(microphone) microphone.disconnect();
-                if(gainNode) gainNode.disconnect();
+                if(microphoneSource) microphoneSource.disconnect();
+                if(systemAudioSource) systemAudioSource.disconnect();
+                if(micGainNode) micGainNode.disconnect();
+                if(sysGainNode) sysGainNode.disconnect();
                 
                 analyser = audioContext.createAnalyser();
-                
-                // 音声トラックがあるかチェック（画面共有で音声を含めなかった場合対策）
-                const audioTracks = cameraStream.getAudioTracks();
-                if (audioTracks.length === 0) return; 
-
-                microphone = audioContext.createMediaStreamSource(cameraStream);
-                
-                gainNode = audioContext.createGain();
-                const currentGain = document.getElementById('cam-mic-gain') ? parseFloat(document.getElementById('cam-mic-gain').value) : 1.0;
-                gainNode.gain.value = currentGain;
-                
                 outDestination = audioContext.createMediaStreamDestination();
                 
-                microphone.connect(gainNode);
-                gainNode.connect(outDestination);
-                gainNode.connect(analyser);
+                // マイクのルーティング
+                if (micStream && micStream.getAudioTracks().length > 0) {
+                    microphoneSource = audioContext.createMediaStreamSource(micStream);
+                    micGainNode = audioContext.createGain();
+                    const currentMicGain = document.getElementById('cam-mic-gain') ? parseFloat(document.getElementById('cam-mic-gain').value) : 1.0;
+                    micGainNode.gain.value = currentMicGain;
+                    
+                    microphoneSource.connect(micGainNode);
+                    micGainNode.connect(outDestination);
+                    micGainNode.connect(analyser); // メーター用
+                }
+
+                // 共有画面(システム)の音声のルーティング
+                if (sysStream && sysStream.getAudioTracks().length > 0) {
+                    systemAudioSource = audioContext.createMediaStreamSource(sysStream);
+                    sysGainNode = audioContext.createGain();
+                    const currentSysGain = document.getElementById('cam-sys-gain') ? parseFloat(document.getElementById('cam-sys-gain').value) : 1.0;
+                    sysGainNode.gain.value = currentSysGain;
+                    
+                    systemAudioSource.connect(sysGainNode);
+                    sysGainNode.connect(outDestination);
+                    sysGainNode.connect(analyser); // メーター用 (ミックスして表示)
+                }
                 
                 analyser.fftSize = 256;
                 if(!meterDrawId) drawMicMeter();
@@ -625,7 +661,9 @@
         function startCameraStream() {
             applyCameraSettings();
             
-            if(cameraStream) { cameraStream.getTracks().forEach(t=>t.stop()); }
+            if(cameraStream) cameraStream.getTracks().forEach(t=>t.stop());
+            if(micStream && micStream !== cameraStream) micStream.getTracks().forEach(t=>t.stop());
+            if(sysStream && sysStream !== cameraStream) sysStream.getTracks().forEach(t=>t.stop());
             
             document.getElementById('camera-status').textContent = "配信を開始しています...";
             document.getElementById('camera-status').classList.replace('text-green-500', 'text-yellow-500');
@@ -636,16 +674,19 @@
             }).then(stream => {
                 currentStreamMode = 'camera';
                 cameraStream = stream;
+                micStream = stream; // カメラ配信の時は1つのストリームに両方入る
+                sysStream = null;
+                
                 const videoTrack = cameraStream.getVideoTracks()[0];
                 if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
 
                 document.getElementById('camera-preview').srcObject = stream;
-                setupMicMeter();
+                setupAudioMixer();
 
                 executeCamCall(currentBitrate);
 
             }).catch(err => {
-                showToast("カメラの再取得に失敗しました", "error");
+                showToast("カメラの取得に失敗しました", "error");
                 document.getElementById('camera-status').textContent = "エラーが発生しました";
             });
         }
@@ -653,31 +694,36 @@
         function startScreenStream() {
             applyCameraSettings();
             
-            if(cameraStream) { cameraStream.getTracks().forEach(t=>t.stop()); }
+            if(cameraStream) cameraStream.getTracks().forEach(t=>t.stop());
+            if(micStream && micStream !== cameraStream) micStream.getTracks().forEach(t=>t.stop());
+            if(sysStream && sysStream !== cameraStream) sysStream.getTracks().forEach(t=>t.stop());
             
-            document.getElementById('camera-status').textContent = "画面共有を開始しています...";
+            document.getElementById('camera-status').textContent = "画面共有＋マイクを開始しています...";
             document.getElementById('camera-status').classList.replace('text-green-500', 'text-yellow-500');
 
-            navigator.mediaDevices.getDisplayMedia({
-                video: { width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    systemAudio: "include"
-                }
-            }).then(stream => {
+            // 画面共有とマイクを同時に要求する
+            Promise.all([
+                navigator.mediaDevices.getDisplayMedia({
+                    video: { width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
+                    audio: { systemAudio: "include" }
+                }).catch(e => { throw new Error("Screen share cancelled"); }),
+                navigator.mediaDevices.getUserMedia({ audio: true }).catch(e => {
+                    showToast("マイクが取得できませんでした (共有音のみ)", "info");
+                    return null;
+                })
+            ]).then(([dispStream, mStream]) => {
                 currentStreamMode = 'screen';
-                cameraStream = stream;
+                cameraStream = dispStream;
+                sysStream = dispStream;
+                micStream = mStream; // マイクが拒否された場合は null
                 
-                // 画面共有がブラウザ側で停止された場合の処理
-                const videoTrack = stream.getVideoTracks()[0];
+                const videoTrack = cameraStream.getVideoTracks()[0];
                 if (videoTrack) {
                     videoTrack.onended = () => { if (isStreaming) stopCameraStream(); };
                 }
 
-                document.getElementById('camera-preview').srcObject = stream;
-                setupMicMeter();
+                document.getElementById('camera-preview').srcObject = cameraStream;
+                setupAudioMixer();
 
                 executeCamCall(currentBitrate);
 
@@ -707,24 +753,27 @@
             
             applyCameraSettings();
             if(cameraStream) cameraStream.getTracks().forEach(t=>t.stop());
+            if(micStream && micStream !== cameraStream) micStream.getTracks().forEach(t=>t.stop());
+            if(sysStream && sysStream !== cameraStream) sysStream.getTracks().forEach(t=>t.stop());
 
             if (currentStreamMode === 'screen') {
-                navigator.mediaDevices.getDisplayMedia({
-                    video: { width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
-                    audio: {
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false,
-                        systemAudio: "include"
-                    }
-                }).then(stream => {
-                    cameraStream = stream;
-                    const videoTrack = stream.getVideoTracks()[0];
+                Promise.all([
+                    navigator.mediaDevices.getDisplayMedia({
+                        video: { width: { ideal: currentCamWidth }, height: { ideal: currentCamHeight } },
+                        audio: { systemAudio: "include" }
+                    }),
+                    navigator.mediaDevices.getUserMedia({ audio: true }).catch(e => null)
+                ]).then(([dispStream, mStream]) => {
+                    cameraStream = dispStream;
+                    sysStream = dispStream;
+                    micStream = mStream;
+                    
+                    const videoTrack = cameraStream.getVideoTracks()[0];
                     if (videoTrack) {
                         videoTrack.onended = () => { if (isStreaming) stopCameraStream(); };
                     }
-                    document.getElementById('camera-preview').srcObject = stream;
-                    setupMicMeter();
+                    document.getElementById('camera-preview').srcObject = cameraStream;
+                    setupAudioMixer();
                     
                     const streamToSend = getProcessedStream();
                     camCall = peer.call(`jukebox-${currentRoomId}`, streamToSend);
@@ -740,11 +789,13 @@
                     audio: true
                 }).then(stream => {
                     cameraStream = stream;
+                    micStream = stream;
+                    sysStream = null;
                     const videoTrack = cameraStream.getVideoTracks()[0];
                     if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
 
                     document.getElementById('camera-preview').srcObject = stream;
-                    setupMicMeter();
+                    setupAudioMixer();
                     
                     const streamToSend = getProcessedStream();
                     camCall = peer.call(`jukebox-${currentRoomId}`, streamToSend);
@@ -760,6 +811,10 @@
             if(camCall) { camCall.close(); camCall = null; }
             if(dataConn && dataConn.open) dataConn.send({type: 'camera_stop'});
 
+            if(cameraStream) cameraStream.getTracks().forEach(t=>t.stop());
+            if(micStream && micStream !== cameraStream) micStream.getTracks().forEach(t=>t.stop());
+            if(sysStream && sysStream !== cameraStream) sysStream.getTracks().forEach(t=>t.stop());
+
             document.getElementById('camera-status').innerHTML = '<i class="fa-solid fa-stop text-green-500"></i> 配信停止 (設定して再スタート可能)';
             document.getElementById('camera-status').classList.replace('text-red-500', 'text-green-500');
             showToast("配信を停止しました");
@@ -771,9 +826,9 @@
         }
 
         function toggleCameraMic() {
-            if(!cameraStream) return;
+            if(!micStream) return;
             isMicOn = !isMicOn;
-            const audioTracks = cameraStream.getAudioTracks();
+            const audioTracks = micStream.getAudioTracks();
             if(audioTracks.length > 0) audioTracks[0].enabled = isMicOn;
             const btn = document.getElementById('btn-cam-mic');
             btn.innerHTML = isMicOn ? '<i class="fa-solid fa-microphone"></i>' : '<i class="fa-solid fa-microphone-slash"></i>';
@@ -808,10 +863,11 @@
                 }).then(stream => {
                     if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
                     cameraStream = stream;
+                    micStream = stream;
                     const videoTrack = cameraStream.getVideoTracks()[0];
                     if (videoTrack && 'contentHint' in videoTrack) videoTrack.contentHint = 'detail';
                     document.getElementById('camera-preview').srcObject = stream;
-                    setupMicMeter();
+                    setupAudioMixer();
                 }).catch(err => {
                     showToast("カメラの切り替えに失敗しました", "error");
                 });
