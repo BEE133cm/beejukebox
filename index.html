@@ -295,7 +295,7 @@
         let bannedUsers = {}; 
         let cameraApprovalMode = false;
         let myList = [];
-        let approvedUsers = {}; // 一度承認したユーザーのUUIDを記憶
+        let approvedUsers = {};
 
         let hostMediaConn = null; 
         let currentStreamToListeners = null;
@@ -514,6 +514,12 @@
 
             peer = new Peer(`jukebox-${currentRoomId}`);
 
+            peer.on('disconnected', () => {
+                if (peer && !peer.destroyed) {
+                    peer.reconnect();
+                }
+            });
+
             peer.on('open', (id) => {
                 document.getElementById('status-dot').classList.replace('bg-yellow-500', 'bg-green-500');
                 document.getElementById('status-text').textContent = "オンライン (待機中)";
@@ -522,6 +528,10 @@
                 loadYouTubeAPI(); 
                 
                 setInterval(() => {
+                    if (peer && peer.disconnected && !peer.destroyed) {
+                        peer.reconnect();
+                    }
+
                     if (player && typeof player.getCurrentTime === 'function' && typeof player.getPlayerState === 'function') {
                         let actualVideoId = currentSong ? currentSong.videoId : null;
                         try {
