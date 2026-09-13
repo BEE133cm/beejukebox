@@ -415,6 +415,7 @@
         }
 
         // URL生成部分を独立したファイル群へのリンクに変更
+        // リモコンとカメラはパラメータなし（ポータル画面へ誘導）
         function generateURLs() {
             const currentHref = window.location.href.split('?')[0].split('#')[0];
             const basePath = currentHref.substring(0, currentHref.lastIndexOf('/') + 1);
@@ -423,10 +424,10 @@
             if(elListener) elListener.value = `${basePath}listener.html?host=${currentRoomId}`;
 
             const elRemote = document.getElementById('url-remote');
-            if(elRemote) elRemote.value = `${basePath}controller.html?remote=${currentRoomId}`;
+            if(elRemote) elRemote.value = `${basePath}controller.html`;
 
             const elCamera = document.getElementById('url-camera');
-            if(elCamera) elCamera.value = `${basePath}camera.html?host=${currentRoomId}`;
+            if(elCamera) elCamera.value = `${basePath}camera.html`;
 
             const elObsCam = document.getElementById('url-obs-cam');
             if(elObsCam) elObsCam.value = `${basePath}OBS.html?obs_cam=${currentRoomId}`;
