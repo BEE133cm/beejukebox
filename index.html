@@ -8,11 +8,11 @@
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #111827; color: white; overscroll-behavior-y: none; }
+        body { font-family: 'Inter', sans-serif; background-color: #0e0e10; color: white; overscroll-behavior-y: none; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
 
         .marquee-container { overflow: hidden; white-space: nowrap; position: relative; width: 100%; display: flex; }
         .marquee-content { 
@@ -32,241 +32,278 @@
         }
         .toast.show { transform: translateX(0); }
 
-        .youtube-hidden { position: absolute; width: 1px; height: 1px; top: -9999px; left: -9999px; }
+        .youtube-hidden { position: absolute; width: 1px; height: 1px; top: -9999px; left: -9999px; opacity: 0; pointer-events: none; }
 
         #host-view.share-mode .hide-on-share { display: none !important; }
         #host-view.share-mode #host-player-col { grid-column: 1 / -1 !important; }
         .show-on-share { display: none !important; }
         #host-view.share-mode .show-on-share { display: flex !important; }
+
+        /* スマホ/PCレスポンシブタブ制御 */
+        @media (max-width: 1023px) {
+            .mobile-tab-content { display: none !important; }
+            .mobile-tab-content.active { display: flex !important; }
+            .mobile-h-auto { height: auto !important; max-height: 60vh; }
+        }
+        @media (min-width: 1024px) {
+            .mobile-tab-content { display: flex !important; }
+            #mobile-tab-header { display: none !important; }
+        }
     </style>
 </head>
-<body class="min-h-screen flex flex-col items-center p-4 sm:p-8 relative">
+<body class="min-h-screen flex flex-col items-center p-0 lg:p-6 relative">
 
     <!-- トースト通知 -->
-    <div id="toast" class="toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3">
+    <div id="toast" class="toast bg-gray-800 border-l-4 border-indigo-500 text-white p-4 rounded shadow-lg flex items-center gap-3">
         <span id="toast-msg"></span>
     </div>
 
     <!-- ================= 1. ルーム作成画面 (初期画面) ================= -->
-    <div id="setup-view" class="w-full max-w-md bg-gray-900 border border-gray-700 p-6 rounded-2xl shadow-2xl mt-10">
-        <h1 class="text-2xl font-bold text-center mb-2 text-white"><i class="fa-solid fa-music text-indigo-400"></i> Remote Jukebox</h1>
-        <p class="text-gray-400 text-center text-sm mb-6">配信者用管理画面</p>
+    <div id="setup-view" class="w-full max-w-md bg-[#18181b] border border-gray-800 p-8 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.5)] mt-10 relative overflow-hidden m-4 sm:m-0">
+        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+        <h1 class="text-3xl font-extrabold text-center mb-1 text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400"><i class="fa-solid fa-music text-indigo-400"></i> Remote Jukebox</h1>
+        <p class="text-gray-500 text-center text-xs font-bold tracking-wider uppercase mb-8">配信者用コントロールパネル</p>
         
-        <div class="space-y-4">
+        <div class="space-y-5">
             <div>
-                <label class="block text-sm text-gray-400 mb-1">ルームID (半角英数字)</label>
-                <input type="text" id="input-room-id" placeholder="例: my-radio-123" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-3 outline-none focus:border-red-500">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5"><i class="fa-solid fa-hashtag"></i> ルームID (半角英数字)</label>
+                <input type="text" id="input-room-id" placeholder="例: my-radio-123" class="w-full bg-[#0e0e10] text-white border border-gray-700 rounded-xl p-3.5 outline-none focus:border-indigo-500 transition-colors shadow-inner">
             </div>
             <div>
-                <label class="block text-sm text-gray-400 mb-1">配信者の名前</label>
-                <input type="text" id="input-host-name" placeholder="例: 配信太郎" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-3 outline-none focus:border-red-500">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5"><i class="fa-solid fa-user"></i> 配信者の名前</label>
+                <input type="text" id="input-host-name" placeholder="例: 配信太郎" class="w-full bg-[#0e0e10] text-white border border-gray-700 rounded-xl p-3.5 outline-none focus:border-indigo-500 transition-colors shadow-inner">
             </div>
-            <div class="border-t border-gray-700 pt-4 mt-2">
-                <label class="block text-sm text-gray-400 mb-1"><i class="fa-solid fa-lock"></i> 管理パスワード (任意)</label>
-                <input type="password" id="input-host-password" placeholder="例: 1234 (空欄ならパス不要)" class="w-full bg-gray-800 text-white border border-gray-600 rounded p-3 outline-none focus:border-red-500">
-                <p class="text-[10px] text-gray-500 mt-1">※設定すると、コントローラーやカメラからの接続時にパスワードを要求します。</p>
+            <div class="border-t border-gray-800 pt-5 mt-2">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5"><i class="fa-solid fa-lock"></i> 管理パスワード (任意)</label>
+                <input type="password" id="input-host-password" placeholder="例: 1234 (空欄ならパス不要)" class="w-full bg-[#0e0e10] text-white border border-gray-700 rounded-xl p-3.5 outline-none focus:border-indigo-500 transition-colors shadow-inner">
+                <p class="text-[10px] text-gray-500 mt-2 leading-tight">※設定すると、コントローラーやカメラからの接続時にパスワードを要求します。</p>
             </div>
-            <button onclick="createRoom()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg transition-colors mt-4">
-                部屋を作成する
+            <button onclick="createRoom()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg active:scale-95 mt-4">
+                部屋を作成する <i class="fa-solid fa-arrow-right ml-1"></i>
             </button>
             
-            <div class="border-t border-gray-700 pt-4 mt-6">
-                <h3 class="text-sm font-bold text-gray-300 mb-3"><i class="fa-regular fa-clock"></i> 過去に作成したルーム</h3>
-                <div id="setup-history-list" class="flex flex-col gap-2 max-h-40 overflow-y-auto">
+            <div class="border-t border-gray-800 pt-5 mt-6">
+                <h3 class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider"><i class="fa-regular fa-clock"></i> 過去のルーム履歴</h3>
+                <div id="setup-history-list" class="flex flex-col gap-2 max-h-40 overflow-y-auto pr-1">
                     <!-- 履歴がここに入る -->
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-6">Host UI</p>
     </div>
 
     <!-- ================= 2. 配信者 (Host) 画面 ================= -->
-    <div id="host-view" class="hidden w-full max-w-6xl flex-col gap-6">
-        <div class="flex items-center justify-between bg-gray-800 p-4 rounded-xl border border-gray-700 hide-on-share gap-4">
+    <div id="host-view" class="hidden w-full max-w-[1400px] flex-col gap-4 lg:gap-6">
+        
+        <!-- ヘッダーダッシュボード -->
+        <div class="flex items-center justify-between bg-[#18181b] p-4 lg:px-6 lg:py-4 rounded-none lg:rounded-2xl border-b lg:border border-gray-800 hide-on-share gap-4 shadow-md w-full sticky top-0 z-40 lg:relative">
             <div class="flex-shrink-0">
-                <h2 class="font-bold text-xl text-white"><i class="fa-solid fa-crown text-yellow-400"></i> 配信コントロール</h2>
-                <p class="text-sm text-gray-400">ルームID: <span id="display-room-id" class="text-red-400 font-mono"></span></p>
+                <h2 class="font-extrabold text-lg md:text-xl text-white tracking-tight"><i class="fa-solid fa-crown text-yellow-400"></i> HOST DASHBOARD</h2>
+                <p class="text-xs text-gray-400 font-medium mt-0.5">ルームID: <span id="display-room-id" class="text-indigo-400 font-mono font-bold bg-indigo-900/30 px-1.5 py-0.5 rounded"></span></p>
             </div>
             
-            <div class="flex-1 overflow-hidden flex items-center justify-center">
-                <div id="host-news-ticker" class="bg-gray-900/90 text-yellow-400 font-bold text-sm px-4 py-2 rounded-full border border-yellow-500/50 shadow-lg opacity-0 transition-opacity duration-300 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
-                </div>
+            <div class="flex-1 overflow-hidden flex items-center justify-center hidden sm:flex">
+                <div id="host-news-ticker" class="bg-gray-900/90 text-yellow-400 font-bold text-sm px-4 py-2 rounded-full border border-yellow-500/50 shadow-lg opacity-0 transition-opacity duration-300 whitespace-nowrap overflow-hidden text-ellipsis max-w-full"></div>
             </div>
 
             <div id="connection-status" class="flex flex-col items-end gap-1 text-sm flex-shrink-0">
-                <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded-full bg-yellow-500 animate-pulse" id="status-dot"></span>
-                    <span id="status-text" class="text-gray-300">起動中...</span>
+                <div class="flex items-center gap-2 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-800">
+                    <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse shadow-[0_0_8px_rgba(234,179,8,0.8)]" id="status-dot"></span>
+                    <span id="status-text" class="text-xs font-bold text-gray-300">起動中...</span>
                 </div>
-                <span id="error-text" class="text-xs text-red-400 hidden"></span>
+                <span id="error-text" class="text-[10px] text-red-400 hidden font-bold"></span>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- プレイヤー列 -->
-            <div id="host-player-col" class="space-y-6 lg:col-span-1">
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 text-center relative transition-all duration-300">
-                    <div class="flex justify-between items-center mb-4 relative z-20">
-                        <button onclick="toggleShareMode(true)" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded hide-on-share flex items-center gap-1 shadow font-bold transition-transform active:scale-95">
-                            <i class="fa-solid fa-tv"></i> 画面共有モード
+        <!-- スマホ用タブヘッダー (PCでは非表示) -->
+        <div id="mobile-tab-header" class="flex lg:hidden bg-[#18181b] border-b border-gray-800 w-full sticky top-[73px] z-30 shadow-md">
+            <button onclick="switchHostMobileTab('queue')" id="tab-queue" class="flex-1 py-3 text-[11px] font-bold text-indigo-400 border-b-2 border-indigo-500 transition-colors"><i class="fa-solid fa-list-ul"></i> キュー&BGM</button>
+            <button onclick="switchHostMobileTab('chat')" id="tab-chat" class="flex-1 py-3 text-[11px] font-bold text-gray-500 border-b-2 border-transparent transition-colors"><i class="fa-solid fa-comment-dots"></i> コメント</button>
+            <button onclick="switchHostMobileTab('settings')" id="tab-settings" class="flex-1 py-3 text-[11px] font-bold text-gray-500 border-b-2 border-transparent transition-colors"><i class="fa-solid fa-gear"></i> 設定&共有</button>
+        </div>
+
+        <!-- コンテンツグリッド -->
+        <div class="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:gap-6 w-full px-2 lg:px-0">
+            
+            <!-- ===== Column 1: プレイヤー ===== -->
+            <div id="host-player-col" class="space-y-4 lg:space-y-6 lg:col-span-1 flex flex-col">
+                <!-- プレイヤーカード (スマホでも常時表示) -->
+                <div class="bg-[#18181b] p-4 lg:p-5 rounded-2xl border border-gray-800 text-center relative transition-all duration-300 shadow-xl flex-shrink-0">
+                    <div class="flex justify-between items-center mb-3 relative z-20">
+                        <button onclick="toggleShareMode(true)" class="text-[10px] lg:text-xs bg-indigo-600/80 hover:bg-indigo-500 text-white px-3 py-1.5 rounded hide-on-share flex items-center gap-1.5 shadow font-bold transition-all backdrop-blur active:scale-95 border border-indigo-500">
+                            <i class="fa-solid fa-tv"></i> 共有モード
                         </button>
                         <button onclick="toggleShareMode(false)" class="text-xs bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded show-on-share items-center gap-2 shadow-lg font-bold transition-transform active:scale-95 mx-auto">
                             <i class="fa-solid fa-xmark"></i> 共有モード解除
                         </button>
-                        <button onclick="toggleLightMode()" id="btn-light-mode" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded transition-colors border border-gray-600 shadow hide-on-share">
+                        <button onclick="toggleLightMode()" id="btn-light-mode" class="text-[10px] lg:text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded transition-all border border-gray-700 shadow hide-on-share flex items-center gap-1.5 font-bold">
                             <i class="fa-solid fa-video"></i> 映像ON
                         </button>
                     </div>
 
-                    <div id="youtube-player-container" class="w-full aspect-video bg-black rounded-lg overflow-hidden mb-4 relative shadow-inner">
+                    <div id="youtube-player-container" class="w-full aspect-video bg-black rounded-xl overflow-hidden mb-4 relative shadow-[0_0_15px_rgba(0,0,0,0.5)] border border-gray-800">
                         <div id="youtube-player"></div>
                     </div>
                     
-                    <h3 class="text-sm text-red-400 font-bold mb-1 uppercase tracking-wider">Now Playing</h3>
-                    <div class="marquee-container h-8 mb-2">
-                        <div id="host-now-playing" class="marquee-content font-bold text-xl text-white">再生待機中...</div>
+                    <div class="bg-[#0e0e10] rounded-xl p-3 border border-gray-800/50 relative overflow-hidden">
+                        <h3 class="text-[10px] text-red-500 font-black mb-1 uppercase tracking-widest text-left"><i class="fa-solid fa-circle-play"></i> Now Playing</h3>
+                        <div class="marquee-container h-7 mb-1">
+                            <div id="host-now-playing" class="marquee-content font-bold text-lg text-white drop-shadow-md">再生待機中...</div>
+                        </div>
+                        <p id="host-now-requester" class="text-xs text-indigo-300 text-left font-medium">リクエスト待ち</p>
                     </div>
-                    <p id="host-now-requester" class="text-sm text-gray-400 mb-6">リクエスト待ち</p>
                     
-                    <div class="flex justify-center gap-6 hide-on-share">
-                        <button onclick="togglePlayHost()" id="btn-host-play" class="bg-red-600 hover:bg-red-500 text-white p-4 rounded-full flex items-center justify-center w-14 h-14 shadow-lg transition-transform active:scale-95">
-                            <i class="fa-solid fa-play text-xl"></i>
+                    <div class="flex justify-center gap-8 mt-5 hide-on-share pb-2">
+                        <button onclick="togglePlayHost()" id="btn-host-play" class="bg-gradient-to-br from-red-500 to-red-700 hover:from-red-400 hover:to-red-600 text-white p-4 rounded-full flex items-center justify-center w-16 h-16 shadow-[0_5px_15px_rgba(239,68,68,0.4)] transition-all active:scale-90 border border-red-400/30">
+                            <i class="fa-solid fa-play text-2xl ml-1"></i>
                         </button>
-                        <button onclick="playNext(true)" class="bg-gray-700 hover:bg-gray-600 text-white p-4 rounded-full flex items-center justify-center w-14 h-14 shadow transition-transform active:scale-95">
-                            <i class="fa-solid fa-forward-step text-xl"></i>
+                        <button onclick="playNext(true)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 p-4 rounded-full flex items-center justify-center w-12 h-12 shadow transition-all active:scale-90 border border-gray-700 mt-2">
+                            <i class="fa-solid fa-forward-step text-lg"></i>
                         </button>
                     </div>
                 </div>
 
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-4 hide-on-share">
-                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2"><i class="fa-solid fa-gear"></i> 配信設定</h3>
+                <!-- 配信設定 (スマホ時は「設定」タブへ) -->
+                <div class="bg-[#18181b] p-4 lg:p-5 rounded-2xl border border-gray-800 space-y-4 hide-on-share shadow-xl flex flex-col mobile-tab-content mobile-tab-settings">
+                    <h3 class="font-bold text-gray-200 border-b border-gray-800 pb-2 text-sm"><i class="fa-solid fa-gear text-gray-400"></i> 基本設定</h3>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">配信者の名前</label>
-                        <input type="text" id="setting-host-name" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white" onchange="updateHostSettings()">
+                        <label class="block text-xs font-bold text-gray-400 mb-1">配信者の名前</label>
+                        <input type="text" id="setting-host-name" class="w-full bg-[#0e0e10] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-indigo-500 outline-none transition-colors" onchange="updateHostSettings()">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">現在のテーマ・気分 (リスナーに表示)</label>
-                        <input type="text" id="setting-theme" placeholder="例: ドライブ中！アニソンリクエスト募集！" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white" onchange="updateHostSettings()">
+                        <label class="block text-xs font-bold text-gray-400 mb-1">現在のテーマ・気分 (リスナーに表示)</label>
+                        <input type="text" id="setting-theme" placeholder="例: ドライブ中！アニソンリクエスト募集！" class="w-full bg-[#0e0e10] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-indigo-500 outline-none transition-colors" onchange="updateHostSettings()">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">動画尺制限 (分) ※0で無制限</label>
-                        <input type="number" id="setting-duration" value="10" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white" onchange="updateHostSettings()">
+                        <label class="block text-xs font-bold text-gray-400 mb-1">動画尺制限 (分) <span class="font-normal text-[10px] text-gray-500">※0で無制限</span></label>
+                        <input type="number" id="setting-duration" value="10" class="w-full bg-[#0e0e10] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-indigo-500 outline-none transition-colors" onchange="updateHostSettings()">
                     </div>
                 </div>
             </div>
 
-            <!-- キュー＆BGM列 -->
-            <div id="host-center-col" class="space-y-6 lg:col-span-1 hide-on-share">
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 h-64 flex flex-col">
-                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3"><i class="fa-solid fa-list-ul"></i> リクエストキュー</h3>
-                    <div id="host-queue-list" class="flex-1 overflow-y-auto space-y-2 pr-2"></div>
+            <!-- ===== Column 2: キュー＆BGM ===== -->
+            <div id="host-center-col" class="space-y-4 lg:space-y-6 lg:col-span-1 hide-on-share flex flex-col">
+                
+                <!-- リクエストキュー (スマホ時は「キュー」タブへ) -->
+                <div class="bg-[#18181b] p-4 lg:p-5 rounded-2xl border border-gray-800 h-[300px] lg:h-[350px] flex flex-col shadow-xl mobile-tab-content mobile-tab-queue mobile-h-auto active">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-2 mb-3 shrink-0">
+                        <h3 class="font-bold text-gray-200 text-sm"><i class="fa-solid fa-list-ul text-indigo-400"></i> リクエストキュー</h3>
+                        <span class="text-xs bg-gray-800 px-2 py-0.5 rounded text-gray-400 font-bold" id="queue-badge">0</span>
+                    </div>
+                    <div id="host-queue-list" class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[100px]"></div>
                 </div>
 
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700">
-                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3"><i class="fa-solid fa-music text-indigo-400"></i> 待機用BGM / プレイリスト</h3>
-                    <div class="flex gap-2 mb-2">
-                        <input type="text" id="input-bgm-url" placeholder="YouTube URL / プレイリスト" class="min-w-0 flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white">
-                        <button onclick="addBGM()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm whitespace-nowrap flex-shrink-0">追加</button>
-                        <button onclick="saveToMyList()" title="マイリストに保存" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded text-sm whitespace-nowrap flex-shrink-0"><i class="fa-solid fa-star"></i></button>
+                <!-- BGM管理 (スマホ時は「キュー」タブへ) -->
+                <div class="bg-[#18181b] p-4 lg:p-5 rounded-2xl border border-gray-800 shadow-xl flex flex-col mobile-tab-content mobile-tab-queue active shrink-0">
+                    <h3 class="font-bold text-gray-200 border-b border-gray-800 pb-2 mb-3 text-sm"><i class="fa-solid fa-music text-purple-400"></i> 待機用BGM / プレイリスト</h3>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="input-bgm-url" placeholder="YouTube URL" class="min-w-0 flex-1 bg-[#0e0e10] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-indigo-500 outline-none">
+                        <button onclick="addBGM()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors shadow">追加</button>
+                        <button onclick="saveToMyList()" title="マイリストに保存" class="bg-yellow-600/20 hover:bg-yellow-600/40 text-yellow-500 border border-yellow-600/50 px-3 py-2 rounded-lg text-xs transition-colors"><i class="fa-solid fa-star"></i></button>
                     </div>
-                    <div class="flex gap-3 mb-2 text-xs text-gray-300 border-b border-gray-700 pb-2">
-                        <label class="flex items-center gap-1 cursor-pointer hover:text-white transition-colors">
-                            <input type="checkbox" id="bgm-shuffle" onchange="updateBGMPlaybackSettings()" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-indigo-500">
+                    <div class="flex flex-wrap gap-x-4 gap-y-2 mb-3 text-[11px] text-gray-400 border-b border-gray-800 pb-3 font-bold">
+                        <label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
+                            <input type="checkbox" id="bgm-shuffle" onchange="updateBGMPlaybackSettings()" class="rounded bg-[#0e0e10] border-gray-600 text-indigo-500 focus:ring-indigo-500 accent-indigo-500">
                             <i class="fa-solid fa-shuffle"></i> シャッフル
                         </label>
-                        <label class="flex items-center gap-1 cursor-pointer hover:text-white transition-colors">
-                            <input type="checkbox" id="bgm-loop" checked onchange="updateBGMPlaybackSettings()" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-indigo-500">
-                            <i class="fa-solid fa-repeat"></i> リストループ
+                        <label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
+                            <input type="checkbox" id="bgm-loop" checked onchange="updateBGMPlaybackSettings()" class="rounded bg-[#0e0e10] border-gray-600 text-indigo-500 focus:ring-indigo-500 accent-indigo-500">
+                            <i class="fa-solid fa-repeat"></i> ループ
                         </label>
-                        <label class="flex items-center gap-1 cursor-pointer hover:text-white transition-colors">
-                            <input type="checkbox" id="bgm-loop-one" onchange="updateBGMPlaybackSettings()" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-indigo-500">
-                            <i class="fa-solid fa-rotate-right"></i> 1曲ループ
+                        <label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
+                            <input type="checkbox" id="bgm-loop-one" onchange="updateBGMPlaybackSettings()" class="rounded bg-[#0e0e10] border-gray-600 text-indigo-500 focus:ring-indigo-500 accent-indigo-500">
+                            <i class="fa-solid fa-rotate-right"></i> 1曲
                         </label>
                     </div>
                     <div class="mb-3">
-                        <label class="text-xs text-gray-400">マイリストから追加:</label>
-                        <select id="select-mylist" onchange="loadFromMyList()" class="w-full bg-gray-900 border border-gray-600 rounded p-1 text-sm text-white mt-1">
+                        <label class="text-[10px] text-gray-500 font-bold block mb-1">★マイリストから呼出:</label>
+                        <select id="select-mylist" onchange="loadFromMyList()" class="w-full bg-[#0e0e10] border border-gray-700 rounded-lg p-1.5 text-xs text-white outline-none focus:border-indigo-500">
                             <option value="">-- 選択してください --</option>
                         </select>
                     </div>
-                    <div id="host-bgm-list" class="space-y-2 max-h-24 overflow-y-auto text-sm"></div>
+                    <div id="host-bgm-list" class="space-y-1.5 max-h-24 overflow-y-auto text-xs pr-1"></div>
                 </div>
 
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 h-48 flex flex-col">
-                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2 mb-3"><i class="fa-regular fa-clock"></i> 再生履歴</h3>
-                    <div id="host-history-list" class="flex-1 overflow-y-auto space-y-2 pr-2 text-sm text-gray-400"></div>
+                <!-- 再生履歴 (スマホ時は「キュー」タブへ) -->
+                <div class="bg-[#18181b] p-4 lg:p-5 rounded-2xl border border-gray-800 h-[200px] flex flex-col shadow-xl mobile-tab-content mobile-tab-queue mobile-h-auto active">
+                    <h3 class="font-bold text-gray-200 border-b border-gray-800 pb-2 mb-2 text-sm shrink-0"><i class="fa-regular fa-clock text-gray-400"></i> 再生履歴</h3>
+                    <div id="host-history-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1 text-xs text-gray-400 min-h-[50px]"></div>
                 </div>
             </div>
 
-            <!-- チャット＆設定列 -->
-            <div id="host-right-col" class="space-y-6 lg:col-span-1 hide-on-share">
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 flex flex-col" style="height: 350px;">
-                    <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
-                        <h3 class="font-bold text-gray-200"><i class="fa-solid fa-comment-dots"></i> リアルタイムチャット</h3>
-                        <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
-                            <input type="checkbox" id="host-tts-toggle" class="rounded bg-gray-900 border-gray-600 text-indigo-500">
+            <!-- ===== Column 3: チャット＆設定 ===== -->
+            <div id="host-right-col" class="space-y-4 lg:space-y-6 lg:col-span-1 hide-on-share flex flex-col">
+                
+                <!-- チャット (スマホ時は「コメント」タブへ) -->
+                <div class="bg-[#18181b] p-4 lg:p-5 rounded-2xl border border-gray-800 flex flex-col h-[350px] lg:h-[400px] shadow-xl mobile-tab-content mobile-tab-chat mobile-h-auto">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-2 mb-2 shrink-0">
+                        <h3 class="font-bold text-gray-200 text-sm"><i class="fa-solid fa-comment-dots text-green-400"></i> リアルタイムチャット</h3>
+                        <label class="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 cursor-pointer hover:text-white transition-colors bg-gray-800 px-2 py-1 rounded-lg">
+                            <input type="checkbox" id="host-tts-toggle" class="rounded bg-[#0e0e10] border-gray-600 text-green-500 accent-green-500">
                             <i class="fa-solid fa-head-side-waveform"></i> 読上
                         </label>
                     </div>
-                    <div id="host-chat-list" class="flex-1 overflow-y-auto space-y-1 pr-2 mb-2"></div>
-                    <div class="flex gap-2 mt-auto">
-                        <input type="text" id="host-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest()" placeholder="チャットを送信..." class="flex-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
-                        <button onclick="sendChatRequest()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm font-bold">送信</button>
+                    <div id="host-chat-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1 mb-3 min-h-[100px]"></div>
+                    <div class="flex gap-2 mt-auto shrink-0">
+                        <input type="text" id="host-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest()" placeholder="メッセージ..." class="flex-1 bg-[#0e0e10] border border-gray-700 rounded-xl p-2.5 text-sm text-white focus:border-green-500 outline-none" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+                        <button onclick="sendChatRequest()" class="bg-green-600 hover:bg-green-500 text-white w-10 rounded-xl flex items-center justify-center transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
                     </div>
                 </div>
 
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 flex flex-col" style="height: 350px;">
-                    <div class="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
-                        <h3 class="font-bold text-gray-200"><i class="fa-solid fa-users"></i> 参加者管理 <span id="host-participant-count" class="text-sm font-normal text-indigo-300 ml-1"></span></h3>
-                        <label class="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
-                            <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded bg-gray-900 border-gray-600 text-red-500">
+                <!-- 参加者管理 (スマホ時は「コメント」タブへ) -->
+                <div class="bg-[#18181b] p-4 lg:p-5 rounded-2xl border border-gray-800 flex flex-col h-[250px] lg:h-[300px] shadow-xl mobile-tab-content mobile-tab-chat mobile-h-auto">
+                    <div class="flex justify-between items-center mb-2 border-b border-gray-800 pb-2 shrink-0">
+                        <h3 class="font-bold text-gray-200 text-sm"><i class="fa-solid fa-users text-blue-400"></i> 参加者 <span id="host-participant-count" class="text-xs font-normal text-blue-300 ml-1"></span></h3>
+                        <label class="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 cursor-pointer hover:text-white transition-colors bg-gray-800 px-2 py-1 rounded-lg">
+                            <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded bg-[#0e0e10] border-gray-600 text-red-500 accent-red-500">
                             視聴承認制
                         </label>
                     </div>
-                    <div id="host-participant-list" class="flex-1 overflow-y-auto space-y-2 pr-2"></div>
+                    <div id="host-participant-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-[50px]"></div>
                 </div>
 
-                <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-3">
-                    <h3 class="font-bold text-gray-200 border-b border-gray-700 pb-2"><i class="fa-solid fa-link"></i> 共有URL</h3>
+                <!-- 共有URL (スマホ時は「設定」タブへ) -->
+                <div class="bg-[#18181b] p-4 lg:p-5 rounded-2xl border border-gray-800 space-y-3.5 shadow-xl flex flex-col mobile-tab-content mobile-tab-settings shrink-0">
+                    <h3 class="font-bold text-gray-200 border-b border-gray-800 pb-2 text-sm"><i class="fa-solid fa-link text-gray-400"></i> 共有URL</h3>
+                    
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1"><i class="fa-solid fa-headphones"></i> リスナー招待用 URL</label>
+                        <label class="block text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-headphones"></i> リスナー招待用 (視聴専用)</label>
                         <div class="flex gap-2">
-                            <input type="text" id="url-listener" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
-                            <button onclick="copyURL('url-listener')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
+                            <input type="text" id="url-listener" readonly class="flex-1 bg-[#0e0e10] border border-gray-700 rounded-lg p-1.5 text-xs text-gray-300 focus:outline-none">
+                            <button onclick="copyURL('url-listener')" class="bg-gray-700 hover:bg-gray-600 text-white px-3 rounded-lg text-xs font-bold transition-colors">コピー</button>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs text-red-400 mb-1"><i class="fa-solid fa-crown text-yellow-400"></i> リモコン専用ポータル URL</label>
+                        <label class="block text-[10px] font-bold text-yellow-500 mb-1"><i class="fa-solid fa-crown"></i> リモコンポータル (管理者用)</label>
                         <div class="flex gap-2">
-                            <input type="text" id="url-remote" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
-                            <button onclick="copyURL('url-remote')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
+                            <input type="text" id="url-remote" readonly class="flex-1 bg-[#0e0e10] border border-gray-700 rounded-lg p-1.5 text-xs text-gray-300 focus:outline-none">
+                            <button onclick="copyURL('url-remote')" class="bg-gray-700 hover:bg-gray-600 text-white px-3 rounded-lg text-xs font-bold transition-colors">コピー</button>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs text-green-400 mb-1"><i class="fa-solid fa-camera"></i> カメラ専用ポータル URL</label>
+                        <label class="block text-[10px] font-bold text-green-500 mb-1"><i class="fa-solid fa-camera"></i> カメラポータル (映像送出用)</label>
                         <div class="flex gap-2">
-                            <input type="text" id="url-camera" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
-                            <button onclick="copyURL('url-camera')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
+                            <input type="text" id="url-camera" readonly class="flex-1 bg-[#0e0e10] border border-gray-700 rounded-lg p-1.5 text-xs text-gray-300 focus:outline-none">
+                            <button onclick="copyURL('url-camera')" class="bg-gray-700 hover:bg-gray-600 text-white px-3 rounded-lg text-xs font-bold transition-colors">コピー</button>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs text-blue-400 mb-1"><i class="fa-solid fa-tv"></i> OBSカメラ取り込み専用 URL (映像+音声)</label>
+                        <label class="block text-[10px] font-bold text-blue-400 mb-1"><i class="fa-solid fa-tv"></i> OBSカメラ取り込み (映像+音声)</label>
                         <div class="flex gap-2">
-                            <input type="text" id="url-obs-cam" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
-                            <button onclick="copyURL('url-obs-cam')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
+                            <input type="text" id="url-obs-cam" readonly class="flex-1 bg-[#0e0e10] border border-gray-700 rounded-lg p-1.5 text-xs text-gray-300 focus:outline-none">
+                            <button onclick="copyURL('url-obs-cam')" class="bg-gray-700 hover:bg-gray-600 text-white px-3 rounded-lg text-xs font-bold transition-colors">コピー</button>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1"><i class="fa-solid fa-tv text-gray-500"></i> 旧OBS用 URL (再生バーのみ透過)</label>
+                        <label class="block text-[10px] font-bold text-gray-500 mb-1"><i class="fa-solid fa-tv"></i> 旧OBS用 (テロップのみ透過)</label>
                         <div class="flex gap-2">
-                            <input type="text" id="url-obs" readonly class="flex-1 bg-gray-900 border border-gray-600 rounded p-1 text-xs text-gray-300">
-                            <button onclick="copyURL('url-obs')" class="bg-gray-700 hover:bg-gray-600 px-2 rounded text-xs">コピー</button>
+                            <input type="text" id="url-obs" readonly class="flex-1 bg-[#0e0e10] border border-gray-700 rounded-lg p-1.5 text-xs text-gray-300 focus:outline-none">
+                            <button onclick="copyURL('url-obs')" class="bg-gray-700 hover:bg-gray-600 text-white px-3 rounded-lg text-xs font-bold transition-colors">コピー</button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <p class="text-center text-xs text-gray-500 mt-4">Host UI</p>
+        <p class="text-center text-xs text-gray-600 mt-2 lg:mt-0 lg:mb-4 pb-4 lg:pb-0">Host Control Panel v1.2</p>
     </div>
 
     <!-- カメラ中継用のダミー要素 -->
@@ -299,6 +336,37 @@
 
         let hostMediaConn = null; 
         let currentStreamToListeners = null;
+
+        // スマホ用タブ切り替え関数
+        function switchHostMobileTab(tabName) {
+            // タブボタンのアクティブ化
+            ['queue', 'chat', 'settings'].forEach(name => {
+                const btn = document.getElementById('tab-' + name);
+                if(btn) {
+                    if(name === tabName) {
+                        btn.classList.add('text-indigo-400', 'border-indigo-500');
+                        btn.classList.remove('text-gray-500', 'border-transparent');
+                    } else {
+                        btn.classList.remove('text-indigo-400', 'border-indigo-500');
+                        btn.classList.add('text-gray-500', 'border-transparent');
+                    }
+                }
+            });
+
+            // コンテンツのアクティブ化
+            document.querySelectorAll('.mobile-tab-content').forEach(el => {
+                el.classList.remove('active');
+                if(el.classList.contains('mobile-tab-' + tabName)) {
+                    el.classList.add('active');
+                }
+            });
+            
+            // チャットタブを開いた時は一番下までスクロール
+            if(tabName === 'chat') {
+                const chatList = document.getElementById('host-chat-list');
+                if(chatList) chatList.scrollTop = chatList.scrollHeight;
+            }
+        }
 
         window.onload = () => {
             const unlockTTS = () => { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); };
@@ -354,7 +422,7 @@
         function showToast(msg, type="info") {
             const toast = document.getElementById('toast');
             document.getElementById('toast-msg').innerHTML = msg;
-            toast.className = `toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3 text-sm`;
+            toast.className = `toast bg-gray-800 border-l-4 border-indigo-500 text-white p-4 rounded-xl shadow-lg flex items-center gap-3 text-sm font-bold`;
             if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
             else toast.classList.replace('border-red-500', 'border-indigo-500');
             toast.classList.add('show');
@@ -439,7 +507,7 @@
         function copyURL(inputId) {
             document.getElementById(inputId).select();
             document.execCommand("copy");
-            showToast("コピーしました！");
+            showToast("URLをコピーしました！");
         }
 
         function renderHostHistory() {
@@ -448,20 +516,20 @@
             const history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
             
             if(history.length === 0) {
-                list.innerHTML = '<p class="text-gray-500 text-center text-sm py-4">過去の作成履歴はありません</p>';
+                list.innerHTML = '<p class="text-gray-600 text-center text-xs py-4 font-bold">過去の作成履歴はありません</p>';
                 return;
             }
 
             list.innerHTML = '';
             history.forEach(item => {
                 const div = document.createElement('div');
-                div.className = 'bg-gray-800 p-3 rounded-lg flex justify-between items-center cursor-pointer hover:bg-gray-700 transition border border-transparent hover:border-red-500/50 mb-2';
+                div.className = 'bg-[#0e0e10] p-3.5 rounded-xl flex justify-between items-center cursor-pointer hover:bg-gray-800 transition border border-gray-800 hover:border-indigo-500/50 mb-2 shadow-inner group';
                 div.innerHTML = `
                     <div class="flex-1 min-w-0" onclick="joinFromHostHistory('${item.roomId}', '${item.hostName}', '${item.password || ''}')">
-                        <div class="font-bold text-white text-sm truncate">${item.hostName} の部屋</div>
-                        <div class="text-xs text-gray-400">ID: ${item.roomId}</div>
+                        <div class="font-bold text-gray-200 text-sm truncate group-hover:text-indigo-400 transition-colors">${item.hostName} の部屋</div>
+                        <div class="text-[10px] text-gray-500 font-mono mt-0.5">ID: ${item.roomId}</div>
                     </div>
-                    <button class="text-red-400 hover:text-red-300 p-2" onclick="deleteHostHistory('${item.roomId}', event)"><i class="fa-solid fa-xmark"></i></button>
+                    <button class="text-gray-600 hover:text-red-400 p-2 transition-colors" onclick="deleteHostHistory('${item.roomId}', event)"><i class="fa-solid fa-trash-can"></i></button>
                 `;
                 list.appendChild(div);
             });
@@ -514,24 +582,15 @@
 
             peer = new Peer(`jukebox-${currentRoomId}`);
 
-            peer.on('disconnected', () => {
-                if (peer && !peer.destroyed) {
-                    peer.reconnect();
-                }
-            });
-
             peer.on('open', (id) => {
                 document.getElementById('status-dot').classList.replace('bg-yellow-500', 'bg-green-500');
+                document.getElementById('status-dot').classList.replace('shadow-[0_0_8px_rgba(234,179,8,0.8)]', 'shadow-[0_0_8px_rgba(34,197,94,0.8)]');
                 document.getElementById('status-text').textContent = "オンライン (待機中)";
                 document.getElementById('error-text').classList.add('hidden');
                 loadHostState(); 
                 loadYouTubeAPI(); 
                 
                 setInterval(() => {
-                    if (peer && peer.disconnected && !peer.destroyed) {
-                        peer.reconnect();
-                    }
-
                     if (player && typeof player.getCurrentTime === 'function' && typeof player.getPlayerState === 'function') {
                         let actualVideoId = currentSong ? currentSong.videoId : null;
                         try {
@@ -574,7 +633,8 @@
             });
 
             peer.on('error', (err) => {
-                document.getElementById('status-dot').classList.replace('bg-yellow-500', 'bg-red-500');
+                document.getElementById('status-dot').classList.replace('bg-green-500', 'bg-red-500');
+                document.getElementById('status-dot').classList.replace('shadow-[0_0_8px_rgba(34,197,94,0.8)]', 'shadow-[0_0_8px_rgba(239,68,68,0.8)]');
                 document.getElementById('status-text').textContent = "エラー";
                 const errTxt = document.getElementById('error-text');
                 errTxt.textContent = err.type;
@@ -906,24 +966,26 @@
         function updateParticipantsUI() {
             const hList = document.getElementById('host-participant-list');
             if(hList) renderParticipantList(hList);
+            const countEl = document.getElementById('host-participant-count');
+            
+            let validParticipantCount = 0;
+            Object.values(connectedListeners).forEach(p => { if(!p.isObs && !p.isCam) validParticipantCount++; });
+            if (countEl) countEl.textContent = `(現在: ${validParticipantCount}人)`;
         }
 
         function renderParticipantList(container) {
             if(!container) return;
             container.innerHTML = '';
             const list = Object.values(connectedListeners);
-            
-            let validParticipantCount = 0;
 
             list.forEach(p => {
                 if(p.isObs || p.isCam) return; 
-                validParticipantCount++;
                 const div = document.createElement('div');
-                div.className = "flex items-center justify-between bg-gray-700 p-2 rounded text-sm mb-1";
+                div.className = "flex items-center justify-between bg-[#0e0e10] border border-gray-800 p-2 rounded-lg text-sm mb-1";
                 
                 let nameLabel = p.name;
-                if(p.isRemote) nameLabel += ' <span class="text-xs text-yellow-400">(<i class="fa-solid fa-crown text-yellow-400"></i>)</span>';
-                if(p.isMuted) nameLabel += ' <span class="text-xs text-red-400"><i class="fa-solid fa-volume-xmark"></i>ミュート</span>';
+                if(p.isRemote) nameLabel += ' <span class="text-[10px] text-yellow-400 ml-1"><i class="fa-solid fa-crown text-yellow-400"></i> 管理者</span>';
+                if(p.isMuted) nameLabel += ' <span class="text-[10px] text-red-400 ml-1"><i class="fa-solid fa-volume-xmark"></i>ミュート</span>';
 
                 let controls = '';
                 if(!p.isRemote) {
@@ -932,32 +994,29 @@
                             controls += `<button onclick="manageUser('${p.id}', 'approve_cam')" class="text-xs bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded mr-1"><i class="fa-solid fa-check"></i></button>`;
                             controls += `<button onclick="manageUser('${p.id}', 'reject_cam')" class="text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded mr-2"><i class="fa-solid fa-xmark"></i></button>`;
                         } else if(p.cameraStatus === 'approved') {
-                            controls += `<span class="text-xs text-green-400 mr-2"><i class="fa-solid fa-video"></i>許可済</span>`;
+                            controls += `<span class="text-[10px] text-green-400 mr-2 font-bold"><i class="fa-solid fa-video"></i>許可済</span>`;
                         }
                     }
                     controls += `<button onclick="manageUser('${p.id}', 'mute')" class="text-xs ${p.isMuted ? 'bg-gray-500' : 'bg-orange-600'} text-white px-2 py-1 rounded mr-1" title="リクエスト禁止"><i class="fa-solid fa-volume-xmark"></i></button>`;
                     controls += `<button onclick="manageUser('${p.id}', 'ban')" class="text-xs bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded" title="BAN"><i class="fa-solid fa-ban"></i></button>`;
                 }
 
-                div.innerHTML = `<div class="truncate flex-1"><span class="text-gray-200">${nameLabel}</span></div><div class="flex-shrink-0 flex items-center">${controls}</div>`;
+                div.innerHTML = `<div class="truncate flex-1 font-medium"><span class="text-gray-200">${nameLabel}</span></div><div class="flex-shrink-0 flex items-center">${controls}</div>`;
                 container.appendChild(div);
             });
 
-            const countEl = document.getElementById('host-participant-count');
-            if (countEl) countEl.textContent = `(現在: ${validParticipantCount}人)`;
-
             if(Object.keys(bannedUsers).length > 0) {
                 const banHeader = document.createElement('div');
-                banHeader.className = "text-xs font-bold text-red-400 mt-4 mb-2 border-b border-gray-700 pb-1";
-                banHeader.innerHTML = `<i class="fa-solid fa-ban"></i> BANされたユーザー`;
+                banHeader.className = "text-[10px] font-bold text-red-400 mt-4 mb-2 border-b border-gray-800 pb-1 uppercase tracking-wider";
+                banHeader.innerHTML = `<i class="fa-solid fa-ban"></i> Banned Users`;
                 container.appendChild(banHeader);
 
                 Object.entries(bannedUsers).forEach(([id, info]) => {
                     const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-red-900/30 border border-red-900 p-2 rounded text-sm mb-1";
+                    div.className = "flex items-center justify-between bg-red-900/20 border border-red-900/50 p-2 rounded-lg text-sm mb-1";
                     div.innerHTML = `
-                        <div class="truncate flex-1"><span class="text-gray-300 line-through">${info.name}</span></div>
-                        <button onclick="manageUser('${id}', 'unban')" class="text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded">解除</button>
+                        <div class="truncate flex-1"><span class="text-gray-400 line-through">${info.name}</span></div>
+                        <button onclick="manageUser('${id}', 'unban')" class="text-[10px] bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded">解除</button>
                     `;
                     container.appendChild(div);
                 });
@@ -1202,19 +1261,19 @@
             const btn = document.getElementById('btn-light-mode');
             if(isLightMode) {
                 container.classList.add('youtube-hidden');
-                btn.innerHTML = '<i class="fa-solid fa-ban"></i> 映像OFF';
-                btn.classList.replace('bg-gray-700', 'bg-red-600');
+                btn.innerHTML = '<i class="fa-solid fa-ban text-red-400"></i> 映像OFF';
+                btn.classList.replace('bg-gray-800', 'bg-gray-700');
             } else {
                 container.classList.remove('youtube-hidden');
                 btn.innerHTML = '<i class="fa-solid fa-video"></i> 映像ON';
-                btn.classList.replace('bg-red-600', 'bg-gray-700');
+                btn.classList.replace('bg-gray-700', 'bg-gray-800');
             }
         }
 
         function updateUI() {
             if(currentSong) {
                 document.getElementById('host-now-playing').textContent = currentSong.title;
-                document.getElementById('host-now-requester').textContent = currentSong.requester || "";
+                document.getElementById('host-now-requester').innerHTML = `<i class="fa-solid fa-user text-gray-500 text-[10px]"></i> ${currentSong.requester || ""}`;
                 document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
             } else {
                 document.getElementById('host-now-playing').textContent = "BGM停止中";
@@ -1225,25 +1284,28 @@
             if(playBtn && player && typeof player.getPlayerState === 'function') {
                 const isPlaying = player.getPlayerState() === 1;
                 playBtn.innerHTML = isPlaying 
-                    ? `<i class="fa-solid fa-pause text-xl"></i>` 
-                    : `<i class="fa-solid fa-play text-xl"></i>`;
+                    ? `<i class="fa-solid fa-pause text-2xl"></i>` 
+                    : `<i class="fa-solid fa-play text-2xl ml-1"></i>`;
             }
 
             const qList = document.getElementById('host-queue-list');
+            const qBadge = document.getElementById('queue-badge');
             if(qList) {
                 qList.innerHTML = '';
+                if(qBadge) qBadge.textContent = queue.length;
+                
                 queue.forEach((q, idx) => {
                     const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-gray-700 p-2 rounded text-sm mb-1";
+                    div.className = "flex items-center justify-between bg-[#0e0e10] p-2.5 rounded-lg border border-gray-800 text-sm mb-1.5 shadow-sm";
                     div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-gray-400 font-bold w-4">${idx+1}</span>
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <span class="text-indigo-400 font-black w-4 text-center">${idx+1}</span>
                             <div class="truncate">
-                                <p class="text-white truncate font-medium">${q.title}</p>
-                                <p class="text-xs text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${q.requesterReal || q.requester} ${q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : ''}</p>
+                                <p class="text-gray-200 truncate font-bold text-xs">${q.title}</p>
+                                <p class="text-[10px] text-gray-500 truncate mt-0.5"><i class="fa-solid fa-user"></i> ${q.requesterReal || q.requester} ${q.isRemote ? '<span class="text-yellow-500 ml-1"><i class="fa-solid fa-crown"></i></span>' : ''}</p>
                             </div>
                         </div>
-                        <button onclick="removeQueue('${q.id}')" class="text-red-400 hover:text-red-300 px-2 flex-shrink-0"><i class="fa-solid fa-xmark"></i></button>
+                        <button onclick="removeQueue('${q.id}')" class="text-gray-600 hover:text-red-400 px-2 flex-shrink-0 transition-colors"><i class="fa-solid fa-xmark"></i></button>
                     `;
                     qList.appendChild(div);
                 });
@@ -1254,16 +1316,16 @@
                 hostHist.innerHTML = '';
                 historyQueue.forEach((q, idx) => {
                     const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-gray-900 border border-gray-700 p-2 rounded text-sm mb-1";
+                    div.className = "flex items-center justify-between bg-[#0e0e10] border border-gray-800 p-2 rounded-lg text-sm mb-1.5";
                     div.innerHTML = `
                         <div class="flex items-center gap-2 overflow-hidden flex-1">
-                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <span class="text-gray-600 font-bold w-4 text-[10px]">${idx+1}</span>
                             <div class="truncate">
-                                <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                <p class="text-xs text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.requesterReal}</p>
+                                <p class="text-gray-400 truncate font-medium text-[11px]">${q.title}</p>
+                                <p class="text-[9px] text-gray-600 truncate"><i class="fa-solid fa-user"></i> ${q.requesterReal}</p>
                             </div>
                         </div>
-                        <button onclick="reRequestHost('${q.videoId}', '${q.requesterReal}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
+                        <button onclick="reRequestHost('${q.videoId}', '${q.requesterReal}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded-lg flex-shrink-0 shadow transition-colors"><i class="fa-solid fa-rotate-right"></i></button>
                     `;
                     hostHist.appendChild(div);
                 });
@@ -1274,10 +1336,10 @@
                 bList.innerHTML = '';
                 bgmQueue.forEach((b, idx) => {
                     const div = document.createElement('div');
-                    div.className = "flex justify-between bg-gray-900 border border-gray-700 p-2 rounded items-center mb-1";
+                    div.className = "flex justify-between bg-[#0e0e10] border border-gray-800 p-2 rounded-lg items-center mb-1.5";
                     div.innerHTML = `
-                        <span class="text-gray-300 truncate text-xs flex-1">${b.title || '取得中...'}</span>
-                        <button onclick="removeBGM(${idx})" class="text-red-400 hover:text-red-300 px-2"><i class="fa-solid fa-xmark"></i></button>
+                        <span class="text-gray-300 truncate text-[11px] flex-1 font-medium">${b.title || '取得中...'}</span>
+                        <button onclick="removeBGM(${idx})" class="text-gray-600 hover:text-red-400 px-2 transition-colors"><i class="fa-solid fa-xmark"></i></button>
                     `;
                     bList.appendChild(div);
                 });
@@ -1446,19 +1508,19 @@
             container.innerHTML = '';
             chats.forEach(c => {
                 const div = document.createElement('div');
-                div.className = "text-sm bg-gray-900/50 p-2 rounded mb-1 flex justify-between group";
+                div.className = "text-sm bg-[#0e0e10] border border-gray-800 p-2.5 rounded-xl mb-1.5 flex justify-between group shadow-sm";
                 
                 const dispName = c.isAnon ? '184(匿名)' : c.senderReal;
-                const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400"></i> ' : '';
+                const badge = c.isRemote ? '<span class="text-yellow-400 mr-1"><i class="fa-solid fa-crown"></i></span>' : '';
                 
                 div.innerHTML = `
                     <div class="flex-1 min-w-0">
-                        <span class="text-xs text-gray-400 font-bold block truncate">${badge}${dispName}</span>
-                        <p class="text-gray-200 break-all">${c.text}</p>
+                        <span class="text-[10px] text-gray-500 font-bold block truncate mb-0.5">${badge}${dispName}</span>
+                        <p class="text-gray-200 break-all text-xs">${c.text}</p>
                     </div>
                 `;
                 const delBtn = document.createElement('button');
-                delBtn.className = "text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2 transition-opacity flex-shrink-0";
+                delBtn.className = "text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2 transition-all flex-shrink-0";
                 delBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
                 delBtn.onclick = () => deleteChat(c.id);
                 div.appendChild(delBtn);
