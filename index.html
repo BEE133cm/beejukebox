@@ -49,9 +49,6 @@
             border-color: #6366f1;
         }
         button { border-radius: 2px; }
-
-        #host-view.share-mode .hide-on-share { display: none !important; }
-        #host-view.share-mode #host-col-1 { width: 100% !important; border-right: none !important; }
     </style>
 </head>
 <!-- フルスクリーン固定のツール風レイアウト -->
@@ -99,7 +96,7 @@
     <div id="host-view" class="hidden flex-col w-full h-full">
         
         <!-- ヘッダーダッシュボード (固定) -->
-        <header class="h-12 bg-[#18181b] border-b border-gray-700 flex items-center justify-between px-4 shrink-0 shadow-sm z-30 hide-on-share">
+        <header class="h-12 bg-[#18181b] border-b border-gray-700 flex items-center justify-between px-4 shrink-0 shadow-sm z-30">
             <div class="flex items-center gap-4">
                 <h2 class="font-black text-sm text-gray-200 tracking-wider"><i class="fa-solid fa-crown text-yellow-500"></i> HOST DASHBOARD</h2>
                 <div class="hidden sm:flex items-center gap-2 border-l border-gray-700 pl-4">
@@ -125,7 +122,7 @@
         <div id="mobile-tab-header" class="flex lg:hidden bg-[#18181b] border-b border-gray-800 shrink-0 z-20">
             <button onclick="switchHostMobileTab('col1')" id="mobile-tab-col1" class="flex-1 py-2 text-[10px] font-bold text-indigo-400 border-b-2 border-indigo-500 transition-colors"><i class="fa-solid fa-desktop"></i> PREVIEW</button>
             <button onclick="switchHostMobileTab('col2')" id="mobile-tab-col2" class="flex-1 py-2 text-[10px] font-bold text-gray-500 border-b-2 border-transparent transition-colors"><i class="fa-solid fa-list-ul"></i> QUEUE</button>
-            <button onclick="switchHostMobileTab('col3')" id="mobile-tab-col3" class="flex-1 py-2 text-[10px] font-bold text-gray-500 border-b-2 border-transparent transition-colors"><i class="fa-solid fa-gear"></i> CHAT/SET</button>
+            <button onclick="switchHostMobileTab('col3')" id="mobile-tab-col3" class="flex-1 py-2 text-[10px] font-bold text-gray-500 border-b-2 border-transparent transition-colors"><i class="fa-solid fa-gear"></i> SETTINGS</button>
         </div>
 
         <!-- 3カラムのメインペイン -->
@@ -134,25 +131,25 @@
             <!-- ===== Column 1: Preview & Mixer (左) ===== -->
             <div id="host-col-1" class="flex flex-col w-full lg:w-5/12 h-full border-b lg:border-b-0 lg:border-r border-gray-800 bg-[#111827] overflow-y-auto p-3 gap-3">
                 
+                <!-- スマホ用: 1行Now Playing (PCでは非表示) -->
+                <div id="mobile-now-playing-container" class="lg:hidden flex items-center gap-2 bg-[#0e0e10] border border-gray-700 p-2 rounded-sm shrink-0 shadow-sm">
+                    <span class="text-[9px] font-black text-red-500 tracking-widest shrink-0"><i class="fa-solid fa-play"></i> NOW:</span>
+                    <div class="marquee-container h-4 flex-1">
+                        <div class="marquee-content host-now-playing-text font-bold text-[10px] text-gray-100 tracking-wide">BGM停止中</div>
+                    </div>
+                </div>
+
                 <!-- テーマ (独立表示) -->
-                <div class="flex items-center gap-2 bg-[#0e0e10] border border-gray-700 p-1.5 rounded-sm shrink-0 hide-on-share shadow-sm">
+                <div class="flex items-center gap-2 bg-[#0e0e10] border border-gray-700 p-1.5 rounded-sm shrink-0 shadow-sm">
                     <span class="bg-gray-800 text-yellow-500 text-[9px] font-black tracking-widest px-2 py-1 rounded-sm border border-gray-700">THEME</span>
                     <input type="text" id="setting-theme" class="flex-1 bg-transparent outline-none text-xs text-white placeholder-gray-600 font-bold" placeholder="現在のテーマ・気分を入力して共有..." onchange="updateHostSettings()">
                 </div>
 
-                <!-- 共有モード等のボタン -->
-                <div class="flex justify-between items-center hide-on-share shrink-0">
-                    <button onclick="toggleShareMode(true)" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded-sm flex items-center gap-1.5 font-bold transition-colors">
-                        <i class="fa-solid fa-tv"></i> 共有モード
-                    </button>
-                    <button onclick="toggleLightMode()" id="btn-light-mode" class="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded-sm transition-colors flex items-center gap-1.5 font-bold">
+                <div class="flex justify-end items-center shrink-0">
+                    <button onclick="toggleLightMode()" id="btn-light-mode" class="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded-sm transition-colors flex items-center gap-1.5 font-bold shadow-sm">
                         <i class="fa-solid fa-video"></i> 映像ON
                     </button>
                 </div>
-                <!-- 共有解除ボタン (共有時のみ) -->
-                <button onclick="toggleShareMode(false)" class="text-xs bg-gray-700 hover:bg-gray-600 border border-gray-500 text-white px-4 py-2 rounded-sm show-on-share items-center gap-2 shadow-lg font-bold transition-colors mx-auto shrink-0 mb-2">
-                    <i class="fa-solid fa-xmark"></i> 共有モード解除
-                </button>
 
                 <!-- マルチビュー (Jukebox & Stream) -->
                 <div class="flex flex-col lg:flex-row gap-2 shrink-0">
@@ -169,8 +166,24 @@
                     </div>
                 </div>
 
-                <!-- オーディオミキサー -->
-                <div class="bg-[#18181b] border border-gray-700 p-2.5 rounded-sm shrink-0 hide-on-share shadow-sm">
+                <!-- スマホ用: 映像下のコントロールとリクエスト欄 (PCでは非表示) -->
+                <div id="mobile-controls-container" class="lg:hidden flex flex-col gap-2 shrink-0">
+                    <div class="flex justify-center gap-4">
+                        <button onclick="togglePlayHost()" class="btn-host-play bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-10 shadow transition-colors">
+                            <i class="fa-solid fa-play text-sm"></i>
+                        </button>
+                        <button onclick="playNext(true)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-10 shadow transition-colors">
+                            <i class="fa-solid fa-forward-step text-sm"></i>
+                        </button>
+                    </div>
+                    <div class="flex gap-1.5">
+                        <input type="text" id="host-request-url-mobile" placeholder="YouTube URLをリクエスト..." class="flex-1 p-2 text-[10px] shadow-inner bg-[#0e0e10] border border-gray-700 text-white">
+                        <button onclick="sendHostRequest('mobile')" class="bg-red-600 hover:bg-red-500 text-white px-3 rounded-sm text-[10px] font-bold transition-colors shadow-sm">追加</button>
+                    </div>
+                </div>
+
+                <!-- オーディオミキサー (PC Only) -->
+                <div id="host-audio-mixer" class="hidden lg:block bg-[#18181b] border border-gray-700 p-2.5 rounded-sm shrink-0 shadow-sm">
                     <div class="text-[9px] font-black text-gray-500 mb-2 border-b border-gray-800 pb-1 tracking-widest">AUDIO MIXER (MONITORING)</div>
                     <div class="space-y-2.5">
                         <!-- Jukebox Vol -->
@@ -181,8 +194,8 @@
                             </button>
                             <input type="range" id="host-jukebox-vol" min="0" max="100" value="100" class="flex-1 h-1.5 bg-gray-800 rounded-full appearance-none accent-indigo-500 cursor-pointer" oninput="changeHostJukeboxVol(this.value)">
                         </div>
-                        <!-- Stream Vol (PC Only) -->
-                        <div class="hidden lg:flex items-center gap-3">
+                        <!-- Stream Vol -->
+                        <div class="flex items-center gap-3">
                             <span class="w-14 text-[10px] font-bold text-red-400 tracking-wider">STREAM</span>
                             <button onclick="toggleHostStreamMute()" class="w-6 h-6 bg-[#0e0e10] hover:bg-gray-800 border border-gray-700 rounded-sm flex items-center justify-center text-gray-400 transition-colors shrink-0">
                                 <i id="icon-host-stream-mute" class="fa-solid fa-volume-xmark text-[10px]"></i>
@@ -192,30 +205,38 @@
                     </div>
                 </div>
 
-                <!-- Now Playing & Controls -->
-                <div class="bg-[#18181b] border border-gray-700 p-3 rounded-sm flex flex-col gap-2 shrink-0 hide-on-share shadow-sm flex-1 min-h-[120px]">
+                <!-- Now Playing & Controls (PC Only) -->
+                <div id="pc-now-playing-container" class="hidden lg:flex bg-[#18181b] border border-gray-700 p-3 rounded-sm flex-col gap-2 shrink-0 shadow-sm flex-1 min-h-[140px]">
                     <div class="text-[9px] font-black text-red-500 mb-0.5 border-b border-gray-800 pb-1 tracking-widest flex justify-between items-center">
                         <span><i class="fa-solid fa-play"></i> NOW PLAYING</span>
-                        <span id="host-now-requester" class="text-gray-500 font-normal normal-case">---</span>
+                        <span class="host-now-requester-text text-gray-500 font-normal normal-case">---</span>
                     </div>
                     <div class="marquee-container h-6 mb-1">
-                        <div id="host-now-playing" class="marquee-content font-bold text-sm text-gray-100 tracking-wide">BGM停止中</div>
+                        <div class="marquee-content host-now-playing-text font-bold text-sm text-gray-100 tracking-wide">BGM停止中</div>
                     </div>
                     
-                    <div class="flex justify-center gap-4 mt-auto pt-2">
-                        <button onclick="togglePlayHost()" id="btn-host-play" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-3 rounded-sm flex items-center justify-center w-12 h-10 transition-colors shadow">
+                    <div class="flex justify-center gap-4 mt-auto">
+                        <button onclick="togglePlayHost()" class="btn-host-play bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-8 transition-colors shadow">
                             <i class="fa-solid fa-play text-sm"></i>
                         </button>
-                        <button onclick="playNext(true)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-3 rounded-sm flex items-center justify-center w-12 h-10 transition-colors shadow">
+                        <button onclick="playNext(true)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-8 transition-colors shadow">
                             <i class="fa-solid fa-forward-step text-sm"></i>
                         </button>
                     </div>
+
+                    <!-- Hostからのリクエスト入力欄 -->
+                    <div class="border-t border-gray-800 pt-2 flex gap-1.5 shrink-0">
+                        <input type="text" id="host-request-url-pc" placeholder="YouTube URLをリクエスト..." class="flex-1 p-1.5 text-[10px] bg-[#0e0e10] border border-gray-700 text-white">
+                        <button onclick="sendHostRequest('pc')" class="bg-red-600 hover:bg-red-500 text-white px-3 rounded-sm text-[10px] font-bold transition-colors shadow-sm">追加</button>
+                    </div>
                 </div>
+
+                <!-- スマホ用: チャット＆参加者コンテナ (JSで移動させるプレースホルダー) -->
+                <div id="mobile-chat-participant-container" class="flex flex-col gap-3 lg:hidden shrink-0 pb-4"></div>
             </div>
 
             <!-- ===== Column 2: Queue & History (中央) ===== -->
             <div id="host-col-2" class="hidden lg:flex flex-col w-full lg:w-3/12 h-full border-b lg:border-b-0 lg:border-r border-gray-800 bg-[#0e0e10]">
-                
                 <!-- リクエストキュー (上半分) -->
                 <div class="h-1/2 flex flex-col border-b border-gray-800 p-2.5">
                     <div class="flex justify-between items-center border-b border-gray-800 pb-1.5 mb-2 shrink-0">
@@ -235,19 +256,21 @@
             <!-- ===== Column 3: Chat & Settings (右) ===== -->
             <div id="host-col-3" class="hidden lg:flex flex-col w-full lg:w-4/12 h-full bg-[#0e0e10]">
                 
-                <!-- チャット (上半分) -->
-                <div class="h-1/2 flex flex-col border-b border-gray-800 p-2.5">
-                    <div class="flex justify-between items-center border-b border-gray-800 pb-1.5 mb-2 shrink-0">
-                        <h3 class="text-[10px] font-black text-gray-400 tracking-widest uppercase"><i class="fa-solid fa-comment-dots"></i> LIVE CHAT</h3>
-                        <label class="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 cursor-pointer hover:text-gray-200 transition-colors">
-                            <input type="checkbox" id="host-tts-toggle" class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500 focus:ring-transparent">
-                            <i class="fa-solid fa-head-side-waveform"></i> 読上
-                        </label>
-                    </div>
-                    <div id="host-chat-list" class="flex-1 overflow-y-auto space-y-1 pr-1 mb-2 min-h-0"></div>
-                    <div class="flex gap-1.5 shrink-0">
-                        <input type="text" id="host-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest()" placeholder="メッセージ..." class="flex-1 p-2 text-xs" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
-                        <button onclick="sendChatRequest()" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 w-10 rounded-sm flex items-center justify-center transition-colors shadow-sm"><i class="fa-solid fa-paper-plane text-xs"></i></button>
+                <!-- チャット (上半分 / スマホ時はcol1へ移動) -->
+                <div id="host-col-3-top" class="h-1/2 flex flex-col border-b border-gray-800 p-2.5">
+                    <div id="chat-container" class="flex flex-col h-full bg-[#111827] rounded-sm p-2 shadow-sm">
+                        <div class="flex justify-between items-center border-b border-gray-800 pb-1.5 mb-2 shrink-0">
+                            <h3 class="text-[10px] font-black text-gray-400 tracking-widest uppercase"><i class="fa-solid fa-comment-dots"></i> LIVE CHAT</h3>
+                            <label class="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 cursor-pointer hover:text-gray-200 transition-colors">
+                                <input type="checkbox" id="host-tts-toggle" class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500 focus:ring-transparent">
+                                <i class="fa-solid fa-head-side-waveform"></i> 読上
+                            </label>
+                        </div>
+                        <div id="host-chat-list" class="flex-1 overflow-y-auto space-y-1 pr-1 mb-2 min-h-0"></div>
+                        <div class="flex gap-1.5 shrink-0">
+                            <input type="text" id="host-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest()" placeholder="メッセージ..." class="flex-1 p-2 text-xs bg-[#0e0e10] border border-gray-700" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+                            <button onclick="sendChatRequest()" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 w-10 rounded-sm flex items-center justify-center transition-colors shadow-sm"><i class="fa-solid fa-paper-plane text-xs"></i></button>
+                        </div>
                     </div>
                 </div>
 
@@ -265,14 +288,17 @@
                         
                         <!-- 参加者管理タブ -->
                         <div id="tab-content-participants" class="absolute inset-0 p-2.5 flex flex-col overflow-y-auto">
-                            <div class="flex justify-between items-center mb-2 border-b border-gray-800 pb-1.5 shrink-0">
-                                <h3 class="text-[10px] font-bold text-gray-400"><i class="fa-solid fa-users"></i> 参加者 <span id="host-participant-count" class="font-normal ml-1"></span></h3>
-                                <label class="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 cursor-pointer hover:text-gray-200">
-                                    <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-red-500 focus:ring-transparent">
-                                    視聴承認制
-                                </label>
+                            <!-- JSで移動するコンテナ -->
+                            <div id="participant-container" class="flex flex-col h-full bg-[#111827] rounded-sm p-2 shadow-sm min-h-0">
+                                <div class="flex justify-between items-center mb-2 border-b border-gray-800 pb-1.5 shrink-0">
+                                    <h3 class="text-[10px] font-bold text-gray-400"><i class="fa-solid fa-users"></i> 参加者 <span id="host-participant-count" class="font-normal ml-1"></span></h3>
+                                    <label class="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 cursor-pointer hover:text-gray-200">
+                                        <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-red-500 focus:ring-transparent">
+                                        視聴承認制
+                                    </label>
+                                </div>
+                                <div id="host-participant-list" class="flex-1 space-y-1 pr-1 overflow-y-auto min-h-0"></div>
                             </div>
-                            <div id="host-participant-list" class="flex-1 space-y-1 pr-1"></div>
                         </div>
 
                         <!-- BGMタブ -->
@@ -398,6 +424,43 @@
         let hostMediaConn = null; 
         let currentStreamToListeners = null;
 
+        // スマホ用: DOMの動的配置変更処理
+        function adjustLayoutForMobile() {
+            const isMobile = window.innerWidth < 1024;
+            const chatContainer = document.getElementById('chat-container');
+            const participantContainer = document.getElementById('participant-container');
+            const col3Top = document.getElementById('host-col-3-top');
+            const tabParticipants = document.getElementById('tab-content-participants');
+            const mobileContainer = document.getElementById('mobile-chat-participant-container');
+            
+            if (isMobile) {
+                // スマホレイアウトに移動
+                if (chatContainer.parentNode !== mobileContainer) {
+                    mobileContainer.appendChild(chatContainer);
+                    chatContainer.classList.remove('h-full');
+                    chatContainer.style.height = '280px';
+                }
+                if (participantContainer.parentNode !== mobileContainer) {
+                    mobileContainer.appendChild(participantContainer);
+                    participantContainer.classList.remove('h-full');
+                    participantContainer.style.height = '250px';
+                }
+            } else {
+                // PCレイアウトに戻す
+                if (chatContainer.parentNode !== col3Top) {
+                    col3Top.appendChild(chatContainer);
+                    chatContainer.classList.add('h-full');
+                    chatContainer.style.height = '100%';
+                }
+                if (participantContainer.parentNode !== tabParticipants) {
+                    tabParticipants.appendChild(participantContainer);
+                    participantContainer.classList.add('h-full');
+                    participantContainer.style.height = '100%';
+                }
+            }
+        }
+        window.addEventListener('resize', adjustLayoutForMobile);
+
         // スマホ用ペイン切り替え
         function switchHostMobileTab(tabName) {
             ['col1', 'col2', 'col3'].forEach(name => {
@@ -417,8 +480,6 @@
             const col2 = document.getElementById('host-col-2');
             const col3 = document.getElementById('host-col-3');
             
-            // Col 1はPC時固定幅、スマホ時は全幅または非表示にするか？
-            // ツール風なら、Col1は「PREVIEW」、Col2は「QUEUE」、Col3は「CHAT」として完全に切り替える。
             if(window.innerWidth < 1024) {
                 if(tabName === 'col1') {
                     col1.classList.remove('hidden'); col1.classList.add('flex');
@@ -432,11 +493,13 @@
                     col1.classList.add('hidden'); col1.classList.remove('flex');
                     col2.classList.add('hidden'); col2.classList.remove('flex');
                     col3.classList.remove('hidden'); col3.classList.add('flex');
+                    
+                    // CHATとPARTICIPANTが抜けた穴を埋めるためSETTINGSタブをデフォルト表示
+                    switchHostSettingsTab('settings');
                 }
             }
         }
 
-        // 画面リサイズ時にPCレイアウトに戻す処理
         window.addEventListener('resize', () => {
             if(window.innerWidth >= 1024) {
                 document.getElementById('host-col-1').classList.remove('hidden');
@@ -522,6 +585,8 @@
         }
 
         window.onload = () => {
+            adjustLayoutForMobile(); // 初期レイアウト調整
+            
             const unlockTTS = () => { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); };
             const hTts = document.getElementById('host-tts-toggle');
             if(hTts) hTts.addEventListener('change', unlockTTS);
@@ -711,17 +776,6 @@
             document.getElementById('input-host-name').value = hostName;
             document.getElementById('input-host-password').value = password || '';
             createRoom();
-        }
-
-        function toggleShareMode(enable) {
-            const view = document.getElementById('host-view');
-            if(enable) {
-                view.classList.add('share-mode');
-                showToast("画面共有モードをONにしました");
-            } else {
-                view.classList.remove('share-mode');
-                showToast("画面共有モードを解除しました");
-            }
         }
 
         function initHost() {
@@ -1067,6 +1121,34 @@
             }
             else if(data.type === 'delete_chat') {
                 deleteChat(data.id);
+            }
+        }
+
+        function sendHostRequest(mode = 'pc') {
+            const inputId = mode === 'mobile' ? 'host-request-url-mobile' : 'host-request-url-pc';
+            const url = document.getElementById(inputId).value;
+            if(!url) return;
+            const vid = extractVideoId(url);
+            if(vid) {
+                const song = {
+                    id: generateId(), videoId: vid, title: "取得中...", requester: "👑 " + hostName, requesterReal: hostName, isAnon: false, isRemote: true
+                };
+                queue.push(song);
+                showToast(`リクエストを追加しました`);
+                saveHostState();
+                updateUI();
+                
+                fetchYouTubeTitle(song.videoId).then(title => {
+                    const qItem = queue.find(q => q.id === song.id);
+                    if(qItem) { qItem.title = title; saveHostState(); updateUI(); }
+                });
+                
+                if(!currentSong || currentSong.isBGM) {
+                    if(player && typeof player.getPlayerState === 'function') playNext();
+                }
+                document.getElementById(inputId).value = '';
+            } else {
+                showToast("無効なYouTube URLです", "error");
             }
         }
 
@@ -1457,21 +1539,24 @@
 
         function updateUI() {
             if(currentSong) {
-                document.getElementById('host-now-playing').textContent = currentSong.title;
-                document.getElementById('host-now-requester').innerHTML = `<i class="fa-solid fa-user text-gray-600 text-[10px]"></i> ${currentSong.requester || ""}`;
+                document.querySelectorAll('.host-now-playing-text').forEach(el => el.textContent = currentSong.title);
+                document.querySelectorAll('.host-now-requester-text').forEach(el => {
+                    el.innerHTML = `<i class="fa-solid fa-user text-gray-600 text-[10px]"></i> ${currentSong.requester || ""}`;
+                });
                 document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
             } else {
-                document.getElementById('host-now-playing').textContent = "STOPPED";
-                document.getElementById('host-now-requester').textContent = "---";
+                document.querySelectorAll('.host-now-playing-text').forEach(el => el.textContent = "STOPPED");
+                document.querySelectorAll('.host-now-requester-text').forEach(el => el.textContent = "---");
             }
 
-            const playBtn = document.getElementById('btn-host-play');
-            if(playBtn && player && typeof player.getPlayerState === 'function') {
-                const isPlaying = player.getPlayerState() === 1;
-                playBtn.innerHTML = isPlaying 
-                    ? `<i class="fa-solid fa-pause text-sm"></i>` 
-                    : `<i class="fa-solid fa-play text-sm ml-0.5"></i>`;
-            }
+            document.querySelectorAll('.btn-host-play').forEach(btn => {
+                if (player && typeof player.getPlayerState === 'function') {
+                    const isPlaying = player.getPlayerState() === 1;
+                    btn.innerHTML = isPlaying 
+                        ? `<i class="fa-solid fa-pause text-sm"></i>` 
+                        : `<i class="fa-solid fa-play text-sm ml-0.5"></i>`;
+                }
+            });
 
             const qList = document.getElementById('host-queue-list');
             const qBadge = document.getElementById('queue-badge');
