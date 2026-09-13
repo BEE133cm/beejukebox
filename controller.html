@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Remote Jukebox - Controller</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: white; overscroll-behavior-y: none; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+        .marquee-container { overflow: hidden; white-space: nowrap; position: relative; width: 100%; display: flex; }
+        .marquee-content { 
+            display: inline-block; 
+            white-space: nowrap;
+            padding-left: 100vw; 
+            animation: marquee 15s linear infinite; 
+        }
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+        }
+
+        .toast {
+            position: fixed; top: 20px; right: 20px; z-index: 9999;
+            transform: translateX(150%); transition: transform 0.3s ease-in-out;
+        }
+        .toast.show { transform: translateX(0); }
+
+        .banned-overlay {
+            position: fixed; inset: 0; background: #000; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+
+        .layer-hidden { opacity: 0; pointer-events: none; z-index: 0; }
+        .layer-visible { opacity: 1; pointer-events: auto; z-index: 10; }
+        
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
+
+        /* チャット入力フローティング作戦 (キーボード対策) */
+        .chat-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 30;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+        .chat-backdrop.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .chat-input-container {
+            transition: all 0.2s ease;
+        }
+        .chat-input-floating {
+            position: fixed !important;
+            top: 35vh !important; 
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 9999 !important;
+            padding: 15px !important;
+            background: rgba(24, 24, 27, 0.98) !important;
+            border-top: 1px solid #4f46e5 !important;
+            border-bottom: 1px solid #4f46e5 !important;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important;
+        }
+    </style>
+</head>
+<body class="p-0 overflow-hidden relative">
+
+    <!-- トースト通知 -->
+    <div id="toast" class="toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3">
+        <span id="toast-msg"></span>
+    </div>
+
+    <!-- リモコン用上部速報通知 -->
+    <div id="remote-top-notification" class="fixed top-0 left-0 w-full z-[9999] transform -translate-y-full transition-transform duration-300 ease-out flex justify-center pointer-events-none">
+        <div class="bg-gray-900 border-b-2 border-indigo-500 shadow-[0_10px_25px_rgba(0,0,0,0.8)] rounded-b-2xl p-4 w-full max-w-md flex flex-col gap-3 pointer-events-auto backdrop-blur-md bg-opacity-95">
+            <div class="flex justify-between items-center gap-3">
+                <span id="remote-top-msg" class="text-white text-sm font-bold flex-1 break-words leading-tight"></span>
+                <button onclick="closeRemoteTopNotification()" class="text-gray-400 hover:text-white flex-shrink-0 bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="remote-top-action" class="hidden flex gap-2 mt-1"></div>
+        </div>
+    </div>
+
+    <!-- パスワード入力モーダル -->
+    <div id="password-modal" class="hidden fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-indigo-500 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
+            <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-lock"></i> パスワードが必要です</h3>
+            <p class="text-sm text-gray-400 mb-6">このルームを操作・配信するには<br>ホストが設定したパスワードが必要です。</p>
+            <input type="password" id="room-password-input" placeholder="管理パスワードを入力" class="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white mb-2 outline-none focus:border-indigo-500">
+            <p id="password-error" class="hidden text-red-500 text-xs mb-4">パスワードが間違っています</p>
+            <div class="flex gap-3 mt-4">
+                <button onclick="closePasswordModal()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">キャンセル</button>
+                <button onclick="submitPassword()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg">接続する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- リモコン用カメラ承認ポップアップ -->
+    <div id="remote-cam-modal" class="hidden fixed inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
+            <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-video"></i> 視聴リクエスト</h3>
+            <p class="text-sm text-gray-300 mb-6"><span id="remote-cam-req-name" class="font-bold text-yellow-400 text-lg"></span> さんがカメラの視聴を申請しました。</p>
+            <div class="space-y-3">
+                <button onclick="handleRemoteCamRequest('approve')" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2"><i class="fa-regular fa-circle"></i> 承認する</button>
+                <button onclick="handleRemoteCamRequest('reject')" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2"><i class="fa-solid fa-xmark"></i> 拒否する</button>
+                <button onclick="handleRemoteCamRequest('ignore')" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">後で決める (無視)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= リモコン画面 (新フルスクリーンUI) ================= -->
+    <div id="remote-view" class="flex fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex-col text-sm">
+        
+        <div id="remote-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
+            <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
+                <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                    <h3 class="text-white font-bold text-sm"><i class="fa-solid fa-gear"></i> メディア設定</h3>
+                    <button onclick="document.getElementById('remote-settings-modal').classList.add('hidden')" class="text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-video"></i> Streamの音声</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggle-remote-cam-mute" class="sr-only peer" onchange="toggleRemoteAudioFromSwitch(this.checked)">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-music"></i> Jukeboxの音声</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggle-remote-wp-mute" class="sr-only peer" onchange="toggleWatchPartyMuteFromSwitch(this.checked)">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-desktop"></i> Jukeboxの映像</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggle-remote-wp-video" class="sr-only peer" checked onchange="toggleRemoteWatchPartyVideoFromSwitch(this.checked)">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 1. 映像エリア (上部固定) -->
+        <div id="remote-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden" style="aspect-ratio: 16/9;">
+            <!-- NowPlaying帯 -->
+            <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
+                <div class="marquee-container h-4 flex-1">
+                    <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
+                        <span id="remote-now-playing">接続待ち...</span>
+                        <span id="remote-now-requester" class="text-indigo-300 font-normal"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Streamレイヤー -->
+            <div id="remote-cam-layer" class="absolute inset-0 layer-hidden bg-black">
+                <button onclick="requestRemoteCamera()" id="btn-remote-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
+                    <i class="fa-solid fa-video"></i> 映像を受信 (タップ)
+                </button>
+                <video id="remote-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
+            </div>
+            
+            <!-- Jukeboxレイヤー -->
+            <div id="remote-wp-layer" class="absolute inset-0 layer-visible bg-black">
+                <div id="remote-youtube-player-wrapper" class="w-full h-full">
+                    <div id="remote-youtube-player" class="w-full h-full pointer-events-auto"></div>
+                </div>
+                <!-- 初回タップ用オーバーレイ -->
+                <div id="remote-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
+                    <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
+                    <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 1.5 テーマ表示 -->
+        <div id="remote-theme-display-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
+
+        <div class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
+            <div class="flex gap-2">
+                <button onclick="switchRemoteLayer('cam')" id="remote-tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
+                <button onclick="switchRemoteLayer('wp')" id="remote-tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
+            </div>
+            <button onclick="document.getElementById('remote-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </div>
+
+        <!-- 3. 基本コントロール (テーマ入力 & 再生ボタン) -->
+        <div class="flex-shrink-0 bg-[#111827] border-b border-gray-800 px-3 py-3 space-y-2 z-10 shadow-md">
+            <div class="flex gap-2">
+                <input type="text" id="remote-input-theme" placeholder="テーマ・気分を変更" class="flex-1 bg-[#18181b] border border-gray-700 rounded-lg p-2 text-white text-xs outline-none focus:border-indigo-500">
+                <button onclick="sendRemoteTheme()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 rounded-lg text-xs font-bold transition-colors">更新</button>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="sendRemoteCommand('toggle')" id="btn-remote-play" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-lg shadow transition-transform active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-play text-lg"></i>
+                </button>
+                <button onclick="sendRemoteCommand('skip')" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2.5 rounded-lg shadow transition-transform active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-forward-step text-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 4. タブメニューエリア (下部) -->
+        <div class="flex-1 flex flex-col min-h-0 bg-[#0e0e10]">
+            <!-- タブヘッダー -->
+            <div class="flex bg-[#18181b] border-b border-gray-800 shrink-0 shadow-md z-10">
+                <button onclick="switchRemoteMenuTab('chat')" id="remote-menu-tab-chat" class="flex-1 py-2.5 text-[11px] font-bold text-indigo-400 border-b-2 border-indigo-500 transition-colors">💬 コメント</button>
+                <button onclick="switchRemoteMenuTab('users')" id="remote-menu-tab-users" class="flex-1 py-2.5 text-[11px] font-bold text-gray-500 border-b-2 border-transparent transition-colors">👥 参加者</button>
+                <button onclick="switchRemoteMenuTab('list')" id="remote-menu-tab-list" class="flex-1 py-2.5 text-[11px] font-bold text-gray-500 border-b-2 border-transparent transition-colors">📋 リスト</button>
+                <button onclick="switchRemoteMenuTab('misc')" id="remote-menu-tab-misc" class="flex-1 py-2.5 text-[11px] font-bold text-gray-500 border-b-2 border-transparent transition-colors">⚙️ その他</button>
+            </div>
+
+            <!-- コンテンツエリア -->
+            <div class="flex-1 relative overflow-hidden">
+                <!-- 💬 コメント タブ -->
+                <div id="remote-menu-content-chat" class="absolute inset-0 flex flex-col">
+                    <div id="remote-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto pb-4 relative z-10"></div>
+                    <!-- チャット入力フローティング -->
+                    <div id="remote-chat-backdrop" class="chat-backdrop" onclick="closeRemoteChatInput()"></div>
+                    <div id="remote-chat-input-container" class="flex-shrink-0 px-3 py-2 bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20 pb-safe">
+                        <input type="text" id="remote-chat-input" name="dummy-remote-chat" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusRemoteChatInput()" onblur="blurRemoteChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest()" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
+                        <button onclick="sendChatRequest()" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
+                    </div>
+                </div>
+
+                <!-- 👥 参加者 タブ -->
+                <div id="remote-menu-content-users" class="hidden absolute inset-0 overflow-y-auto p-3 bg-[#111827] pb-12">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-2 mb-3">
+                        <h3 class="font-bold text-gray-200 text-xs">参加者管理 <span id="remote-participant-count" class="text-indigo-300 ml-1"></span></h3>
+                        <label class="flex items-center gap-1 text-[10px] text-gray-300 cursor-pointer">
+                            <input type="checkbox" id="remote-cam-approval-toggle" onchange="sendRemoteCamApprovalToggle(this.checked)" class="rounded bg-gray-900 border-gray-600 text-red-500">
+                            視聴承認制
+                        </label>
+                    </div>
+                    <div id="remote-participant-list" class="space-y-2"></div>
+                </div>
+
+                <!-- 📋 リスト タブ -->
+                <div id="remote-menu-content-list" class="hidden absolute inset-0 overflow-y-auto p-3 bg-[#111827] pb-12">
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="text-xs font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">順番待ち (<span id="remote-queue-count">0</span>)</h3>
+                            <div id="remote-queue-list" class="space-y-1.5 text-[10px]"></div>
+                        </div>
+                        <div>
+                            <h3 class="text-xs font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">再生履歴</h3>
+                            <div id="remote-history-list" class="space-y-1.5 text-[10px] text-gray-500"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ⚙️ その他 タブ -->
+                <div id="remote-menu-content-misc" class="hidden absolute inset-0 overflow-y-auto p-3 bg-[#111827] pb-12">
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="text-xs font-bold text-indigo-400 mb-2"><i class="fa-solid fa-music"></i> リモコンからリクエスト</h3>
+                            <div class="flex gap-2">
+                                <input type="text" id="remote-url" placeholder="YouTube URL" class="flex-1 bg-[#18181b] border border-gray-700 rounded p-2 text-white text-xs outline-none focus:border-indigo-500">
+                                <button onclick="sendRemoteRequest()" class="bg-red-600 hover:bg-red-500 text-white px-3 rounded text-xs font-bold transition-colors">追加</button>
+                            </div>
+                        </div>
+                        <div class="border-t border-gray-800 pt-3">
+                            <label class="flex items-center justify-between text-xs text-gray-300 cursor-pointer">
+                                <span><i class="fa-solid fa-head-side-waveform text-indigo-400"></i> チャット読み上げ (TTS)</span>
+                                <div class="relative inline-flex items-center">
+                                    <input type="checkbox" id="remote-tts-toggle" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
+                                </div>
+                            </label>
+                        </div>
+                        <div class="pt-8 text-center text-gray-700 text-[10px]">v1.0.29</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全画面共通リロードボタン (アイコン化) -->
+    <button onclick="location.reload()" class="fixed top-3 right-3 bg-gray-800/80 hover:bg-gray-700 border border-gray-600 text-white w-9 h-9 flex items-center justify-center rounded-full shadow-lg text-sm font-bold z-[9999] backdrop-blur-sm transition-colors active:bg-gray-600" title="画面を更新">
+        <i class="fa-solid fa-rotate-right"></i>
+    </button>
+
+    <script>
+        let peer = null;
+        let currentRoomId = null;
+        
+        let pendingConnection = null; 
+        let savedPasswords = JSON.parse(localStorage.getItem('jukebox_passwords')) || {};
+
+        let chatHistory = []; 
+        let currentSong = null;
+        let cameraApprovalMode = false;
+        let listenerConn = null;
+        let listenerId = null;
+
+        let myGuestUUID = localStorage.getItem('jukebox_uuid');
+        if (!myGuestUUID) {
+            myGuestUUID = 'user-' + generateId() + generateId();
+            localStorage.setItem('jukebox_uuid', myGuestUUID);
+        }
+
+        let isWatchPartyEnabled = true;
+        let remoteHasStream = false;
+
+        let viewerYTPlayer = null;
+        let isWpOverlayActive = true;
+        let hostCurrentTime = 0;
+        let hostCurrentStatus = -1;
+
+        let remoteNotifTimeout = null;
+        let currentCamReqPeerId = null;
+
+        // --- UI操作系関数 ---
+        function focusRemoteChatInput() {
+            document.getElementById('remote-chat-input-container').classList.add('chat-input-floating');
+            document.getElementById('remote-chat-backdrop').classList.add('active');
+        }
+
+        function closeRemoteChatInput() {
+            const input = document.getElementById('remote-chat-input');
+            if (input) input.blur();
+            document.getElementById('remote-chat-input-container').classList.remove('chat-input-floating');
+            document.getElementById('remote-chat-backdrop').classList.remove('active');
+        }
+
+        function blurRemoteChatInputDelay() {
+            setTimeout(() => {
+                const input = document.getElementById('remote-chat-input');
+                if (document.activeElement !== input) {
+                    closeRemoteChatInput();
+                }
+            }, 200);
+        }
+
+        function showToast(msg, type="info") {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerHTML = msg;
+            toast.className = `toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3 text-sm`;
+            if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
+            else toast.classList.replace('border-red-500', 'border-indigo-500');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function showRemoteTopNotification(msg, actionHtml = '') {
+            const panel = document.getElementById('remote-top-notification');
+            const msgEl = document.getElementById('remote-top-msg');
+            const actionEl = document.getElementById('remote-top-action');
+            
+            if(!panel) return;
+            
+            msgEl.innerHTML = msg; 
+            if (actionHtml) {
+                actionEl.innerHTML = actionHtml;
+                actionEl.classList.remove('hidden');
+            } else {
+                actionEl.innerHTML = '';
+                actionEl.classList.add('hidden');
+            }
+            
+            panel.classList.remove('-translate-y-full');
+            panel.classList.add('translate-y-0');
+            
+            if(remoteNotifTimeout) clearTimeout(remoteNotifTimeout);
+            let duration = actionHtml ? 10000 : 4000;
+            remoteNotifTimeout = setTimeout(() => {
+                closeRemoteTopNotification();
+            }, duration);
+        }
+
+        function closeRemoteTopNotification() {
+            const panel = document.getElementById('remote-top-notification');
+            if(panel) {
+                panel.classList.remove('translate-y-0');
+                panel.classList.add('-translate-y-full');
+            }
+        }
+
+        function showPasswordModal() {
+            document.getElementById('password-modal').classList.remove('hidden');
+            document.getElementById('room-password-input').value = '';
+            document.getElementById('password-error').classList.add('hidden');
+        }
+
+        function hidePasswordModal() {
+            document.getElementById('password-modal').classList.add('hidden');
+        }
+
+        function closePasswordModal() {
+            hidePasswordModal();
+            showToast("接続をキャンセルしました", "info");
+            if (pendingConnection) pendingConnection.close();
+        }
+
+        function submitPassword() {
+            const pwd = document.getElementById('room-password-input').value;
+            if (!pwd) {
+                const err = document.getElementById('password-error');
+                err.textContent = "パスワードを入力してください";
+                err.classList.remove('hidden');
+                return;
+            }
+            document.getElementById('password-error').classList.add('hidden');
+
+            if (pendingConnection) {
+                pendingConnection.send({ type: 'auth_request', password: pwd });
+            }
+        }
+
+        function showCameraRequestModal(peerId, name) {
+            currentCamReqPeerId = peerId;
+            document.getElementById('remote-cam-req-name').textContent = name;
+            document.getElementById('remote-cam-modal').classList.remove('hidden');
+        }
+
+        function handleRemoteCamRequest(action) {
+            document.getElementById('remote-cam-modal').classList.add('hidden');
+            if(!currentCamReqPeerId) return;
+            if(action === 'approve') sendRemoteCommand('manage', 'approve_cam', currentCamReqPeerId);
+            else if (action === 'reject') sendRemoteCommand('manage', 'reject_cam', currentCamReqPeerId);
+            currentCamReqPeerId = null;
+        }
+
+        function handleRemoteCamRequestTop(action, targetId) {
+            closeRemoteTopNotification();
+            document.getElementById('remote-cam-modal').classList.add('hidden');
+            if(action === 'approve') sendRemoteCommand('manage', 'approve_cam', targetId);
+            else if (action === 'reject') sendRemoteCommand('manage', 'reject_cam', targetId);
+        }
+
+        function showBannedScreen() {
+            document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500"><i class="fa-solid fa-ban"></i> アクセスがブロックされました</h1><p class="text-gray-300">管理者の操作により、このルームへのアクセスが制限されています。</p></div>';
+        }
+
+        function switchRemoteLayer(layer) {
+            const camLayer = document.getElementById('remote-cam-layer');
+            const wpLayer = document.getElementById('remote-wp-layer');
+            const tabCam = document.getElementById('remote-tab-cam');
+            const tabWp = document.getElementById('remote-tab-wp');
+
+            if(layer === 'cam') {
+                camLayer.classList.replace('layer-hidden', 'layer-visible');
+                wpLayer.classList.replace('layer-visible', 'layer-hidden');
+                tabCam.classList.add('bg-red-600', 'text-white');
+                tabCam.classList.remove('bg-gray-700', 'text-gray-400');
+                tabWp.classList.add('bg-gray-700', 'text-gray-400');
+                tabWp.classList.remove('bg-indigo-600', 'text-white');
+            } else {
+                wpLayer.classList.replace('layer-hidden', 'layer-visible');
+                camLayer.classList.replace('layer-visible', 'layer-hidden');
+                tabWp.classList.add('bg-indigo-600', 'text-white');
+                tabWp.classList.remove('bg-gray-700', 'text-gray-400');
+                tabCam.classList.add('bg-gray-700', 'text-gray-400');
+                tabCam.classList.remove('bg-red-600', 'text-white');
+            }
+        }
+
+        function switchRemoteMenuTab(tabId) {
+            ['chat', 'users', 'list', 'misc'].forEach(id => {
+                document.getElementById('remote-menu-content-' + id).classList.add('hidden');
+                const btn = document.getElementById('remote-menu-tab-' + id);
+                btn.classList.remove('text-indigo-400', 'border-indigo-500');
+                btn.classList.add('text-gray-500', 'border-transparent');
+            });
+            document.getElementById('remote-menu-content-' + tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('remote-menu-tab-' + tabId);
+            activeBtn.classList.add('text-indigo-400', 'border-indigo-500');
+            activeBtn.classList.remove('text-gray-500', 'border-transparent');
+            
+            if(tabId === 'chat') {
+                const chatList = document.getElementById('remote-chat-list');
+                if(chatList) chatList.scrollTop = chatList.scrollHeight;
+            }
+        }
+
+        // --- メディア制御系 ---
+        function toggleRemoteAudioFromSwitch(isSoundOn) {
+            const video = document.getElementById('remote-video');
+            if (video) {
+                video.muted = !isSoundOn;
+                if (!video.muted) video.play().catch(e=>{});
+            }
+        }
+
+        function toggleWatchPartyMuteFromSwitch(isSoundOn) {
+            if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
+            if (isSoundOn) {
+                viewerYTPlayer.unMute();
+            } else {
+                viewerYTPlayer.mute();
+            }
+        }
+
+        function toggleRemoteWatchPartyVideoFromSwitch(isOn) {
+            const playerWrapper = document.getElementById('remote-youtube-player-wrapper');
+            if (playerWrapper) {
+                playerWrapper.style.opacity = isOn ? '1' : '0';
+                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
+            }
+        }
+
+        function handleOverlayClick() {
+            if (isWpOverlayActive) {
+                if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
+                    viewerYTPlayer.unMute();
+                    
+                    const toggle = document.getElementById('toggle-remote-wp-mute');
+                    if(toggle) toggle.checked = true;
+                    
+                    if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
+                        viewerYTPlayer.playVideo();
+                    }
+                }
+                
+                const overlay = document.getElementById('remote-youtube-overlay');
+                if(overlay) overlay.style.display = 'none'; 
+                
+                isWpOverlayActive = false;
+                showToast("音声をONにして視聴を開始しました！", "info");
+            }
+        }
+
+        function loadYouTubeAPI() {
+            if (window.YT && window.YT.Player) {
+                // Ignore
+            } else if (!document.getElementById('youtube-api-script')) {
+                const tag = document.createElement('script');
+                tag.id = 'youtube-api-script';
+                tag.src = 'https://www.youtube.com/iframe_api';
+                const firstScriptTag = document.getElementsByTagName('script')[0];
+                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            }
+        }
+
+        function handleSyncPlayback(data) {
+            const wpPlayerId = 'remote-youtube-player';
+
+            if (!isWatchPartyEnabled) {
+                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
+                    viewerYTPlayer.pauseVideo();
+                }
+                return;
+            }
+
+            if (!viewerYTPlayer) {
+                if (typeof YT === 'undefined' || !YT.Player) {
+                    loadYouTubeAPI(); 
+                    return;
+                }
+                
+                let playerOptions = {
+                    height: '100%', width: '100%',
+                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
+                    events: {
+                        'onReady': (event) => {
+                            event.target.mute(); 
+                        }
+                    }
+                };
+                if (data.videoId) {
+                    playerOptions.videoId = data.videoId;
+                }
+                
+                if (document.getElementById(wpPlayerId)) {
+                    viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
+                }
+                return;
+            }
+
+            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
+            
+            if (!data.videoId) {
+                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
+                    viewerYTPlayer.stopVideo();
+                }
+                currentSong = null;
+                return;
+            }
+
+            const state = viewerYTPlayer.getPlayerState();
+            const currentTime = viewerYTPlayer.getCurrentTime();
+            hostCurrentTime = data.time; 
+            hostCurrentStatus = data.status;
+
+            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
+                currentSong = { videoId: data.videoId };
+                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
+                return;
+            }
+
+            if (data.status === 1) { 
+                if (state !== 1 && state !== 3) viewerYTPlayer.playVideo();
+                
+                const diff = hostCurrentTime - currentTime;
+                
+                if (Math.abs(diff) < 1.0) {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
+                    if (diff > 0) {
+                        viewerYTPlayer.setPlaybackRate(1.05); 
+                    } else {
+                        viewerYTPlayer.setPlaybackRate(0.95); 
+                    }
+                } else {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                }
+            } else if (data.status === 2 || data.status === -1) { 
+                if (state === 1) {
+                    viewerYTPlayer.pauseVideo();
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                }
+            }
+        }
+
+        // --- 初期化・接続処理 ---
+        window.onload = () => {
+            const unlockTTS = () => { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); };
+            const rTts = document.getElementById('remote-tts-toggle');
+            if(rTts) rTts.addEventListener('change', unlockTTS);
+
+            const params = new URLSearchParams(window.location.search);
+            if(params.has('remote')) {
+                currentRoomId = params.get('remote');
+                initController();
+            } else {
+                document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500">エラー</h1><p class="text-gray-300">ルームIDが指定されていません。URLを確認してください。</p></div>';
+            }
+        };
+
+        function generateId() { return Math.random().toString(36).substring(2, 9); }
+
+        function initController() {
+            listenerId = generateId();
+            peer = new Peer(`listener-${listenerId}`);
+
+            peer.on('open', () => {
+                listenerConn = peer.connect(`jukebox-${currentRoomId}`);
+                pendingConnection = listenerConn;
+                
+                listenerConn.on('open', () => {
+                    sendProfileUpdate();
+                });
+
+                listenerConn.on('data', (data) => {
+                    if (data.type === 'ping') {
+                        listenerConn.send({ type: 'pong' });
+                        return;
+                    }
+                    if(data.type === 'banned') {
+                        showBannedScreen();
+                        if(peer) peer.destroy();
+                        return;
+                    }
+                    if(data.type === 'error') { showToast(data.msg, "error"); return; }
+                    
+                    if(data.type === 'remote_alert') {
+                        showRemoteTopNotification(data.msg);
+                        return;
+                    }
+
+                    if(data.type === 'camera_request_alert') {
+                        showCameraRequestModal(data.id, data.name);
+                        const actionBtns = `
+                            <button onclick="handleRemoteCamRequestTop('approve', '${data.id}')" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded-lg text-sm shadow"><i class="fa-solid fa-check"></i> 承認する</button>
+                            <button onclick="handleRemoteCamRequestTop('reject', '${data.id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-lg text-sm shadow"><i class="fa-solid fa-xmark"></i> 拒否する</button>
+                        `;
+                        showRemoteTopNotification(`<i class="fa-solid fa-bell text-yellow-400"></i> <span class="text-yellow-400 text-base">${data.name}</span> が視聴承認待ちです`, actionBtns);
+                        return;
+                    }
+                    
+                    if(data.type === 'sync_playback') {
+                        handleSyncPlayback(data);
+                    }
+                    
+                    if(data.type === 'state') {
+                        if (data.requirePassword) {
+                            const savedPwd = savedPasswords[currentRoomId];
+                            if (savedPwd) {
+                                listenerConn.send({ type: 'auth_request', password: savedPwd });
+                            } else {
+                                showPasswordModal();
+                            }
+                        } else {
+                            pendingConnection = null;
+                        }
+                        
+                        renderControllerState(data);
+                    }
+                    
+                    if (data.type === 'auth_response') {
+                        if (data.success) {
+                            hidePasswordModal();
+                            showToast("認証に成功しました");
+                            const pwdInput = document.getElementById('room-password-input').value;
+                            if (pwdInput) {
+                                savedPasswords[currentRoomId] = pwdInput;
+                                localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                            }
+                            pendingConnection = null;
+                            sendProfileUpdate();
+                        } else {
+                            document.getElementById('password-error').classList.remove('hidden');
+                            delete savedPasswords[currentRoomId];
+                            localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                            showPasswordModal(); 
+                        }
+                    }
+                    
+                    if (data.type === 'auth_required') {
+                         showToast("操作にはパスワード認証が必要です", "error");
+                         pendingConnection = listenerConn;
+                         showPasswordModal();
+                    }
+                    
+                    if(data.type === 'new_chat') {
+                        if(!chatHistory.some(c => c.id === data.chat.id)) {
+                            chatHistory.push(data.chat);
+                            if(chatHistory.length > 100) chatHistory.shift();
+                            
+                            renderChatList('remote-chat-list', chatHistory);
+                            if(data.chat.senderReal !== "配信管理者") {
+                                showRemoteTopNotification(`<i class="fa-solid fa-comment-dots text-gray-400"></i> <span class="text-gray-300 text-xs">${data.chat.senderReal}</span><br>${data.chat.text}`);
+                            }
+                        }
+                        triggerTTS(data.chat);
+                    }
+                });
+            });
+
+            peer.on('call', (call) => {
+                call.answer(); 
+                call.on('stream', (stream) => {
+                    remoteHasStream = true;
+                    const video = document.getElementById('remote-video');
+                    const btn = document.getElementById('btn-remote-toggle-camera');
+                    
+                    if(btn) btn.classList.add('hidden'); 
+                    video.srcObject = stream;
+                    
+                    const camMuteToggle = document.getElementById('toggle-remote-cam-mute');
+                    if(camMuteToggle) camMuteToggle.checked = true;
+                    video.muted = true; // リモコンは最初はミュート
+                    
+                    video.play().catch(e => {
+                        video.muted = true;
+                        if(camMuteToggle) camMuteToggle.checked = false;
+                        video.play().catch(er=>{});
+                    });
+                });
+                call.on('close', () => { 
+                    remoteHasStream = false;
+                    const videoEl = document.getElementById('remote-video');
+                    if (videoEl) videoEl.srcObject = null;
+                    const btn = document.getElementById('btn-remote-toggle-camera');
+                    if(btn) { btn.classList.remove('hidden'); }
+                });
+            });
+        }
+
+        function sendProfileUpdate() {
+            if(!listenerConn || !listenerConn.open) return;
+            listenerConn.send({ type: 'update_profile', name: "👑 配信管理者", isRemote: true, isObs: false, uuid: myGuestUUID });
+        }
+
+        // --- 送信系コマンド ---
+        function requestRemoteCamera() {
+            const btn = document.getElementById('btn-remote-toggle-camera');
+            if (btn && btn.disabled) return; 
+
+            if (listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'request_camera' });
+                if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 取得中...';
+            }
+        }
+
+        function extractVideoId(url) {
+            const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/);
+            return match ? match[1] : null;
+        }
+
+        function sendRemoteRequest() {
+            const url = document.getElementById('remote-url').value;
+            if(!url) return;
+            const vid = extractVideoId(url);
+            if(vid) {
+                listenerConn.send({ type: 'request', videoId: vid, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
+                document.getElementById('remote-url').value = '';
+                showToast("追加しました！");
+            } else {
+                showToast("無効なYouTube URLです", "error");
+            }
+        }
+
+        function sendRemoteCommand(cmd, action = null, targetId = null) {
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'remote_cmd', cmd: cmd, action: action, targetId: targetId });
+                if(cmd !== 'manage') showToast("コマンドを送信しました");
+            }
+        }
+
+        function sendRemoteTheme() {
+            const newTheme = document.getElementById('remote-input-theme').value;
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'update_theme', theme: newTheme });
+                document.getElementById('remote-input-theme').value = '';
+            }
+        }
+
+        function sendRemoteCamApprovalToggle(isChecked) {
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'remote_cmd', cmd: 'manage', action: 'toggle_cam_approval', targetId: isChecked });
+            }
+        }
+
+        function reRequestRemote(videoId) {
+            listenerConn.send({ type: 'request', videoId: videoId, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
+            showToast("再リクエストを追加しました");
+        }
+
+        function sendChatRequest() {
+            const inputId = 'remote-chat-input';
+            const text = document.getElementById(inputId).value.trim();
+            if(!text) return;
+
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'chat', text, sender: `👑 配信管理者`, senderReal: "配信管理者", isAnon: false, isRemote: true });
+                document.getElementById(inputId).value = '';
+                closeRemoteChatInput();
+            }
+        }
+
+        function deleteChat(id) {
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'delete_chat', id });
+            }
+        }
+
+        // --- 描画系 ---
+        function renderChatList(containerId, chats) {
+            const container = document.getElementById(containerId);
+            if(!container) return;
+            
+            container.innerHTML = '';
+            chats.forEach(c => {
+                const div = document.createElement('div');
+                div.className = "text-[13px] leading-relaxed flex group justify-between items-start";
+                
+                const dispName = c.senderReal;
+                const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400"></i> ' : '';
+                const nameColor = c.isRemote ? 'text-yellow-400' : 'text-indigo-400';
+                
+                div.innerHTML = `
+                    <div class="flex-1 break-words mr-2">
+                        <span class="font-bold ${nameColor} mr-1">${badge}${dispName}:</span>
+                        <span class="text-gray-100">${c.text}</span>
+                    </div>
+                `;
+                
+                const delBtn = document.createElement('button');
+                delBtn.className = "text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2 transition-opacity flex-shrink-0 mt-0.5";
+                delBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+                delBtn.onclick = () => deleteChat(c.id);
+                div.appendChild(delBtn);
+
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function renderParticipantList(container, participants, bannedUsers) {
+            if(!container) return;
+            container.innerHTML = '';
+            let validParticipantCount = 0;
+
+            participants.forEach(p => {
+                if(p.isObs || p.isCam) return; 
+                validParticipantCount++;
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between bg-gray-700 p-2 rounded text-sm mb-1";
+                
+                let nameLabel = p.name;
+                if(p.isRemote) nameLabel += ' <span class="text-xs text-yellow-400">(<i class="fa-solid fa-crown text-yellow-400"></i>)</span>';
+                if(p.isMuted) nameLabel += ' <span class="text-xs text-red-400"><i class="fa-solid fa-volume-xmark"></i>ミュート</span>';
+
+                let controls = '';
+                if(!p.isRemote) {
+                    if(cameraApprovalMode) {
+                        if(p.cameraStatus === 'requested') {
+                            controls += `<button onclick="sendRemoteCommand('manage', 'approve_cam', '${p.id}')" class="text-xs bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded mr-1"><i class="fa-solid fa-check"></i></button>`;
+                            controls += `<button onclick="sendRemoteCommand('manage', 'reject_cam', '${p.id}')" class="text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded mr-2"><i class="fa-solid fa-xmark"></i></button>`;
+                        } else if(p.cameraStatus === 'approved') {
+                            controls += `<span class="text-xs text-green-400 mr-2"><i class="fa-solid fa-video"></i>許可済</span>`;
+                        }
+                    }
+                    controls += `<button onclick="sendRemoteCommand('manage', 'mute', '${p.id}')" class="text-xs ${p.isMuted ? 'bg-gray-500' : 'bg-orange-600'} text-white px-2 py-1 rounded mr-1" title="リクエスト禁止"><i class="fa-solid fa-volume-xmark"></i></button>`;
+                    controls += `<button onclick="sendRemoteCommand('manage', 'ban', '${p.id}')" class="text-xs bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded" title="BAN"><i class="fa-solid fa-ban"></i></button>`;
+                }
+
+                div.innerHTML = `<div class="truncate flex-1"><span class="text-gray-200">${nameLabel}</span></div><div class="flex-shrink-0 flex items-center">${controls}</div>`;
+                container.appendChild(div);
+            });
+
+            const countEl = document.getElementById('remote-participant-count');
+            if (countEl) countEl.textContent = `(現在: ${validParticipantCount}人)`;
+
+            if(bannedUsers && Object.keys(bannedUsers).length > 0) {
+                const banHeader = document.createElement('div');
+                banHeader.className = "text-xs font-bold text-red-400 mt-4 mb-2 border-b border-gray-700 pb-1";
+                banHeader.innerHTML = `<i class="fa-solid fa-ban"></i> BANされたユーザー`;
+                container.appendChild(banHeader);
+
+                Object.entries(bannedUsers).forEach(([id, info]) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-red-900/30 border border-red-900 p-2 rounded text-sm mb-1";
+                    div.innerHTML = `
+                        <div class="truncate flex-1"><span class="text-gray-300 line-through">${info.name}</span></div>
+                        <button onclick="sendRemoteCommand('manage', 'unban', '${id}')" class="text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded">解除</button>
+                    `;
+                    container.appendChild(div);
+                });
+            }
+        }
+
+        function triggerTTS(chatObj) {
+            let ttsOn = false;
+            const toggle = document.getElementById('remote-tts-toggle');
+            if(toggle) ttsOn = toggle.checked;
+            
+            if(!ttsOn) return;
+            
+            let name = chatObj.isAnon ? '184(匿名)' : chatObj.senderReal;
+            const text = `${name}さんから、${chatObj.text}`;
+            const ut = new SpeechSynthesisUtterance(text);
+            ut.lang = 'ja-JP';
+            window.speechSynthesis.speak(ut);
+        }
+
+        function renderControllerState(state) {
+            const { queue, historyQueue, chatHistory: serverChatHistory, currentSong, isPlaying, hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
+            
+            cameraApprovalMode = serverCamAppMode;
+
+            if(serverChatHistory) {
+                chatHistory = serverChatHistory;
+                renderChatList('remote-chat-list', chatHistory);
+            }
+
+            const playingEl = document.getElementById('remote-now-playing');
+            if(currentSong && playingEl) {
+                playingEl.textContent = currentSong.title;
+                const remoteReqEl = document.getElementById('remote-now-requester');
+                if(remoteReqEl) {
+                    const reqName = currentSong.isAnon ? '184(匿名)' : (currentSong.requesterReal || "");
+                    remoteReqEl.innerHTML = reqName ? `<i class="fa-solid fa-user"></i> ${reqName}` : "---";
+                }
+            } else if (playingEl) {
+                playingEl.textContent = "BGM停止中";
+                const remoteReqEl = document.getElementById('remote-now-requester');
+                if(remoteReqEl) remoteReqEl.textContent = "---";
+            }
+
+            const remotePlayBtn = document.getElementById('btn-remote-play');
+            if(remotePlayBtn) {
+                remotePlayBtn.innerHTML = isPlaying
+                    ? `<i class="fa-solid fa-pause text-lg"></i>`
+                    : `<i class="fa-solid fa-play text-lg"></i>`;
+            }
+
+            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
+
+            const tDiv = document.getElementById('remote-theme-display-container');
+            if(tDiv) {
+                if(hostTheme) { 
+                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
+                    tDiv.classList.remove('hidden'); 
+                } else {
+                    tDiv.classList.add('hidden');
+                }
+            }
+
+            const toggleEl = document.getElementById('remote-cam-approval-toggle');
+            if (toggleEl) toggleEl.checked = cameraApprovalMode;
+
+            if (participants) {
+                renderParticipantList(document.getElementById('remote-participant-list'), participants, bannedUsers);
+            }
+
+            const countEl = document.getElementById('remote-queue-count');
+            if(countEl) countEl.textContent = queue ? queue.length : 0;
+            
+            const qList = document.getElementById('remote-queue-list');
+            if(qList && queue) {
+                qList.innerHTML = '';
+                queue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700 text-sm mb-1";
+                    
+                    const dispName = q.isAnon ? '184(匿名)' : q.requesterReal;
+                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
+                    
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
+                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    const btn = document.createElement('button');
+                    btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
+                    btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                    btn.onclick = () => sendRemoteCommand('manage', 'cancel_req', q.id);
+                    div.appendChild(btn);
+                    
+                    qList.appendChild(div);
+                });
+            }
+
+            const hList = document.getElementById('remote-history-list');
+            if(hList && historyQueue) {
+                hList.innerHTML = '';
+                historyQueue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-900 p-2 rounded text-sm mb-1";
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden flex-1">
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                <p class="text-[10px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                            </div>
+                        </div>
+                        <button onclick="reRequestRemote('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
+                    `;
+                    hList.appendChild(div);
+                });
+            }
+            
+            const btnRemote = document.getElementById('btn-remote-toggle-camera');
+            const tabRemoteCamIcon = document.querySelector('#remote-tab-cam i');
+            if(isLive) {
+                if(btnRemote && !remoteHasStream) {
+                    btnRemote.disabled = false;
+                    btnRemote.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btnRemote.innerHTML = '<i class="fa-solid fa-video text-white text-xs"></i> 映像を受信 (タップ)';
+                }
+                if(tabRemoteCamIcon) tabRemoteCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            } else {
+                remoteHasStream = false;
+                const videoEl = document.getElementById('remote-video');
+                if (videoEl) videoEl.srcObject = null;
+                if(btnRemote) {
+                    btnRemote.classList.remove('hidden');
+                    btnRemote.textContent = "配信はオフラインです"; 
+                    btnRemote.disabled = true;
+                    btnRemote.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                if(tabRemoteCamIcon) tabRemoteCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            }
+        }
+    </script>
+</body>
+</html>
