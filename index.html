@@ -528,6 +528,59 @@
             saveHostState();
         }
 
+        function renderHostHistory() {
+            const list = document.getElementById('setup-history-list');
+            if(!list) return;
+            const history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
+            
+            if(history.length === 0) {
+                list.innerHTML = '<p class="text-gray-600 text-center text-xs py-4 font-bold">過去の作成履歴はありません</p>';
+                return;
+            }
+
+            list.innerHTML = '';
+            history.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'bg-[#0e0e10] p-2.5 rounded-sm flex justify-between items-center cursor-pointer hover:bg-gray-800 transition border border-gray-800 hover:border-indigo-500/50 mb-1.5 shadow-inner group';
+                div.innerHTML = `
+                    <div class="flex-1 min-w-0" onclick="joinFromHostHistory('${item.roomId}', '${item.hostName}', '${item.password || ''}')">
+                        <div class="font-bold text-gray-200 text-xs truncate group-hover:text-indigo-400 transition-colors">${item.hostName} の部屋</div>
+                        <div class="text-[9px] text-gray-500 font-mono mt-0.5 tracking-wider">ID: ${item.roomId}</div>
+                    </div>
+                    <button class="text-gray-600 hover:text-red-400 px-2 transition-colors" onclick="deleteHostHistory('${item.roomId}', event)"><i class="fa-solid fa-trash-can"></i></button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function saveHostHistory(roomId, hostName, password) {
+            if(!roomId) return;
+            let history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
+            history = history.filter(h => h.roomId !== roomId);
+            history.unshift({ roomId: roomId, hostName: hostName || roomId, password: password || '', time: Date.now() });
+            if(history.length > 10) history = history.slice(0, 10);
+            localStorage.setItem('jukebox_host_history', JSON.stringify(history));
+        }
+
+        function deleteHostHistory(roomId, event) {
+            if(event) event.stopPropagation();
+            let history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
+            history = history.filter(h => h.roomId !== roomId);
+            localStorage.setItem('jukebox_host_history', JSON.stringify(history));
+            renderHostHistory();
+            showToast("履歴を削除しました");
+        }
+
+        function joinFromHostHistory(roomId, hostName, password) {
+            const idInput = document.getElementById('input-room-id');
+            const nameInput = document.getElementById('input-host-name');
+            const passInput = document.getElementById('input-host-password');
+            if(idInput) idInput.value = roomId;
+            if(nameInput) nameInput.value = hostName;
+            if(passInput) passInput.value = password || '';
+            createRoom();
+        }
+
         window.onload = () => {
             adjustLayoutForMobile(); 
             
@@ -550,9 +603,12 @@
                     const history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
                     const item = history.find(h => h.roomId === currentRoomId);
                     if(item) {
-                        document.getElementById('input-room-id').value = item.roomId;
-                        document.getElementById('input-host-name').value = item.hostName;
-                        document.getElementById('input-host-password').value = item.password || '';
+                        const idInput = document.getElementById('input-room-id');
+                        const nameInput = document.getElementById('input-host-name');
+                        const passInput = document.getElementById('input-host-password');
+                        if(idInput) idInput.value = item.roomId;
+                        if(nameInput) nameInput.value = item.hostName;
+                        if(passInput) passInput.value = item.password || '';
                         createRoom();
                     } else {
                         showView('setup-view');
@@ -583,12 +639,15 @@
 
         function showToast(msg, type="info") {
             const toast = document.getElementById('toast');
-            document.getElementById('toast-msg').innerHTML = msg;
-            toast.className = `toast bg-[#18181b] border-l-4 border-indigo-500 text-gray-200 p-3 rounded-sm shadow-xl flex items-center gap-3 text-xs font-bold`;
-            if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
-            else toast.classList.replace('border-red-500', 'border-indigo-500');
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3000);
+            const toastMsg = document.getElementById('toast-msg');
+            if(toastMsg) toastMsg.innerHTML = msg;
+            if(toast) {
+                toast.className = `toast bg-[#18181b] border-l-4 border-indigo-500 text-gray-200 p-3 rounded-sm shadow-xl flex items-center gap-3 text-xs font-bold`;
+                if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
+                else toast.classList.replace('border-red-500', 'border-indigo-500');
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3000);
+            }
         }
 
         let hostNewsTimeout = null;
@@ -617,9 +676,14 @@
 
         function createRoom() {
             try {
-                const idInput = document.getElementById('input-room-id').value.trim();
-                const nameInput = document.getElementById('input-host-name').value.trim();
-                const passInput = document.getElementById('input-host-password').value.trim(); 
+                const idInputEl = document.getElementById('input-room-id');
+                const nameInputEl = document.getElementById('input-host-name');
+                const passInputEl = document.getElementById('input-host-password');
+                
+                const idInput = idInputEl ? idInputEl.value.trim() : '';
+                const nameInput = nameInputEl ? nameInputEl.value.trim() : '';
+                const passInput = passInputEl ? passInputEl.value.trim() : '';
+                
                 if(!idInput) { showToast("ルームIDを入力してください", "error"); return; }
                 
                 let baseId = idInput.replace(/[^a-zA-Z0-9-]/g, '');
@@ -673,31 +737,6 @@
                 document.execCommand("copy");
                 showToast("URLをコピーしました！");
             }
-        }
-
-        function renderHostHistory() {
-            const list = document.getElementById('setup-history-list');
-            if(!list) return;
-            const history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
-            
-            if(history.length === 0) {
-                list.innerHTML = '<p class="text-gray-600 text-center text-xs py-4 font-bold">過去の作成履歴はありません</p>';
-                return;
-            }
-
-            list.innerHTML = '';
-            history.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'bg-[#0e0e10] p-2.5 rounded-sm flex justify-between items-center cursor-pointer hover:bg-gray-800 transition border border-gray-800 hover:border-indigo-500/50 mb-1.5 shadow-inner group';
-                div.innerHTML = `
-                    <div class="flex-1 min-w-0" onclick="joinFromHostHistory('${item.roomId}', '${item.hostName}', '${item.password || ''}')">
-                        <div class="font-bold text-gray-200 text-xs truncate group-hover:text-indigo-400 transition-colors">${item.hostName} の部屋</div>
-                        <div class="text-[9px] text-gray-500 font-mono mt-0.5 tracking-wider">ID: ${item.roomId}</div>
-                    </div>
-                    <button class="text-gray-600 hover:text-red-400 px-2 transition-colors" onclick="deleteHostHistory('${item.roomId}', event)"><i class="fa-solid fa-trash-can"></i></button>
-                `;
-                list.appendChild(div);
-            });
         }
 
         function initHost() {
@@ -1232,6 +1271,30 @@
             }
             saveHostState();
             broadcastState();
+        }
+
+        function broadcastState() {
+            const safeParticipants = Object.values(connectedListeners).map(p => ({
+                id: p.id, name: p.name, isMuted: p.isMuted, cameraStatus: p.cameraStatus, isRemote: p.isRemote, isObs: p.isObs, isCam: p.isCam
+            }));
+
+            let stateCurrentSong = currentSong ? { ...currentSong } : null;
+            if (stateCurrentSong && player && typeof player.getVideoData === 'function') {
+                try {
+                    const vData = player.getVideoData();
+                    if(vData && vData.video_id) {
+                        stateCurrentSong.videoId = vData.video_id;
+                    }
+                } catch(e) {}
+            }
+
+            const state = {
+                type: 'state', queue: queue, historyQueue: historyQueue, chatHistory: chatHistory, currentSong: stateCurrentSong,
+                isPlaying: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1) : false,
+                hostTheme: hostTheme, isLive: !!currentStreamToListeners, cameraApprovalMode: cameraApprovalMode,
+                participants: safeParticipants, bannedUsers: bannedUsers
+            };
+            Object.values(connectedListeners).forEach(p => { if(p.conn.open) p.conn.send(state); });
         }
 
         function saveHostState() {
