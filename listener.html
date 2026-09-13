@@ -174,10 +174,9 @@
                                     </label>
                                 </div>
                                 <div class="flex justify-between items-center mt-2 pl-4 border-l-2 border-gray-700 ml-1">
-                                    <span class="text-gray-400 text-xs font-bold"><i class="fa-solid fa-bolt"></i> 音量ブースト</span>
-                                    <div class="flex items-center gap-2 w-28">
-                                        <input type="range" id="stream-boost-slider" min="1" max="10" step="0.1" value="2.0" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeStreamBoost(this.value)">
-                                        <span id="stream-boost-val" class="text-xs text-gray-400 w-8 text-right">2.0x</span>
+                                    <span class="text-gray-400 text-xs font-bold whitespace-nowrap"><i class="fa-solid fa-bolt"></i> 音量ブースト</span>
+                                    <div class="flex items-center ml-4 flex-1 max-w-[160px]">
+                                        <input type="range" id="stream-boost-slider" min="1" max="50" step="0.5" value="2.0" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeStreamBoost(this.value)">
                                     </div>
                                 </div>
                             </div>
@@ -243,7 +242,8 @@
                     <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
                         <i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)
                     </button>
-                    <video id="listener-video" autoplay playsinline class="w-full h-full object-contain relative z-10"></video>
+                    <!-- Web Audio API にルーティングするため、常にミュートにする -->
+                    <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
                 </div>
                 
                 <!-- Jukebox映像レイヤー -->
@@ -325,7 +325,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.32
+                        v1.0.35
                     </div>
 
                 </div>
@@ -550,7 +550,7 @@
 
                 // 4. DynamicsCompressorNodeの作成 (音割れ/クリッピング防止用のハードリミッター設定)
                 streamCompressorNode = streamAudioCtx.createDynamicsCompressor();
-                streamCompressorNode.threshold.value = -2;   // -2dBまでそのまま増幅を許容 (以前の-10dBだと音が潰れすぎていた)
+                streamCompressorNode.threshold.value = -2;   // -2dBまでそのまま増幅を許容
                 streamCompressorNode.knee.value = 0;         // ハードニー (しきい値を超えたら即圧縮)
                 streamCompressorNode.ratio.value = 20;       // 強力に圧縮して音割れを防ぐ
                 streamCompressorNode.attack.value = 0.005;   // 即時反応
@@ -572,10 +572,6 @@
         }
 
         function changeStreamBoost(val) {
-            const displayVal = parseFloat(val).toFixed(1) + 'x';
-            const valEl = document.getElementById('stream-boost-val');
-            if (valEl) valEl.textContent = displayVal;
-            
             if (streamGainNode) {
                 streamGainNode.gain.value = parseFloat(val);
             }
@@ -792,6 +788,17 @@
                     events: {
                         'onReady': (event) => {
                             event.target.mute(); 
+                        },
+                        'onStateChange': (event) => {
+                            // PCの自動再生等で再生開始時に強制的に保存された音量を再適用
+                            if (event.data === YT.PlayerState.PLAYING) {
+                                const wpToggle = document.getElementById('toggle-wp-mute');
+                                if (wpToggle && wpToggle.checked) {
+                                    event.target.unMute();
+                                    const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
+                                    event.target.setVolume(savedVol);
+                                }
+                            }
                         }
                     }
                 };
@@ -830,10 +837,6 @@
                 if (state !== 1 && state !== 3) {
                     viewerYTPlayer.playVideo();
                 }
-                
-                // 再生開始時に保存された音量を確実に再適用 (PC自動再生の爆音対策)
-                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
-                if (typeof viewerYTPlayer.setVolume === 'function') viewerYTPlayer.setVolume(savedVol);
                 
                 const diff = hostCurrentTime - currentTime;
                 
