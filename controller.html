@@ -342,9 +342,19 @@
         }
 
         window.onload = () => {
-            const unlockTTS = () => { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); };
             const rTts = document.getElementById('remote-tts-toggle');
-            if(rTts) rTts.addEventListener('change', unlockTTS);
+            if(rTts) {
+                const savedTTS = localStorage.getItem('jukebox_remote_tts');
+                if (savedTTS === 'true') {
+                    rTts.checked = true;
+                }
+                rTts.addEventListener('change', (e) => {
+                    localStorage.setItem('jukebox_remote_tts', e.target.checked);
+                    if (e.target.checked) {
+                        window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+                    }
+                });
+            }
 
             const params = new URLSearchParams(window.location.search);
             if(params.has('remote')) {
