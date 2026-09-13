@@ -79,8 +79,8 @@
             transition: all 0.2s ease;
         }
 
-        /* 縦画面時のみフローティング化 */
-        @media (orientation: portrait) {
+        /* 縦画面（または横幅が狭い場合）のみフローティング化 */
+        @media (max-width: 767px) {
             .chat-backdrop.active {
                 opacity: 1;
                 pointer-events: auto;
@@ -98,8 +98,8 @@
                 box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important;
             }
         }
-        /* 横画面時や横幅が広い時はバックドロップ等フローティング効果を無効化 */
-        @media (min-width: 768px), (orientation: landscape) {
+        /* PCなど横幅が広い時はバックドロップ等フローティング効果を無効化 */
+        @media (min-width: 768px) {
             .chat-backdrop { display: none !important; }
             .chat-input-floating { position: relative !important; top: auto !important; z-index: 20 !important; padding: auto !important; background: transparent !important; border: none !important; box-shadow: none !important; }
         }
@@ -239,7 +239,7 @@
                 
                 <!-- Jukebox映像レイヤー -->
                 <div id="listener-wp-layer" class="absolute inset-0 layer-visible bg-black">
-                    <div id="listener-youtube-player-wrapper" class="w-full h-full">
+                    <div id="listener-youtube-player-wrapper" class="w-full h-full transition-opacity duration-300">
                         <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
                     </div>
                     <!-- 初回タップ用オーバーレイ -->
@@ -259,10 +259,18 @@
                     <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
                     <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
                 </div>
-                <!-- 設定モーダル呼び出しボタン -->
-                <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
-                    <i class="fa-solid fa-gear"></i>
-                </button>
+                
+                <div class="flex items-center gap-3">
+                    <!-- 音量調整バー (横画面/PC時のみ表示) -->
+                    <div class="hidden landscape:flex items-center gap-2 w-24">
+                        <i class="fa-solid fa-volume-low text-gray-400 text-[10px]"></i>
+                        <input type="range" id="wp-volume-slider" min="0" max="100" value="100" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeWatchPartyVolume(this.value)">
+                    </div>
+                    <!-- 設定モーダル呼び出しボタン -->
+                    <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                </div>
             </div>
 
         </div> <!-- 左ペイン終了 -->
@@ -388,6 +396,7 @@
             }
         });
 
+        // チャット入力欄フローティング機能のJS関数
         function focusChatInput() {
             document.getElementById('listener-chat-input-container').classList.add('chat-input-floating');
             document.getElementById('listener-chat-backdrop').classList.add('active');
@@ -417,6 +426,9 @@
             const anonEl = document.getElementById('listener-anon');
             if (savedName && nameEl) nameEl.value = savedName;
             if (savedAnon !== null && anonEl) anonEl.checked = (savedAnon === 'true');
+
+            // ローカル保存したメディア設定の読み込み
+            loadListenerSettings();
 
             const params = new URLSearchParams(window.location.search);
             try {
@@ -454,6 +466,40 @@
             history.unshift({ roomId: roomId, hostName: hostName || roomId, time: Date.now() });
             if(history.length > 10) history = history.slice(0, 10);
             localStorage.setItem('jukebox_guest_history', JSON.stringify(history));
+        }
+
+        // リスナー用メディア設定の保存と読み込み
+        function saveListenerSettings() {
+            const settings = {
+                camAudioOn: document.getElementById('toggle-cam-mute').checked,
+                wpAudioOn: document.getElementById('toggle-wp-mute').checked,
+                wpVideoOn: document.getElementById('toggle-wp-video').checked,
+                wpVolume: document.getElementById('wp-volume-slider').value
+            };
+            localStorage.setItem('jukebox_listener_settings', JSON.stringify(settings));
+        }
+
+        function loadListenerSettings() {
+            try {
+                const saved = localStorage.getItem('jukebox_listener_settings');
+                if (saved) {
+                    const settings = JSON.parse(saved);
+                    const camMute = document.getElementById('toggle-cam-mute');
+                    const wpMute = document.getElementById('toggle-wp-mute');
+                    const wpVideo = document.getElementById('toggle-wp-video');
+                    const wpVol = document.getElementById('wp-volume-slider');
+                    
+                    if(camMute && settings.camAudioOn !== undefined) camMute.checked = settings.camAudioOn;
+                    if(wpMute && settings.wpAudioOn !== undefined) wpMute.checked = settings.wpAudioOn;
+                    if(wpVideo && settings.wpVideoOn !== undefined) {
+                        wpVideo.checked = settings.wpVideoOn;
+                        toggleWatchPartyVideoFromSwitch(settings.wpVideoOn);
+                    }
+                    if(wpVol && settings.wpVolume !== undefined) wpVol.value = settings.wpVolume;
+                    return settings;
+                }
+            } catch(e) {}
+            return null;
         }
 
         function showPasswordModal() {
@@ -523,13 +569,28 @@
             }
         }
 
+        function changeWatchPartyVolume(val) {
+            if (viewerYTPlayer && typeof viewerYTPlayer.setVolume === 'function') {
+                viewerYTPlayer.setVolume(val);
+                if (val > 0 && typeof viewerYTPlayer.isMuted === 'function' && viewerYTPlayer.isMuted()) {
+                    viewerYTPlayer.unMute();
+                    const toggle = document.getElementById('toggle-wp-mute');
+                    if(toggle) toggle.checked = true;
+                }
+            }
+            saveListenerSettings();
+        }
+
         function handleOverlayClick() {
             if (isWpOverlayActive) {
                 if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
                     viewerYTPlayer.unMute();
                     
                     const toggle = document.getElementById('toggle-wp-mute');
-                    if(toggle) toggle.checked = true;
+                    if(toggle) {
+                        toggle.checked = true;
+                        saveListenerSettings();
+                    }
                     
                     if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
                         viewerYTPlayer.playVideo();
@@ -576,6 +637,7 @@
                 video.muted = !isSoundOn;
                 if (!video.muted) video.play().catch(e=>{});
             }
+            saveListenerSettings();
         }
 
         function toggleWatchPartyMuteFromSwitch(isSoundOn) {
@@ -585,6 +647,7 @@
             } else {
                 viewerYTPlayer.mute();
             }
+            saveListenerSettings();
         }
 
         function toggleWatchPartyVideoFromSwitch(isOn) {
@@ -593,6 +656,7 @@
                 playerWrapper.style.opacity = isOn ? '1' : '0';
                 playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
             }
+            saveListenerSettings();
         }
 
         function handleSyncPlayback(data) {
@@ -616,7 +680,15 @@
                     playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
                     events: {
                         'onReady': (event) => {
-                            event.target.mute(); 
+                            const settings = loadListenerSettings();
+                            if (settings && settings.wpAudioOn) {
+                                event.target.unMute();
+                            } else {
+                                event.target.mute(); 
+                            }
+                            if (settings && settings.wpVolume !== undefined) {
+                                event.target.setVolume(parseInt(settings.wpVolume));
+                            }
                         }
                     }
                 };
@@ -771,12 +843,19 @@
                     if(btn) btn.classList.add('hidden'); 
                     video.srcObject = stream;
                     
-                    if(camMuteToggle) camMuteToggle.checked = true;
-                    video.muted = false;
+                    // 保存されたミュート設定を適用
+                    if(camMuteToggle) {
+                        video.muted = !camMuteToggle.checked;
+                    } else {
+                        video.muted = false;
+                    }
                     
                     video.play().catch(e => {
                         video.muted = true;
-                        if(camMuteToggle) camMuteToggle.checked = false;
+                        if(camMuteToggle) {
+                            camMuteToggle.checked = false;
+                            saveListenerSettings();
+                        }
                         video.play().catch(er=>{});
                     });
                     isListenerVideoOpen = true;
@@ -955,20 +1034,11 @@
                 if(btn && !listenerHasStream) {
                     btn.disabled = false;
                     btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    
-                    const myData = participants ? participants.find(p => p.id === listenerId) : null;
-                    
                     if(cameraApprovalMode) {
-                        if(myData && myData.cameraStatus === 'requested') {
-                            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
-                        } else if (myData && myData.cameraStatus === 'approved') {
-                            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 映像受信中...';
-                        } else {
-                            btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
-                        }
-                    } else {
-                        btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
-                    }
+                        const myData = participants ? participants.find(p => p.id === listenerId) : null;
+                        if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+                        else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
+                    } else btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
                 }
                 if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
             } else { 
