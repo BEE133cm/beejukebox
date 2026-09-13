@@ -187,6 +187,13 @@
                                     <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                                 </label>
                             </div>
+                            <div class="flex justify-between items-center border-t border-gray-800 pt-3">
+                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-video"></i> カメラの自動受信</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="toggle-auto-camera" class="sr-only peer" onchange="toggleAutoCameraSettings(this.checked)">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                                </label>
+                            </div>
                         </div>
                     </div>
 
@@ -261,9 +268,9 @@
                 </div>
                 
                 <div class="flex items-center gap-3">
-                    <!-- 音量調整バー (横画面/PC時のみ表示) -->
-                    <div id="wp-volume-control" class="hidden md:flex items-center gap-2 w-28 transition-opacity duration-300">
-                        <span class="text-[10px] text-gray-400 font-bold whitespace-nowrap"><i class="fa-solid fa-music"></i> 音量</span>
+                    <!-- 音量調整バー (横画面/PC時、かつJukeboxタブ選択時のみ表示) -->
+                    <div id="wp-volume-control" class="hidden md:flex items-center gap-2 w-32 transition-opacity duration-300">
+                        <span class="text-[10px] text-gray-400 font-bold whitespace-nowrap"><i class="fa-solid fa-music text-indigo-400"></i> 音量</span>
                         <input type="range" id="wp-volume-slider" min="0" max="100" value="100" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeWatchPartyVolume(this.value)">
                     </div>
                     <!-- 設定モーダル呼び出しボタン -->
@@ -396,7 +403,6 @@
             }
         });
 
-        // チャット入力欄フローティング機能のJS関数
         function focusChatInput() {
             document.getElementById('listener-chat-input-container').classList.add('chat-input-floating');
             document.getElementById('listener-chat-backdrop').classList.add('active');
@@ -474,6 +480,7 @@
                 camAudioOn: document.getElementById('toggle-cam-mute').checked,
                 wpAudioOn: document.getElementById('toggle-wp-mute').checked,
                 wpVideoOn: document.getElementById('toggle-wp-video').checked,
+                autoCameraOn: document.getElementById('toggle-auto-camera').checked,
                 wpVolume: document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100
             };
             localStorage.setItem('jukebox_listener_settings', JSON.stringify(settings));
@@ -487,6 +494,7 @@
                     const camMute = document.getElementById('toggle-cam-mute');
                     const wpMute = document.getElementById('toggle-wp-mute');
                     const wpVideo = document.getElementById('toggle-wp-video');
+                    const autoCam = document.getElementById('toggle-auto-camera');
                     const wpVol = document.getElementById('wp-volume-slider');
                     
                     if(camMute && settings.camAudioOn !== undefined) camMute.checked = settings.camAudioOn;
@@ -495,6 +503,7 @@
                         wpVideo.checked = settings.wpVideoOn;
                         toggleWatchPartyVideoFromSwitch(settings.wpVideoOn);
                     }
+                    if(autoCam && settings.autoCameraOn !== undefined) autoCam.checked = settings.autoCameraOn;
                     if(wpVol && settings.wpVolume !== undefined) wpVol.value = settings.wpVolume;
                     return settings;
                 }
@@ -572,10 +581,15 @@
         function changeWatchPartyVolume(val) {
             if (viewerYTPlayer && typeof viewerYTPlayer.setVolume === 'function') {
                 viewerYTPlayer.setVolume(val);
-                if (val > 0 && typeof viewerYTPlayer.isMuted === 'function' && viewerYTPlayer.isMuted()) {
-                    viewerYTPlayer.unMute();
-                    const toggle = document.getElementById('toggle-wp-mute');
-                    if(toggle) toggle.checked = true;
+                // 音量を上げた場合、自動でJukebox音声をONにする
+                if (val > 0) {
+                    const wpToggle = document.getElementById('toggle-wp-mute');
+                    if (wpToggle && !wpToggle.checked) {
+                        wpToggle.checked = true;
+                        viewerYTPlayer.unMute();
+                    } else if (typeof viewerYTPlayer.isMuted === 'function' && viewerYTPlayer.isMuted()) {
+                        viewerYTPlayer.unMute();
+                    }
                 }
             }
             saveListenerSettings();
@@ -588,12 +602,14 @@
                 const isWpMuteOn = wpToggle ? wpToggle.checked : true; // デフォルトはONの振る舞い
                 
                 if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
+                    // タップ時に確実に音量を設定してから unMute する
+                    const settings = loadListenerSettings();
+                    if (settings && settings.wpVolume !== undefined) {
+                        viewerYTPlayer.setVolume(parseInt(settings.wpVolume));
+                    }
+
                     if (isWpMuteOn) {
                         viewerYTPlayer.unMute();
-                        const settings = loadListenerSettings();
-                        if (settings && settings.wpVolume !== undefined) {
-                            viewerYTPlayer.setVolume(parseInt(settings.wpVolume));
-                        }
                     } else {
                         viewerYTPlayer.mute();
                     }
@@ -684,6 +700,11 @@
             saveListenerSettings();
         }
 
+        function toggleAutoCameraSettings(isOn) {
+            saveListenerSettings();
+            if(isOn) showToast("カメラの自動受信をONにしました");
+        }
+
         function handleSyncPlayback(data) {
             const wpPlayerId = 'listener-youtube-player';
 
@@ -705,14 +726,29 @@
                     playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
                     events: {
                         'onReady': (event) => {
+                            // PCでの自動再生時、いきなり爆音で鳴るのを防ぐため初期状態は必ずミュートにする
+                            event.target.mute(); 
+                            
+                            // スライダーの値だけはDOMから取得して事前準備しておく
                             const settings = loadListenerSettings();
-                            if (settings && settings.wpAudioOn) {
-                                event.target.unMute();
-                            } else {
-                                event.target.mute(); 
-                            }
                             if (settings && settings.wpVolume !== undefined) {
                                 event.target.setVolume(parseInt(settings.wpVolume));
+                            } else {
+                                event.target.setVolume(100);
+                            }
+                        },
+                        'onStateChange': (event) => {
+                            // 再生が開始されたタイミングで、確実に音量とミュート設定を再適用する
+                            if (event.data === 1 && !isWpOverlayActive) { // 1 = PLAYING
+                                const settings = loadListenerSettings();
+                                if (settings && settings.wpVolume !== undefined) {
+                                    event.target.setVolume(parseInt(settings.wpVolume));
+                                }
+                                if (settings && settings.wpAudioOn) {
+                                    event.target.unMute();
+                                } else if (settings && settings.wpAudioOn === false) {
+                                    event.target.mute();
+                                }
                             }
                         }
                     }
@@ -751,10 +787,6 @@
             if (data.status === 1) { 
                 if (state !== 1 && state !== 3) {
                     viewerYTPlayer.playVideo();
-                    const settings = loadListenerSettings();
-                    if(settings && settings.wpVolume !== undefined) {
-                        viewerYTPlayer.setVolume(parseInt(settings.wpVolume));
-                    }
                 }
                 
                 const diff = hostCurrentTime - currentTime;
@@ -873,11 +905,14 @@
                     if(btn) btn.classList.add('hidden'); 
                     video.srcObject = stream;
                     
-                    // 初期段階では必ずミュートにして再生を試みる（自動再生制限の回避）
-                    // 実際のユーザー設定（トグルの状態）は handleOverlayClick で反映させる
-                    video.muted = true;
+                    // 映像受信時に現在の設定を引き継ぐ
+                    const camMuteToggle = document.getElementById('toggle-cam-mute');
+                    video.muted = camMuteToggle ? !camMuteToggle.checked : true;
+                    
                     video.play().catch(e => {
-                        // エラーになった場合も勝手にトグルをOFFにして保存しない
+                        // ブラウザの自動再生ポリシーでブロックされた場合は強制ミュートで再トライ
+                        video.muted = true;
+                        if(camMuteToggle) camMuteToggle.checked = false;
                         video.play().catch(er=>{});
                     });
                     
@@ -926,6 +961,13 @@
             if (listenerConn && listenerConn.open) {
                 listenerConn.send({ type: 'request_camera' });
                 if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+                
+                // 一度リクエストしたら、次回から自動で申請するように設定をONにする
+                const autoCamToggle = document.getElementById('toggle-auto-camera');
+                if (autoCamToggle) {
+                    autoCamToggle.checked = true;
+                    saveListenerSettings();
+                }
             }
         }
 
@@ -1059,9 +1101,17 @@
                     btn.classList.remove('opacity-50', 'cursor-not-allowed');
                     if(cameraApprovalMode) {
                         const myData = participants ? participants.find(p => p.id === listenerId) : null;
-                        if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
-                        else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
-                    } else btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
+                        if(myData && myData.cameraStatus === 'requested') {
+                            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+                        } else if (myData && myData.cameraStatus === 'approved') {
+                            // ホスト側で承認されているがまだストリームが来ていない状態
+                            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 映像受信中...';
+                        } else {
+                            btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
+                        }
+                    } else {
+                        btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
+                    }
                 }
                 if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
             } else { 
