@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Remote Jukebox - OBS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; overflow: hidden; margin: 0; padding: 0; }
+        
+        /* OBSの背景透過用 */
+        body.mode-overlay { background-color: transparent !important; }
+        body.mode-cam { background-color: #0e0e10 !important; }
+
+        .marquee-container { overflow: hidden; white-space: nowrap; position: relative; width: 100%; display: flex; }
+        .marquee-content { 
+            display: inline-block; 
+            white-space: nowrap;
+            padding-left: 100vw; 
+            animation: marquee 15s linear infinite; 
+        }
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+        }
+
+        .equalizer {
+            display: flex; align-items: flex-end; gap: 3px; height: 20px; opacity: 0; transition: opacity 0.3s;
+        }
+        .equalizer.active { opacity: 1; }
+        .eq-bar {
+            width: 4px; background-color: #ef4444; border-radius: 2px;
+            animation: eq-bounce 0.5s infinite alternate ease-in-out;
+        }
+        .eq-bar:nth-child(1) { animation-delay: 0.1s; height: 30%; }
+        .eq-bar:nth-child(2) { animation-delay: 0.3s; height: 60%; }
+        .eq-bar:nth-child(3) { animation-delay: 0.0s; height: 100%; }
+        .eq-bar:nth-child(4) { animation-delay: 0.4s; height: 40%; }
+        .eq-bar:nth-child(5) { animation-delay: 0.2s; height: 70%; }
+        
+        @keyframes eq-bounce {
+            0% { transform: scaleY(0.3); }
+            100% { transform: scaleY(1); }
+        }
+
+        /* 映像レイヤーを隠すためのユーティリティ */
+        .youtube-hidden { position: absolute; width: 1px; height: 1px; top: -9999px; left: -9999px; opacity: 0; pointer-events: none; }
+    </style>
+</head>
+<body id="obs-body" class="mode-overlay text-white">
+
+    <!-- エラーメッセージ用オーバーレイ -->
+    <div id="error-overlay" class="hidden absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90">
+        <div class="bg-gray-900 border border-red-500 p-6 rounded-xl text-center max-w-lg shadow-2xl">
+            <h2 class="text-xl font-bold text-red-500 mb-2"><i class="fa-solid fa-triangle-exclamation"></i> OBS 接続エラー</h2>
+            <p id="error-msg" class="text-sm text-gray-300 leading-relaxed"></p>
+        </div>
+    </div>
+
+    <!-- 映像レイヤー (mode-cam時のみ表示・使用) -->
+    <div id="video-layer" class="hidden absolute inset-0 bg-black z-10 flex items-center justify-center overflow-hidden">
+        <!-- YouTube 映像・音声 -->
+        <div id="youtube-player-wrapper" class="w-full h-full absolute inset-0 z-10 pointer-events-none">
+            <div id="obs-youtube-player" class="w-full h-full"></div>
+        </div>
+        <!-- PeerJS Stream (カメラ中継) -->
+        <!-- ※配信者からカメラ映像が届いた場合はYouTubeの上に被せて表示 -->
+        <video id="obs-stream-video" autoplay playsinline class="hidden w-full h-full object-contain absolute inset-0 z-20 bg-black"></video>
+    </div>
+
+    <!-- オーバーレイレイヤー (NowPlaying, テーマ等) -->
+    <div id="overlay-layer" class="absolute top-0 left-0 w-full z-30 pointer-events-none flex flex-col">
+        <!-- NowPlaying帯 -->
+        <div class="w-full bg-gradient-to-b from-black/90 via-black/50 to-transparent pt-2.5 pb-5 px-4 flex items-center gap-3">
+            <div id="obs-eq" class="equalizer scale-90 shrink-0 origin-left">
+                <div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div>
+            </div>
+            <div class="marquee-container h-6 flex-1">
+                <div class="marquee-content font-bold text-white text-sm md:text-base leading-tight flex items-center gap-2 drop-shadow-lg">
+                    <span id="obs-now-playing">OBS待機中...</span>
+                    <span id="obs-now-requester" class="text-indigo-300 font-normal"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 配信主からのテーマ表示 -->
+        <div id="obs-theme-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[13px] md:text-sm py-1.5 px-4 text-center font-bold hidden shadow-md break-words"></div>
+    </div>
+
+    <script>
+        let peer = null;
+        let obsConn = null;
+        let obsId = null;
+        
+        let viewerYTPlayer = null;
+        let currentSong = null;
+        let hostCurrentTime = 0;
+        let isWatchPartyEnabled = true;
+
+        // UUID生成
+        function generateId() { return Math.random().toString(36).substring(2, 9); }
+        let obsUUID = localStorage.getItem('jukebox_obs_uuid');
+        if (!obsUUID) {
+            obsUUID = 'obs-' + generateId() + generateId();
+            localStorage.setItem('jukebox_obs_uuid', obsUUID);
+        }
+
+        // URLパラメータ解析
+        const urlParams = new URLSearchParams(window.location.search);
+        let currentRoomId = null;
+        let obsMode = 'overlay'; // 'cam' or 'overlay'
+
+        window.onload = () => {
+            if (urlParams.has('obs_cam')) {
+                currentRoomId = urlParams.get('obs_cam');
+                obsMode = 'cam';
+            } else if (urlParams.has('obs')) {
+                currentRoomId = urlParams.get('obs');
+                obsMode = 'overlay';
+            }
+
+            initDOM();
+
+            if (!currentRoomId) {
+                showError("ルームIDが指定されていません。OBSプロパティのURLを確認してください。");
+            } else {
+                initOBS();
+            }
+        };
+
+        function showError(msg) {
+            document.getElementById('error-overlay').classList.remove('hidden');
+            document.getElementById('error-msg').innerHTML = msg;
+        }
+
+        function initDOM() {
+            const body = document.getElementById('obs-body');
+            const videoLayer = document.getElementById('video-layer');
+            const ytWrapper = document.getElementById('youtube-player-wrapper');
+
+            if (obsMode === 'cam') {
+                body.classList.remove('mode-overlay');
+                body.classList.add('mode-cam');
+                videoLayer.classList.remove('hidden');
+            } else {
+                // オーバーレイのみモードの場合は映像を出さない
+                videoLayer.classList.add('hidden');
+                // 音声のみを再生するためにYouTubeレイヤーを隠す
+                ytWrapper.classList.add('youtube-hidden');
+            }
+        }
+
+        function initOBS() {
+            obsId = generateId();
+            peer = new Peer(`obs-${obsId}`);
+
+            peer.on('open', () => {
+                obsConn = peer.connect(`jukebox-${currentRoomId}`);
+                
+                obsConn.on('open', () => {
+                    sendProfileUpdate();
+                });
+
+                obsConn.on('data', (data) => {
+                    if (data.type === 'ping') {
+                        obsConn.send({ type: 'pong' });
+                        return;
+                    }
+                    if (data.type === 'banned') {
+                        showError("このルームへのアクセスが制限されています。");
+                        if(peer) peer.destroy();
+                        return;
+                    }
+                    
+                    if (data.type === 'auth_required') {
+                        // OBSブラウザソースはパスワード入力ができないためURLパラメータで渡す仕様
+                        const pwd = urlParams.get('pwd');
+                        if (pwd) {
+                            obsConn.send({ type: 'auth_request', password: pwd });
+                        } else {
+                            showError("このルームはホストがパスワードを設定しています。<br><br>OBSのブラウザソースのURL末尾に<br><span class='text-yellow-400 font-mono'>&pwd=設定したパスワード</span><br>を追加してください。");
+                        }
+                    } else if (data.type === 'auth_response') {
+                        if (data.success) {
+                            sendProfileUpdate();
+                        } else {
+                            showError("パスワードが間違っています。URLの &pwd=... の値を確認してください。");
+                        }
+                    }
+
+                    if (data.type === 'sync_playback') {
+                        handleSyncPlayback(data);
+                    }
+                    
+                    if (data.type === 'state') {
+                        renderObsState(data);
+                    }
+                });
+            });
+
+            // カメラ中継の受信処理
+            peer.on('call', (call) => {
+                call.answer(); 
+                call.on('stream', (stream) => {
+                    if (obsMode === 'cam') {
+                        const video = document.getElementById('obs-stream-video');
+                        video.srcObject = stream;
+                        video.classList.remove('hidden');
+                        video.muted = false; // OBS側で音を出す
+                        
+                        video.play().catch(e => {
+                            video.muted = true;
+                            video.play().catch(er=>{});
+                        });
+                    }
+                });
+                call.on('close', () => { 
+                    const video = document.getElementById('obs-stream-video');
+                    if (video) {
+                        video.srcObject = null;
+                        video.classList.add('hidden');
+                    }
+                });
+            });
+
+            peer.on('error', (err) => {
+                showError(`接続エラーが発生しました: ${err.type}`);
+            });
+        }
+
+        function sendProfileUpdate() {
+            if(!obsConn || !obsConn.open) return;
+            // ホストに対して isObs: true を送信することで、カメラ承認の自動パスなどを受けられる
+            obsConn.send({ 
+                type: 'update_profile', 
+                name: "OBS Overlay", 
+                isRemote: false, 
+                isObs: true, 
+                uuid: obsUUID 
+            });
+        }
+
+        function loadYouTubeAPI() {
+            if (window.YT && window.YT.Player) {
+                // Ready
+            } else if (!document.getElementById('youtube-api-script')) {
+                const tag = document.createElement('script');
+                tag.id = 'youtube-api-script';
+                tag.src = 'https://www.youtube.com/iframe_api';
+                const firstScriptTag = document.getElementsByTagName('script')[0];
+                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            }
+        }
+
+        function handleSyncPlayback(data) {
+            if (!isWatchPartyEnabled) return;
+
+            if (!viewerYTPlayer) {
+                if (typeof YT === 'undefined' || !YT.Player) {
+                    loadYouTubeAPI(); 
+                    return;
+                }
+                
+                let playerOptions = {
+                    height: '100%', width: '100%',
+                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 1 },
+                    events: {
+                        'onReady': (event) => {
+                            // OBSブラウザは自動再生ポリシーをパスできるため音声をONにする
+                            event.target.unMute(); 
+                            event.target.setVolume(100);
+                        }
+                    }
+                };
+                if (data.videoId) {
+                    playerOptions.videoId = data.videoId;
+                }
+                
+                viewerYTPlayer = new YT.Player('obs-youtube-player', playerOptions);
+                return;
+            }
+
+            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
+            
+            if (!data.videoId) {
+                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
+                    viewerYTPlayer.stopVideo();
+                }
+                currentSong = null;
+                return;
+            }
+
+            const state = viewerYTPlayer.getPlayerState();
+            const currentTime = viewerYTPlayer.getCurrentTime();
+            hostCurrentTime = data.time; 
+
+            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
+                currentSong = { videoId: data.videoId };
+                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
+                return;
+            }
+
+            if (data.status === 1) { 
+                if (state !== 1 && state !== 3) {
+                    viewerYTPlayer.playVideo();
+                    viewerYTPlayer.unMute();
+                }
+                
+                const diff = hostCurrentTime - currentTime;
+                
+                if (Math.abs(diff) < 1.0) {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
+                    if (diff > 0) {
+                        viewerYTPlayer.setPlaybackRate(1.05); 
+                    } else {
+                        viewerYTPlayer.setPlaybackRate(0.95); 
+                    }
+                } else {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                }
+            } else if (data.status === 2 || data.status === -1) { 
+                if (state === 1) {
+                    viewerYTPlayer.pauseVideo();
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                }
+            }
+        }
+
+        function renderObsState(state) {
+            const { currentSong: currentSongData, isPlaying, hostTheme, isLive } = state;
+
+            const playingEl = document.getElementById('obs-now-playing');
+            
+            if (currentSongData && playingEl) {
+                playingEl.textContent = currentSongData.title;
+                const reqName = currentSongData.isAnon ? '184(匿名)' : (currentSongData.requester || "");
+                const reqEl = document.getElementById('obs-now-requester');
+                if (reqEl) reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
+                
+                const eq = document.getElementById('obs-eq');
+                if (eq) isPlaying ? eq.classList.add('active') : eq.classList.remove('active');
+            } else if (playingEl) {
+                playingEl.textContent = "BGM停止中";
+                const reqEl = document.getElementById('obs-now-requester');
+                if (reqEl) reqEl.textContent = "";
+                const eq = document.getElementById('obs-eq');
+                if (eq) eq.classList.remove('active');
+            }
+
+            // マーキーアニメーションのリセット
+            document.querySelectorAll('.marquee-content').forEach(el => { 
+                el.style.animation = 'none'; 
+                el.offsetHeight; 
+                el.style.animation = null; 
+            });
+
+            // テーマの表示
+            const tDiv = document.getElementById('obs-theme-container');
+            if (tDiv) {
+                if (hostTheme) { 
+                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
+                    tDiv.classList.remove('hidden'); 
+                } else {
+                    tDiv.classList.add('hidden');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
