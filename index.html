@@ -145,10 +145,20 @@
                     <input type="text" id="setting-theme" class="flex-1 bg-transparent outline-none text-xs text-white placeholder-gray-600 font-bold" placeholder="現在のテーマ・気分を入力して共有..." onchange="updateHostSettings()">
                 </div>
 
-                <div class="flex justify-end items-center shrink-0">
-                    <button onclick="toggleLightMode()" id="btn-light-mode" class="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded-sm transition-colors flex items-center gap-1.5 font-bold shadow-sm">
-                        <i class="fa-solid fa-video"></i> 映像ON
-                    </button>
+                <!-- PC用 1行Now Playing & 映像ONボタン -->
+                <div class="flex justify-between items-center shrink-0">
+                    <div class="hidden lg:flex items-center gap-2 overflow-hidden flex-1 mr-4 bg-[#0e0e10] border border-gray-700 p-1.5 rounded-sm shadow-sm">
+                        <span class="text-[9px] font-black text-red-500 tracking-widest shrink-0"><i class="fa-solid fa-play"></i> NOW:</span>
+                        <div class="marquee-container h-4 flex-1">
+                            <div class="marquee-content host-now-playing-text font-bold text-[10px] text-gray-100 tracking-wide">BGM停止中</div>
+                        </div>
+                        <span class="host-now-requester-text text-gray-500 font-normal text-[10px] shrink-0 ml-2">---</span>
+                    </div>
+                    <div class="flex justify-end lg:shrink-0 w-full lg:w-auto">
+                        <button onclick="toggleLightMode()" id="btn-light-mode" class="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded-sm transition-colors flex items-center gap-1.5 font-bold shadow-sm">
+                            <i class="fa-solid fa-video"></i> 映像ON
+                        </button>
+                    </div>
                 </div>
 
                 <!-- マルチビュー (Jukebox & Stream) -->
@@ -205,17 +215,9 @@
                     </div>
                 </div>
 
-                <!-- Now Playing & Controls (PC Only) -->
-                <div id="pc-now-playing-container" class="hidden lg:flex bg-[#18181b] border border-gray-700 p-3 rounded-sm flex-col gap-2 shrink-0 shadow-sm flex-1 min-h-[140px]">
-                    <div class="text-[9px] font-black text-red-500 mb-0.5 border-b border-gray-800 pb-1 tracking-widest flex justify-between items-center">
-                        <span><i class="fa-solid fa-play"></i> NOW PLAYING</span>
-                        <span class="host-now-requester-text text-gray-500 font-normal normal-case">---</span>
-                    </div>
-                    <div class="marquee-container h-6 mb-1">
-                        <div class="marquee-content host-now-playing-text font-bold text-sm text-gray-100 tracking-wide">BGM停止中</div>
-                    </div>
-                    
-                    <div class="flex justify-center gap-4 mt-auto">
+                <!-- Controls & Request (PC Only) -->
+                <div id="pc-controls-container" class="hidden lg:flex bg-[#18181b] border border-gray-700 p-3 rounded-sm flex-col gap-2 shrink-0 shadow-sm mt-1">
+                    <div class="flex justify-center gap-4">
                         <button onclick="togglePlayHost()" class="btn-host-play bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-8 transition-colors shadow">
                             <i class="fa-solid fa-play text-sm"></i>
                         </button>
@@ -225,7 +227,7 @@
                     </div>
 
                     <!-- Hostからのリクエスト入力欄 -->
-                    <div class="border-t border-gray-800 pt-2 flex gap-1.5 shrink-0">
+                    <div class="border-t border-gray-800 pt-2 flex gap-1.5 shrink-0 mt-1">
                         <input type="text" id="host-request-url-pc" placeholder="YouTube URLをリクエスト..." class="flex-1 p-1.5 text-[10px] bg-[#0e0e10] border border-gray-700 text-white">
                         <button onclick="sendHostRequest('pc')" class="bg-red-600 hover:bg-red-500 text-white px-3 rounded-sm text-[10px] font-bold transition-colors shadow-sm">追加</button>
                     </div>
@@ -256,8 +258,8 @@
             <!-- ===== Column 3: Chat & Settings (右) ===== -->
             <div id="host-col-3" class="hidden lg:flex flex-col w-full lg:w-4/12 h-full bg-[#0e0e10]">
                 
-                <!-- チャット (上半分 / スマホ時はcol1へ移動) -->
-                <div id="host-col-3-top" class="h-1/2 flex flex-col border-b border-gray-800 p-2.5">
+                <!-- チャット (上半分 / スマホ時はcol1へ移動して非表示になる) -->
+                <div id="host-col-3-top" class="hidden lg:flex h-1/2 flex-col border-b border-gray-800 p-2.5">
                     <div id="chat-container" class="flex flex-col h-full bg-[#111827] rounded-sm p-2 shadow-sm">
                         <div class="flex justify-between items-center border-b border-gray-800 pb-1.5 mb-2 shrink-0">
                             <h3 class="text-[10px] font-black text-gray-400 tracking-widest uppercase"><i class="fa-solid fa-comment-dots"></i> LIVE CHAT</h3>
@@ -274,11 +276,11 @@
                     </div>
                 </div>
 
-                <!-- 設定タブエリア (下半分) -->
-                <div class="h-1/2 flex flex-col">
+                <!-- 設定タブエリア (下半分 / スマホ時は全画面) -->
+                <div class="flex-1 lg:h-1/2 flex flex-col">
                     <!-- サブタブヘッダー -->
                     <div class="flex bg-[#18181b] border-b border-gray-700 shrink-0 shadow-sm">
-                        <button onclick="switchHostSettingsTab('participants')" id="tab-btn-participants" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-indigo-500 text-indigo-400 transition-colors">PARTICIPANTS</button>
+                        <button onclick="switchHostSettingsTab('participants')" id="tab-btn-participants" class="hidden lg:block flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-indigo-500 text-indigo-400 transition-colors">PARTICIPANTS</button>
                         <button onclick="switchHostSettingsTab('bgm')" id="tab-btn-bgm" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-transparent text-gray-500 hover:text-gray-300 transition-colors">BGM</button>
                         <button onclick="switchHostSettingsTab('settings')" id="tab-btn-settings" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-transparent text-gray-500 hover:text-gray-300 transition-colors">SETTING/URL</button>
                     </div>
@@ -494,8 +496,13 @@
                     col2.classList.add('hidden'); col2.classList.remove('flex');
                     col3.classList.remove('hidden'); col3.classList.add('flex');
                     
-                    // CHATとPARTICIPANTが抜けた穴を埋めるためSETTINGSタブをデフォルト表示
-                    switchHostSettingsTab('settings');
+                    // PARTICIPANTSが開いていたら隠れるため、BGMタブをデフォルト表示
+                    const partContent = document.getElementById('tab-content-participants');
+                    if(partContent && !partContent.classList.contains('hidden')) {
+                        switchHostSettingsTab('bgm');
+                    } else if (document.getElementById('tab-btn-bgm').classList.contains('border-transparent') && document.getElementById('tab-btn-settings').classList.contains('border-transparent')) {
+                        switchHostSettingsTab('bgm');
+                    }
                 }
             }
         }
@@ -516,14 +523,16 @@
             ['participants', 'bgm', 'settings'].forEach(name => {
                 const btn = document.getElementById('tab-btn-' + name);
                 const content = document.getElementById('tab-content-' + name);
-                if(name === tabName) {
-                    btn.classList.add('text-indigo-400', 'border-indigo-500');
-                    btn.classList.remove('text-gray-500', 'border-transparent');
-                    content.classList.remove('hidden');
-                } else {
-                    btn.classList.remove('text-indigo-400', 'border-indigo-500');
-                    btn.classList.add('text-gray-500', 'border-transparent');
-                    content.classList.add('hidden');
+                if(btn) {
+                    if(name === tabName) {
+                        btn.classList.add('text-indigo-400', 'border-indigo-500');
+                        btn.classList.remove('text-gray-500', 'border-transparent');
+                        if(content) content.classList.remove('hidden');
+                    } else {
+                        btn.classList.remove('text-indigo-400', 'border-indigo-500');
+                        btn.classList.add('text-gray-500', 'border-transparent');
+                        if(content) content.classList.add('hidden');
+                    }
                 }
             });
         }
