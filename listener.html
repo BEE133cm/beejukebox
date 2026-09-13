@@ -239,9 +239,6 @@
 
                 <!-- Stream映像レイヤー -->
                 <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
-                    <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
-                        <i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)
-                    </button>
                     <!-- Web Audio API にルーティングするため、常にミュートにする -->
                     <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
                 </div>
@@ -325,7 +322,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.35
+                        v1.0.38
                     </div>
 
                 </div>
@@ -535,7 +532,7 @@
                     streamAudioSource.disconnect();
                 }
 
-                // 1. WebRTCの生ストリームを直接Web Audio APIに接続 (バグ回避)
+                // 1. WebRTCの生ストリームを直接Web Audio APIに接続
                 streamAudioSource = streamAudioCtx.createMediaStreamSource(stream);
                 
                 // 2. GainNodeの作成 (音量増幅)
@@ -543,22 +540,32 @@
                 const boostVal = document.getElementById('stream-boost-slider') ? parseFloat(document.getElementById('stream-boost-slider').value) : 2.0;
                 streamGainNode.gain.value = boostVal;
 
+                // 2.5 BiquadFilterNodeの作成 (低音ブーストEQ: 声に厚みを持たせる)
+                if (!window.streamEqNode) {
+                    window.streamEqNode = streamAudioCtx.createBiquadFilter();
+                    window.streamEqNode.type = 'lowshelf';
+                    window.streamEqNode.frequency.value = 250; // 250Hz以下の低音域を対象
+                    window.streamEqNode.gain.value = 4.0; // +4dB持ち上げる
+                }
+
                 // 3. ミュート制御用GainNode
                 streamMuteNode = streamAudioCtx.createGain();
                 const camMuteToggle = document.getElementById('toggle-cam-mute');
                 streamMuteNode.gain.value = (camMuteToggle && camMuteToggle.checked) ? 1.0 : 0.0;
 
-                // 4. DynamicsCompressorNodeの作成 (音割れ/クリッピング防止用のハードリミッター設定)
+                // 4. DynamicsCompressorNodeの作成 (音割れ防止リミッター)
+                // ※自然な音を保つため極力かからないようにマイルドな設定に変更
                 streamCompressorNode = streamAudioCtx.createDynamicsCompressor();
-                streamCompressorNode.threshold.value = -2;   // -2dBまでそのまま増幅を許容
-                streamCompressorNode.knee.value = 0;         // ハードニー (しきい値を超えたら即圧縮)
-                streamCompressorNode.ratio.value = 20;       // 強力に圧縮して音割れを防ぐ
-                streamCompressorNode.attack.value = 0.005;   // 即時反応
-                streamCompressorNode.release.value = 0.05;
+                streamCompressorNode.threshold.value = -1;   // 限界(-1dB)まで圧縮を始めない
+                streamCompressorNode.knee.value = 30;        // ソフトニー (徐々に潰す)
+                streamCompressorNode.ratio.value = 4;        // 潰し方を1/4に緩和 (以前は20)
+                streamCompressorNode.attack.value = 0.01;
+                streamCompressorNode.release.value = 0.1;
 
-                // ノードの接続: Source -> Boost Gain -> Mute Gain -> Compressor -> Destination
+                // ノードの接続: Source -> Boost Gain -> Bass EQ -> Mute Gain -> Compressor -> Destination
                 streamAudioSource.connect(streamGainNode);
-                streamGainNode.connect(streamMuteNode);
+                streamGainNode.connect(window.streamEqNode);
+                window.streamEqNode.connect(streamMuteNode);
                 streamMuteNode.connect(streamCompressorNode);
                 streamCompressorNode.connect(streamAudioCtx.destination);
                 
