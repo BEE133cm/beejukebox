@@ -243,7 +243,7 @@
                     <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
                         <i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)
                     </button>
-                    <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
+                    <video id="listener-video" autoplay playsinline class="w-full h-full object-contain relative z-10"></video>
                 </div>
                 
                 <!-- Jukebox映像レイヤー -->
@@ -392,6 +392,7 @@
         let streamAudioCtx = null;
         let streamAudioSource = null;
         let streamGainNode = null;
+        let streamMuteNode = null;
         let streamCompressorNode = null;
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -410,7 +411,7 @@
             }
         });
 
-        // チャット入力欄フローティング機能のJS関数
+        // チャット入力欄フローティング機能のJS関数 (リスナー用)
         function focusChatInput() {
             document.getElementById('listener-chat-input-container').classList.add('chat-input-floating');
             document.getElementById('listener-chat-backdrop').classList.add('active');
@@ -523,35 +524,42 @@
             return null;
         }
 
-        // --- Web Audio API を用いた Stream 音声のブースト ---
-        function setupStreamAudio(videoElement) {
+        // --- Web Audio API を用いた Stream 音声のブーストとリミッター ---
+        function setupStreamAudio(stream) {
             try {
                 if (!streamAudioCtx) {
                     streamAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
 
-                // 既にソースが作成されている場合は再作成しない
-                if (streamAudioSource) return;
+                if (streamAudioSource) {
+                    streamAudioSource.disconnect();
+                }
 
-                // 1. Stream再生要素をWeb Audio APIに接続
-                streamAudioSource = streamAudioCtx.createMediaElementSource(videoElement);
+                // 1. WebRTCの生ストリームを直接Web Audio APIに接続 (バグ回避)
+                streamAudioSource = streamAudioCtx.createMediaStreamSource(stream);
                 
-                // GainNodeの作成 (音量増幅)
+                // 2. GainNodeの作成 (音量増幅)
                 streamGainNode = streamAudioCtx.createGain();
                 const boostVal = document.getElementById('stream-boost-slider') ? parseFloat(document.getElementById('stream-boost-slider').value) : 2.0;
                 streamGainNode.gain.value = boostVal;
 
-                // DynamicsCompressorNodeの作成 (音割れ/クリッピング防止)
-                streamCompressorNode = streamAudioCtx.createDynamicsCompressor();
-                streamCompressorNode.threshold.value = -10; // -10dBを超えたら圧縮開始
-                streamCompressorNode.knee.value = 40;
-                streamCompressorNode.ratio.value = 12;      // 強めに圧縮
-                streamCompressorNode.attack.value = 0;      // 即時圧縮
-                streamCompressorNode.release.value = 0.25;
+                // 3. ミュート制御用GainNode
+                streamMuteNode = streamAudioCtx.createGain();
+                const camMuteToggle = document.getElementById('toggle-cam-mute');
+                streamMuteNode.gain.value = (camMuteToggle && camMuteToggle.checked) ? 1.0 : 0.0;
 
-                // ノードの接続: Source -> Gain -> Compressor -> Destination
+                // 4. DynamicsCompressorNodeの作成 (音割れ/クリッピング防止用のハードリミッター設定)
+                streamCompressorNode = streamAudioCtx.createDynamicsCompressor();
+                streamCompressorNode.threshold.value = -2;   // -2dBまでそのまま増幅を許容 (以前の-10dBだと音が潰れすぎていた)
+                streamCompressorNode.knee.value = 0;         // ハードニー (しきい値を超えたら即圧縮)
+                streamCompressorNode.ratio.value = 20;       // 強力に圧縮して音割れを防ぐ
+                streamCompressorNode.attack.value = 0.005;   // 即時反応
+                streamCompressorNode.release.value = 0.05;
+
+                // ノードの接続: Source -> Boost Gain -> Mute Gain -> Compressor -> Destination
                 streamAudioSource.connect(streamGainNode);
-                streamGainNode.connect(streamCompressorNode);
+                streamGainNode.connect(streamMuteNode);
+                streamMuteNode.connect(streamCompressorNode);
                 streamCompressorNode.connect(streamAudioCtx.destination);
                 
                 // AudioContextがサスペンド状態なら再開を試みる
@@ -722,10 +730,16 @@
         }
 
         function toggleListenerAudioFromSwitch(isSoundOn) {
+            // videoタグ自体は常にミュートにしておく（Web Audio APIから音を出すため）
             const video = document.getElementById('listener-video');
             if (video) {
-                video.muted = !isSoundOn;
-                if (!video.muted) video.play().catch(e=>{});
+                video.muted = true;
+                if (video.paused) video.play().catch(e=>{});
+            }
+
+            // Web Audio APIのミュート用GainNodeで出力をコントロール
+            if (streamMuteNode) {
+                streamMuteNode.gain.value = isSoundOn ? 1.0 : 0.0;
             }
 
             // Web Audio APIのコンテキストの再開
@@ -933,25 +947,20 @@
                     listenerHasStream = true;
                     const video = document.getElementById('listener-video');
                     const btn = document.getElementById('btn-toggle-camera');
-                    const camMuteToggle = document.getElementById('toggle-cam-mute');
                     
                     if(btn) btn.classList.add('hidden'); 
                     video.srcObject = stream;
                     
-                    // Web Audio APIのセットアップを呼び出し (音声の増幅)
-                    setupStreamAudio(video);
+                    // Web Audio APIのセットアップを呼び出し (生ストリームを渡す)
+                    setupStreamAudio(stream);
                     
-                    // 保存された設定に基いてミュートを処理
-                    video.muted = camMuteToggle ? !camMuteToggle.checked : true;
+                    // 二重再生・干渉を防ぐため videoタグ自体の音声は強制ミュート
+                    video.muted = true;
                     
                     video.play().catch(e => {
-                        video.muted = true;
-                        if(camMuteToggle) {
-                            camMuteToggle.checked = false;
-                            saveListenerSettings();
-                        }
                         video.play().catch(er=>{});
                     });
+                    
                     isListenerVideoOpen = true;
                 });
                 call.on('close', () => { 
