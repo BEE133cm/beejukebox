@@ -66,7 +66,6 @@
             <div id="obs-youtube-player" class="w-full h-full"></div>
         </div>
         <!-- PeerJS Stream (カメラ中継) -->
-        <!-- ※配信者からカメラ映像が届いた場合はYouTubeの上に被せて表示 -->
         <video id="obs-stream-video" autoplay playsinline class="hidden w-full h-full object-contain absolute inset-0 z-20 bg-black"></video>
     </div>
 
@@ -139,16 +138,21 @@
             const body = document.getElementById('obs-body');
             const videoLayer = document.getElementById('video-layer');
             const ytWrapper = document.getElementById('youtube-player-wrapper');
+            const overlayLayer = document.getElementById('overlay-layer');
 
             if (obsMode === 'cam') {
                 body.classList.remove('mode-overlay');
                 body.classList.add('mode-cam');
                 videoLayer.classList.remove('hidden');
+                // カメラモード時は上のテロップ帯を非表示にする
+                if (overlayLayer) overlayLayer.classList.add('hidden');
             } else {
                 // オーバーレイのみモードの場合は映像を出さない
                 videoLayer.classList.add('hidden');
                 // 音声のみを再生するためにYouTubeレイヤーを隠す
                 ytWrapper.classList.add('youtube-hidden');
+                // テロップ帯を表示
+                if (overlayLayer) overlayLayer.classList.remove('hidden');
             }
         }
 
@@ -208,8 +212,28 @@
                         const video = document.getElementById('obs-stream-video');
                         video.srcObject = stream;
                         video.classList.remove('hidden');
-                        video.muted = false; // OBS側で音を出す
-                        
+
+                        /* OBSで音声が出ない問題を回避するため AudioContext で強制ルーティング */
+                        try {
+                            if (!window.obsAudioCtx) {
+                                window.obsAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                            }
+                            if (window.obsAudioSource) window.obsAudioSource.disconnect();
+                            
+                            window.obsAudioSource = window.obsAudioCtx.createMediaStreamSource(stream);
+                            window.obsAudioSource.connect(window.obsAudioCtx.destination);
+                            
+                            const resumeInterval = setInterval(() => {
+                                if (window.obsAudioCtx.state === 'suspended') {
+                                    window.obsAudioCtx.resume().catch(()=>{});
+                                } else {
+                                    clearInterval(resumeInterval);
+                                }
+                            }, 1000);
+                        } catch(e) { console.error("WebAudio API Error", e); }
+
+                        video.muted = false;
+                        video.volume = 1.0;
                         video.play().catch(e => {
                             video.muted = true;
                             video.play().catch(er=>{});
