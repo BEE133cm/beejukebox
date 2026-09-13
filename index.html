@@ -207,7 +207,7 @@
                         <!-- Stream Vol -->
                         <div class="flex items-center gap-3">
                             <span class="w-14 text-[10px] font-bold text-red-400 tracking-wider">STREAM</span>
-                            <button onclick="toggleHostStreamMute()" class="w-6 h-6 bg-[#0e0e10] hover:bg-gray-800 border border-gray-700 rounded-sm flex items-center justify-center text-gray-400 transition-colors shrink-0">
+                            <button onclick="toggleHostStreamMute()" class="w-6 h-6 bg-[#0e0e10] hover:bg-gray-800 border border-gray-700 rounded-sm flex items-center justify-center text-gray-500 transition-colors shrink-0">
                                 <i id="icon-host-stream-mute" class="fa-solid fa-volume-xmark text-[10px]"></i>
                             </button>
                             <input type="range" id="host-stream-vol" min="0" max="100" value="0" class="flex-1 h-1.5 bg-gray-800 rounded-full appearance-none accent-red-500 cursor-pointer" oninput="changeHostStreamVol(this.value)">
@@ -280,31 +280,27 @@
                 <div class="flex-1 lg:h-1/2 flex flex-col">
                     <!-- サブタブヘッダー -->
                     <div class="flex bg-[#18181b] border-b border-gray-700 shrink-0 shadow-sm">
-                        <button onclick="switchHostSettingsTab('participants')" id="tab-btn-participants" class="hidden lg:block flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-indigo-500 text-indigo-400 transition-colors">PARTICIPANTS</button>
-                        <button onclick="switchHostSettingsTab('bgm')" id="tab-btn-bgm" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-transparent text-gray-500 hover:text-gray-300 transition-colors">BGM</button>
+                        <button onclick="switchHostSettingsTab('bgm')" id="tab-btn-bgm" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-indigo-500 text-indigo-400 transition-colors">BGM</button>
                         <button onclick="switchHostSettingsTab('settings')" id="tab-btn-settings" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-transparent text-gray-500 hover:text-gray-300 transition-colors">SETTING/URL</button>
                     </div>
 
                     <!-- サブタブコンテンツ -->
                     <div class="flex-1 overflow-y-auto p-2.5 relative min-h-0">
                         
-                        <!-- 参加者管理タブ -->
-                        <div id="tab-content-participants" class="absolute inset-0 p-2.5 flex flex-col overflow-y-auto">
-                            <!-- JSで移動するコンテナ -->
-                            <div id="participant-container" class="flex flex-col h-full bg-[#111827] rounded-sm p-2 shadow-sm min-h-0">
-                                <div class="flex justify-between items-center mb-2 border-b border-gray-800 pb-1.5 shrink-0">
-                                    <h3 class="text-[10px] font-bold text-gray-400"><i class="fa-solid fa-users"></i> 参加者 <span id="host-participant-count" class="font-normal ml-1"></span></h3>
-                                    <label class="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 cursor-pointer hover:text-gray-200">
-                                        <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-red-500 focus:ring-transparent">
-                                        視聴承認制
-                                    </label>
-                                </div>
-                                <div id="host-participant-list" class="flex-1 space-y-1 pr-1 overflow-y-auto min-h-0"></div>
+                        <!-- 参加者管理コンテナ (PC用は元々タブだったが、チャットと同じく独立エリア扱い、JSで移動) -->
+                        <div id="participant-container" class="hidden lg:flex flex-col h-full bg-[#111827] rounded-sm p-2 shadow-sm min-h-0">
+                            <div class="flex justify-between items-center mb-2 border-b border-gray-800 pb-1.5 shrink-0">
+                                <h3 class="text-[10px] font-bold text-gray-400"><i class="fa-solid fa-users"></i> 参加者 <span id="host-participant-count" class="font-normal ml-1"></span></h3>
+                                <label class="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 cursor-pointer hover:text-gray-200">
+                                    <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-red-500 focus:ring-transparent">
+                                    視聴承認制
+                                </label>
                             </div>
+                            <div id="host-participant-list" class="flex-1 space-y-1 pr-1 overflow-y-auto min-h-0"></div>
                         </div>
 
                         <!-- BGMタブ -->
-                        <div id="tab-content-bgm" class="hidden absolute inset-0 p-2.5 flex flex-col overflow-y-auto space-y-3">
+                        <div id="tab-content-bgm" class="absolute inset-0 p-2.5 flex flex-col overflow-y-auto space-y-3">
                             <div>
                                 <div class="flex gap-1.5 mb-2">
                                     <input type="text" id="input-bgm-url" placeholder="YouTube URL" class="min-w-0 flex-1 p-2 text-[10px]">
@@ -426,13 +422,14 @@
         let hostMediaConn = null; 
         let currentStreamToListeners = null;
 
+        let isHostStateLoaded = false; // ストッパー用のフラグ
+
         // スマホ用: DOMの動的配置変更処理
         function adjustLayoutForMobile() {
             const isMobile = window.innerWidth < 1024;
             const chatContainer = document.getElementById('chat-container');
             const participantContainer = document.getElementById('participant-container');
             const col3Top = document.getElementById('host-col-3-top');
-            const tabParticipants = document.getElementById('tab-content-participants');
             const mobileContainer = document.getElementById('mobile-chat-participant-container');
             
             if (isMobile) {
@@ -444,20 +441,24 @@
                 }
                 if (participantContainer.parentNode !== mobileContainer) {
                     mobileContainer.appendChild(participantContainer);
+                    participantContainer.classList.remove('hidden', 'lg:flex');
+                    participantContainer.classList.add('flex');
                     participantContainer.classList.remove('h-full');
                     participantContainer.style.height = '250px';
                 }
             } else {
-                // PCレイアウトに戻す
+                // PCレイアウトに戻す (元の非表示領域へ)
                 if (chatContainer.parentNode !== col3Top) {
                     col3Top.appendChild(chatContainer);
                     chatContainer.classList.add('h-full');
                     chatContainer.style.height = '100%';
                 }
-                if (participantContainer.parentNode !== tabParticipants) {
-                    tabParticipants.appendChild(participantContainer);
-                    participantContainer.classList.add('h-full');
-                    participantContainer.style.height = '100%';
+                if (participantContainer.parentNode !== document.querySelector('#host-col-3 .flex-1 .min-h-0')) {
+                    // PARTICIPANTSはPCでは独立ではなく非表示状態に隠す
+                    const tabContent = document.querySelector('#host-col-3 .flex-1 .min-h-0');
+                    tabContent.appendChild(participantContainer);
+                    participantContainer.classList.add('hidden', 'lg:flex');
+                    participantContainer.classList.remove('flex');
                 }
             }
         }
@@ -496,11 +497,7 @@
                     col2.classList.add('hidden'); col2.classList.remove('flex');
                     col3.classList.remove('hidden'); col3.classList.add('flex');
                     
-                    // PARTICIPANTSが開いていたら隠れるため、BGMタブをデフォルト表示
-                    const partContent = document.getElementById('tab-content-participants');
-                    if(partContent && !partContent.classList.contains('hidden')) {
-                        switchHostSettingsTab('bgm');
-                    } else if (document.getElementById('tab-btn-bgm').classList.contains('border-transparent') && document.getElementById('tab-btn-settings').classList.contains('border-transparent')) {
+                    if (document.getElementById('tab-btn-bgm').classList.contains('border-transparent') && document.getElementById('tab-btn-settings').classList.contains('border-transparent')) {
                         switchHostSettingsTab('bgm');
                     }
                 }
@@ -520,7 +517,7 @@
 
         // サブタブ切り替え (Col 3 下半分)
         function switchHostSettingsTab(tabName) {
-            ['participants', 'bgm', 'settings'].forEach(name => {
+            ['bgm', 'settings'].forEach(name => {
                 const btn = document.getElementById('tab-btn-' + name);
                 const content = document.getElementById('tab-content-' + name);
                 if(btn) {
@@ -539,58 +536,81 @@
 
         // オーディオミキサー制御
         function toggleHostJukeboxMute() {
-            if(!player || typeof player.isMuted !== 'function') return;
-            const isMuted = player.isMuted();
             const icon = document.getElementById('icon-host-jukebox-mute');
-            if(isMuted) {
-                player.unMute();
+            const isCurrentlyMuted = icon.classList.contains('fa-volume-xmark');
+
+            if(isCurrentlyMuted) {
                 icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
                 icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                const vol = document.getElementById('host-jukebox-vol').value;
-                player.setVolume(vol);
+                if(player && typeof player.unMute === 'function') {
+                    player.unMute();
+                    const vol = document.getElementById('host-jukebox-vol').value;
+                    player.setVolume(vol);
+                }
             } else {
-                player.mute();
                 icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
                 icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
+                if(player && typeof player.mute === 'function') {
+                    player.mute();
+                }
             }
+            saveHostState();
         }
         function changeHostJukeboxVol(val) {
             if(player && typeof player.setVolume === 'function') {
                 player.setVolume(val);
-                if(val > 0 && player.isMuted()) {
-                    player.unMute();
-                    const icon = document.getElementById('icon-host-jukebox-mute');
+            }
+            if(val > 0) {
+                const icon = document.getElementById('icon-host-jukebox-mute');
+                if (icon.classList.contains('fa-volume-xmark')) {
                     icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
                     icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
+                    if(player && typeof player.unMute === 'function') {
+                        player.unMute();
+                    }
                 }
             }
+            saveHostState();
         }
 
         function toggleHostStreamMute() {
             const vid = document.getElementById('host-stream-preview');
-            if(!vid) return;
-            vid.muted = !vid.muted;
             const icon = document.getElementById('icon-host-stream-mute');
-            if(vid.muted) {
-                icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
-                icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
-            } else {
+            const isCurrentlyMuted = icon.classList.contains('fa-volume-xmark');
+            
+            if(isCurrentlyMuted) {
                 icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
                 icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                vid.play().catch(e=>{});
+                if (vid) {
+                    vid.muted = false;
+                    vid.play().catch(e=>{});
+                }
+            } else {
+                icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
+                icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
+                if (vid) {
+                    vid.muted = true;
+                }
             }
+            saveHostState();
         }
         function changeHostStreamVol(val) {
             const vid = document.getElementById('host-stream-preview');
-            if(!vid) return;
-            vid.volume = val / 100;
-            if(val > 0 && vid.muted) {
-                vid.muted = false;
-                const icon = document.getElementById('icon-host-stream-mute');
-                icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                vid.play().catch(e=>{});
+            if (vid) {
+                vid.volume = val / 100;
             }
+            if(val > 0) {
+                const icon = document.getElementById('icon-host-stream-mute');
+                if (icon.classList.contains('fa-volume-xmark')) {
+                    icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
+                    icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
+                    if (vid) {
+                        vid.muted = false;
+                        vid.play().catch(e=>{});
+                    }
+                }
+            }
+            saveHostState();
         }
 
         window.onload = () => {
@@ -803,6 +823,7 @@
                 document.getElementById('status-dot').classList.replace('shadow-[0_0_5px_rgba(234,179,8,0.8)]', 'shadow-[0_0_5px_rgba(34,197,94,0.8)]');
                 document.getElementById('status-text').textContent = "ONLINE / WAITING";
                 document.getElementById('error-text').classList.add('hidden');
+                
                 loadHostState(); 
                 loadYouTubeAPI(); 
                 
@@ -941,8 +962,11 @@
                             previewVid.srcObject = stream;
                             previewVid.classList.remove('hidden');
                             document.getElementById('host-stream-offline').classList.add('hidden');
-                            // Use mixer state to set initial mute
+                            // Use mixer state to set initial mute and volume
                             previewVid.muted = document.getElementById('icon-host-stream-mute').classList.contains('fa-volume-xmark');
+                            if(document.getElementById('host-stream-vol')) {
+                                previewVid.volume = document.getElementById('host-stream-vol').value / 100;
+                            }
                             previewVid.play().catch(e=>{});
                         }
                         
@@ -1293,363 +1317,21 @@
             broadcastState();
         }
 
-        function broadcastState() {
-            const safeParticipants = Object.values(connectedListeners).map(p => ({
-                id: p.id, name: p.name, isMuted: p.isMuted, cameraStatus: p.cameraStatus, isRemote: p.isRemote, isObs: p.isObs, isCam: p.isCam
-            }));
-
-            let stateCurrentSong = currentSong ? { ...currentSong } : null;
-            if (stateCurrentSong && player && typeof player.getVideoData === 'function') {
-                try {
-                    const vData = player.getVideoData();
-                    if(vData && vData.video_id) {
-                        stateCurrentSong.videoId = vData.video_id;
-                    }
-                } catch(e) {}
-            }
-
-            const state = {
-                type: 'state', queue: queue, historyQueue: historyQueue, chatHistory: chatHistory, currentSong: stateCurrentSong,
-                isPlaying: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1) : false,
-                hostTheme: hostTheme, isLive: !!currentStreamToListeners, cameraApprovalMode: cameraApprovalMode,
-                participants: safeParticipants, bannedUsers: bannedUsers
-            };
-            Object.values(connectedListeners).forEach(p => { if(p.conn.open) p.conn.send(state); });
-        }
-
-        function loadYouTubeAPI() {
-            if (window.YT && window.YT.Player) {
-                if (document.getElementById('youtube-player')) {
-                    initPlayer();
-                }
-            } else if (!document.getElementById('youtube-api-script')) {
-                const tag = document.createElement('script');
-                tag.id = 'youtube-api-script';
-                tag.src = 'https://www.youtube.com/iframe_api';
-                const firstScriptTag = document.getElementsByTagName('script')[0];
-                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-            }
-        }
-        
-        window.onYouTubeIframeAPIReady = function() { 
-            if (document.getElementById('youtube-player')) {
-                initPlayer(); 
-            }
-        };
-
-        function initPlayer() {
-            if(player && typeof player.playVideo === 'function') return;
-            if(!document.getElementById('youtube-player')) return; 
-            player = new YT.Player('youtube-player', {
-                height: '100%', width: '100%',
-                playerVars: { autoplay: 1, controls: 1, rel: 0 },
-                events: { 
-                    'onReady': (event) => {
-                        const vol = document.getElementById('host-jukebox-vol').value;
-                        event.target.setVolume(vol);
-                        onPlayerReady(event);
-                    }, 
-                    'onStateChange': onPlayerStateChange 
-                }
-            });
-        }
-
-        function onPlayerReady(event) {
-            if(currentSong) {
-                if (currentSong.listId) player.loadPlaylist({list: currentSong.listId, index: currentSong.playlistIndex || 0, startSeconds: currentSong.startSeconds || 0});
-                else player.loadVideoById({videoId: currentSong.videoId, startSeconds: currentSong.startSeconds || 0});
-            } else if (queue.length > 0 || bgmQueue.length > 0) playNext();
-        }
-
-        let durationCheckTimeout = null;
-
-        function onPlayerStateChange(event) {
-            updateUI(); 
-            if (event.data === YT.PlayerState.PLAYING) {
-                
-                // ミキサーの音量を強制反映 (PCでの自動再生時リセット対策)
-                const vol = document.getElementById('host-jukebox-vol').value;
-                player.setVolume(vol);
-                if (document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-high')) {
-                    player.unMute();
-                } else {
-                    player.mute();
-                }
-
-                if (currentSong && currentSong.isBGM && currentSong.listId && !currentSong._settingsApplied) {
-                    currentSong._settingsApplied = true;
-                    if (typeof player.setShuffle === 'function') {
-                        player.setShuffle(document.getElementById('bgm-shuffle').checked);
-                    }
-                    if (typeof player.setLoop === 'function') {
-                        player.setLoop(document.getElementById('bgm-loop').checked);
-                    }
-                }
-
-                if(currentSong) {
-                    try {
-                        let videoData = player.getVideoData();
-                        if(videoData && videoData.title && currentSong.title === "取得中...") {
-                            currentSong.title = videoData.title;
-                            updateUI();
-                        }
-                    } catch(e) {}
-                }
-                
-                if(currentSong && !currentSong.isBGM && durationLimit > 0) {
-                    if(durationCheckTimeout) clearTimeout(durationCheckTimeout);
-                    durationCheckTimeout = setTimeout(() => {
-                        const dur = player.getDuration();
-                        if(dur > durationLimit) {
-                            showToast(`曲が長すぎるためスキップしました(${Math.floor(dur/60)}分)`, "error");
-                            playNext(true);
-                        }
-                    }, 1000); 
-                }
-            } 
-            else if (event.data === YT.PlayerState.ENDED) {
-                if (currentSong && currentSong.isBGM && document.getElementById('bgm-loop-one') && document.getElementById('bgm-loop-one').checked) {
-                    player.seekTo(0);
-                    player.playVideo();
-                    return;
-                }
-                playNext();
-            }
-        }
-
-        function togglePlayHost() {
-            if(!player || !currentSong || typeof player.getPlayerState !== 'function') return;
-            if(player.getPlayerState() === 1) player.pauseVideo();
-            else player.playVideo();
-        }
-
-        function playNext(forceSkip = false) {
-            if (!player || typeof player.loadVideoById !== 'function') return;
-
-            if (currentSong && !currentSong.isBGM) {
-                historyQueue.unshift(currentSong);
-                if (historyQueue.length > 20) historyQueue.pop();
-            }
-
-            if (currentSong && currentSong.isBGM && queue.length > 0 && !forceSkip) {
-                bgmResumeData = {
-                    videoId: currentSong.videoId, listId: currentSong.listId, title: currentSong.title,
-                    time: player.getCurrentTime(), playlistIndex: player.getPlaylistIndex ? player.getPlaylistIndex() : 0
-                };
-            }
-
-            if (queue.length > 0) {
-                currentSong = queue.shift();
-                player.loadVideoById({videoId: currentSong.videoId});
-            } 
-            else if (bgmResumeData) {
-                currentSong = {
-                    id: 'bgm-resumed', videoId: bgmResumeData.videoId, listId: bgmResumeData.listId,
-                    title: bgmResumeData.title, requester: 'BGM RESUMED', isBGM: true,
-                    startSeconds: bgmResumeData.time, playlistIndex: bgmResumeData.playlistIndex
-                };
-                if (currentSong.listId) player.loadPlaylist({list: currentSong.listId, index: bgmResumeData.playlistIndex, startSeconds: bgmResumeData.time});
-                else player.loadVideoById({videoId: currentSong.videoId, startSeconds: bgmResumeData.time});
-                bgmResumeData = null; 
-            }
-            else if (bgmQueue.length > 0) {
-                let bgm;
-                let shuffleOn = document.getElementById('bgm-shuffle') && document.getElementById('bgm-shuffle').checked;
-                let loopOn = document.getElementById('bgm-loop') && document.getElementById('bgm-loop').checked;
-
-                if (shuffleOn && bgmQueue.length > 1 && !bgmQueue[0].isPlaylist) {
-                    let randomIndex = Math.floor(Math.random() * bgmQueue.length);
-                    bgm = bgmQueue.splice(randomIndex, 1)[0];
-                } else {
-                    bgm = bgmQueue.shift();
-                }
-
-                if (loopOn) {
-                    bgmQueue.push(bgm); 
-                }
-                
-                if(bgm.isPlaylist) {
-                    currentSong = { id: 'bgm-pl', videoId: '', listId: bgm.listId, title: '📁 プレイリスト', requester: 'BGM', isBGM: true };
-                    player.loadPlaylist({list: bgm.listId});
-                } else {
-                    currentSong = { id: 'bgm-' + generateId(), videoId: bgm.videoId, listId: null, title: bgm.title || "取得中...", requester: 'BGM', isBGM: true };
-                    player.loadVideoById({videoId: currentSong.videoId});
-                }
-            } else {
-                currentSong = null;
-                player.stopVideo();
-            }
-            saveHostState();
-            updateUI();
-        }
-
-        function extractVideoId(url) {
-            const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/);
-            return match ? match[1] : null;
-        }
-
-        function extractPlaylistId(url) {
-            const match = url.match(/[?&]list=([^#\&\?]+)/);
-            return match ? match[1] : null;
-        }
-
-        function addBGM() {
-            const url = document.getElementById('input-bgm-url').value;
-            if(!url) return;
-
-            const listId = extractPlaylistId(url);
-            if(listId) {
-                bgmQueue.push({ isPlaylist: true, listId: listId, rawUrl: url, title: "📁 プレイリスト" });
-                showToast("プレイリストを追加しました");
-                updateAndSaveBGM();
-            } else {
-                const vid = extractVideoId(url);
-                if(vid) {
-                    const bgmItem = { isPlaylist: false, videoId: vid, rawUrl: url, title: "取得中..." };
-                    bgmQueue.push(bgmItem);
-                    showToast("BGMを追加しました");
-                    updateAndSaveBGM();
-                    
-                    fetchYouTubeTitle(vid).then(title => {
-                        const bItem = bgmQueue.find(b => b.videoId === vid);
-                        if(bItem) { bItem.title = title; updateAndSaveBGM(); }
-                    });
-                } else showToast("無効なURLです", "error");
-            }
-            document.getElementById('input-bgm-url').value = '';
-        }
-
-        function updateAndSaveBGM() {
-            saveHostState();
-            updateUI();
-            if(!currentSong && player && typeof player.getPlayerState === 'function') playNext();
-        }
-
-        function updateBGMPlaybackSettings() {
-            saveHostState();
-            if (player && typeof player.setShuffle === 'function' && currentSong && currentSong.isBGM && currentSong.listId) {
-                player.setShuffle(document.getElementById('bgm-shuffle').checked);
-                player.setLoop(document.getElementById('bgm-loop').checked);
-            }
-        }
-
-        function toggleLightMode() {
-            isLightMode = !isLightMode;
-            const container = document.getElementById('youtube-player-container');
-            const btn = document.getElementById('btn-light-mode');
-            if(isLightMode) {
-                container.classList.add('youtube-hidden');
-                btn.innerHTML = '<i class="fa-solid fa-ban text-red-500"></i> 映像OFF';
-            } else {
-                container.classList.remove('youtube-hidden');
-                btn.innerHTML = '<i class="fa-solid fa-video"></i> 映像ON';
-            }
-        }
-
-        function updateUI() {
-            if(currentSong) {
-                document.querySelectorAll('.host-now-playing-text').forEach(el => el.textContent = currentSong.title);
-                document.querySelectorAll('.host-now-requester-text').forEach(el => {
-                    el.innerHTML = `<i class="fa-solid fa-user text-gray-600 text-[10px]"></i> ${currentSong.requester || ""}`;
-                });
-                document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
-            } else {
-                document.querySelectorAll('.host-now-playing-text').forEach(el => el.textContent = "STOPPED");
-                document.querySelectorAll('.host-now-requester-text').forEach(el => el.textContent = "---");
-            }
-
-            document.querySelectorAll('.btn-host-play').forEach(btn => {
-                if (player && typeof player.getPlayerState === 'function') {
-                    const isPlaying = player.getPlayerState() === 1;
-                    btn.innerHTML = isPlaying 
-                        ? `<i class="fa-solid fa-pause text-sm"></i>` 
-                        : `<i class="fa-solid fa-play text-sm ml-0.5"></i>`;
-                }
-            });
-
-            const qList = document.getElementById('host-queue-list');
-            const qBadge = document.getElementById('queue-badge');
-            if(qList) {
-                qList.innerHTML = '';
-                if(qBadge) qBadge.textContent = queue.length;
-                
-                queue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-[#18181b] p-2 rounded-sm border border-gray-800 text-[10px] mb-1.5 shadow-sm";
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-gray-600 font-black w-4 text-center">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-300 truncate font-bold">${q.title}</p>
-                                <p class="text-[9px] text-gray-500 truncate mt-0.5"><i class="fa-solid fa-user"></i> ${q.requesterReal || q.requester} ${q.isRemote ? '<span class="text-yellow-600 ml-1 font-bold">ADMIN</span>' : ''}</p>
-                            </div>
-                        </div>
-                        <button onclick="removeQueue('${q.id}')" class="text-gray-600 hover:text-red-500 px-2 flex-shrink-0 transition-colors"><i class="fa-solid fa-xmark"></i></button>
-                    `;
-                    qList.appendChild(div);
-                });
-            }
-
-            const hostHist = document.getElementById('host-history-list');
-            if(hostHist) {
-                hostHist.innerHTML = '';
-                historyQueue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-[#18181b] border border-gray-800 p-2 rounded-sm text-[10px] mb-1.5";
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden flex-1">
-                            <span class="text-gray-700 font-black w-4 text-center">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-400 truncate font-medium">${q.title}</p>
-                                <p class="text-[9px] text-gray-600 truncate"><i class="fa-solid fa-user"></i> ${q.requesterReal}</p>
-                            </div>
-                        </div>
-                        <button onclick="reRequestHost('${q.videoId}', '${q.requesterReal}')" class="text-[9px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded-sm flex-shrink-0 transition-colors font-bold">RE-REQ</button>
-                    `;
-                    hostHist.appendChild(div);
-                });
-            }
-
-            const bList = document.getElementById('host-bgm-list');
-            if(bList) {
-                bList.innerHTML = '';
-                bgmQueue.forEach((b, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex justify-between bg-[#0e0e10] border border-gray-800 p-2 rounded-sm items-center mb-1";
-                    div.innerHTML = `
-                        <span class="text-gray-400 truncate text-[10px] flex-1 font-medium">${b.title || '取得中...'}</span>
-                        <button onclick="removeBGM(${idx})" class="text-gray-600 hover:text-red-500 px-2 transition-colors"><i class="fa-solid fa-xmark"></i></button>
-                    `;
-                    bList.appendChild(div);
-                });
-            }
-
-            renderChatList('host-chat-list', chatHistory);
-            broadcastState();
-        }
-
-        function reRequestHost(videoId, reqName) {
-            queue.push({ id: generateId(), videoId: videoId, title: "取得中...", requester: reqName, requesterReal: reqName, isAnon: false });
-            showToast("再リクエストしました");
-            updateUI();
-            
-            fetchYouTubeTitle(videoId).then(title => {
-                const qItem = queue[queue.length - 1];
-                if(qItem && qItem.videoId === videoId) { qItem.title = title; updateUI(); }
-            });
-            if(!currentSong || currentSong.isBGM) playNext();
-        }
-
-        function removeQueue(id) { queue = queue.filter(q => q.id !== id); saveHostState(); updateUI(); }
-        function removeBGM(idx) { bgmQueue.splice(idx, 1); saveHostState(); updateUI(); }
-
         function saveHostState() {
+            if (!isHostStateLoaded) return; // ストッパー: ロードが完了する前に誤作動で上書き保存されるのを防ぐ
+
             const bgmSettings = {
                 shuffle: document.getElementById('bgm-shuffle') ? document.getElementById('bgm-shuffle').checked : false,
                 loop: document.getElementById('bgm-loop') ? document.getElementById('bgm-loop').checked : true,
                 loopOne: document.getElementById('bgm-loop-one') ? document.getElementById('bgm-loop-one').checked : false
             };
-            const data = { queue, bgmQueue, historyQueue, chatHistory, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers, bgmSettings, approvedUsers };
+            const audioMixerSettings = {
+                jukeboxVol: document.getElementById('host-jukebox-vol') ? document.getElementById('host-jukebox-vol').value : 100,
+                jukeboxMuted: document.getElementById('icon-host-jukebox-mute') ? document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-xmark') : false,
+                streamVol: document.getElementById('host-stream-vol') ? document.getElementById('host-stream-vol').value : 0,
+                streamMuted: document.getElementById('icon-host-stream-mute') ? document.getElementById('icon-host-stream-mute').classList.contains('fa-volume-xmark') : true
+            };
+            const data = { queue, bgmQueue, historyQueue, chatHistory, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers, bgmSettings, approvedUsers, audioMixerSettings };
             localStorage.setItem('jukebox_state_' + currentRoomId, JSON.stringify(data));
         }
 
@@ -1681,9 +1363,51 @@
                         if(document.getElementById('bgm-loop-one')) document.getElementById('bgm-loop-one').checked = data.bgmSettings.loopOne;
                     }
 
+                    if(data.audioMixerSettings) {
+                        if(document.getElementById('host-jukebox-vol')) document.getElementById('host-jukebox-vol').value = data.audioMixerSettings.jukeboxVol;
+                        const jIcon = document.getElementById('icon-host-jukebox-mute');
+                        if (jIcon) {
+                            if (data.audioMixerSettings.jukeboxMuted) {
+                                jIcon.classList.replace('fa-volume-high', 'fa-volume-xmark');
+                                jIcon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
+                            } else {
+                                jIcon.classList.replace('fa-volume-xmark', 'fa-volume-high');
+                                jIcon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
+                            }
+                        }
+
+                        // Jukeboxプレイヤーに即時適用
+                        if (player && typeof player.setVolume === 'function') {
+                            player.setVolume(data.audioMixerSettings.jukeboxVol);
+                            if (data.audioMixerSettings.jukeboxMuted) player.mute();
+                            else player.unMute();
+                        }
+
+                        if(document.getElementById('host-stream-vol')) document.getElementById('host-stream-vol').value = data.audioMixerSettings.streamVol;
+                        const sIcon = document.getElementById('icon-host-stream-mute');
+                        if (sIcon) {
+                            if (data.audioMixerSettings.streamMuted) {
+                                sIcon.classList.replace('fa-volume-high', 'fa-volume-xmark');
+                                sIcon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
+                            } else {
+                                sIcon.classList.replace('fa-volume-xmark', 'fa-volume-high');
+                                sIcon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
+                            }
+                        }
+
+                        // Streamプレビューに即時適用
+                        const streamVid = document.getElementById('host-stream-preview');
+                        if (streamVid) {
+                            streamVid.volume = data.audioMixerSettings.streamVol / 100;
+                            streamVid.muted = data.audioMixerSettings.streamMuted;
+                        }
+                    }
+
                     updateUI();
                 }
             } catch(e) { console.warn("Failed to load host state", e); }
+            
+            isHostStateLoaded = true; // ロード完了をマーク。これ以降は保存が許可される
         }
 
         function saveToMyList() {
