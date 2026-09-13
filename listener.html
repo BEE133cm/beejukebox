@@ -262,7 +262,7 @@
                 
                 <div class="flex items-center gap-3">
                     <!-- 音量調整バー (横画面/PC時のみ表示) -->
-                    <div class="hidden landscape:flex items-center gap-2 w-24">
+                    <div class="hidden md:flex items-center gap-2 w-24">
                         <i class="fa-solid fa-volume-low text-gray-400 text-[10px]"></i>
                         <input type="range" id="wp-volume-slider" min="0" max="100" value="100" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeWatchPartyVolume(this.value)">
                     </div>
@@ -583,18 +583,28 @@
 
         function handleOverlayClick() {
             if (isWpOverlayActive) {
+                // Jukebox (YouTube) の設定を反映
+                const wpToggle = document.getElementById('toggle-wp-mute');
+                const isWpMuteOn = wpToggle ? wpToggle.checked : true; // デフォルトはONの振る舞い
+                
                 if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
-                    viewerYTPlayer.unMute();
-                    
-                    const toggle = document.getElementById('toggle-wp-mute');
-                    if(toggle) {
-                        toggle.checked = true;
-                        saveListenerSettings();
+                    if (isWpMuteOn) {
+                        viewerYTPlayer.unMute();
+                    } else {
+                        viewerYTPlayer.mute();
                     }
                     
                     if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
                         viewerYTPlayer.playVideo();
                     }
+                }
+                
+                // Stream (Camera) の設定を反映
+                const camToggle = document.getElementById('toggle-cam-mute');
+                const isCamMuteOn = camToggle ? camToggle.checked : false;
+                const camVideo = document.getElementById('listener-video');
+                if (camVideo && isCamMuteOn) {
+                    camVideo.muted = false;
                 }
                 
                 const overlayId = 'listener-youtube-overlay';
@@ -604,7 +614,7 @@
                 }
                 
                 isWpOverlayActive = false;
-                showToast("音声をONにして視聴を開始しました！", "info");
+                showToast("視聴を開始しました", "info");
             }
         }
         
@@ -838,26 +848,18 @@
                     listenerHasStream = true;
                     const video = document.getElementById('listener-video');
                     const btn = document.getElementById('btn-toggle-camera');
-                    const camMuteToggle = document.getElementById('toggle-cam-mute');
                     
                     if(btn) btn.classList.add('hidden'); 
                     video.srcObject = stream;
                     
-                    // 保存されたミュート設定を適用
-                    if(camMuteToggle) {
-                        video.muted = !camMuteToggle.checked;
-                    } else {
-                        video.muted = false;
-                    }
-                    
+                    // 初期段階では必ずミュートにして再生を試みる（自動再生制限の回避）
+                    // 実際のユーザー設定（トグルの状態）は handleOverlayClick で反映させる
+                    video.muted = true;
                     video.play().catch(e => {
-                        video.muted = true;
-                        if(camMuteToggle) {
-                            camMuteToggle.checked = false;
-                            saveListenerSettings();
-                        }
+                        // エラーになった場合も勝手にトグルをOFFにして保存しない
                         video.play().catch(er=>{});
                     });
+                    
                     isListenerVideoOpen = true;
                 });
                 call.on('close', () => { 
