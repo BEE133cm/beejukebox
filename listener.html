@@ -75,24 +75,32 @@
             pointer-events: none;
             transition: opacity 0.2s ease;
         }
-        .chat-backdrop.active {
-            opacity: 1;
-            pointer-events: auto;
-        }
         .chat-input-container {
             transition: all 0.2s ease;
         }
-        .chat-input-floating {
-            position: fixed !important;
-            top: 35vh !important; 
-            left: 0 !important;
-            right: 0 !important;
-            z-index: 9999 !important;
-            padding: 15px !important;
-            background: rgba(24, 24, 27, 0.98) !important;
-            border-top: 1px solid #4f46e5 !important;
-            border-bottom: 1px solid #4f46e5 !important;
-            box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important;
+
+        /* 縦画面時のみフローティング化 */
+        @media (orientation: portrait) {
+            .chat-backdrop.active {
+                opacity: 1;
+                pointer-events: auto;
+            }
+            .chat-input-floating {
+                position: fixed !important;
+                top: 35vh !important; 
+                left: 0 !important;
+                right: 0 !important;
+                z-index: 9999 !important;
+                padding: 15px !important;
+                background: rgba(24, 24, 27, 0.98) !important;
+                border-top: 1px solid #4f46e5 !important;
+                border-bottom: 1px solid #4f46e5 !important;
+                box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important;
+            }
+        }
+        /* 横画面時はバックドロップ等フローティング効果を無効化 */
+        @media (orientation: landscape) {
+            .chat-backdrop { display: none !important; }
         }
     </style>
 </head>
@@ -144,7 +152,7 @@
     </div>
 
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
-    <div id="listener-view" class="flex fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex-col text-sm">
+    <div id="listener-view" class="flex fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex-col landscape:flex-row text-sm">
         <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
             <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
                 <div class="flex justify-between items-center border-b border-gray-800 pb-3">
@@ -203,58 +211,63 @@
             </div>
         </div>
 
-        <!-- 1. 映像エリア (上部固定) -->
-        <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden" style="aspect-ratio: 16/9;">
+        <!-- ========== 左ペイン: 映像とコントロール (横画面時は残り幅全占有) ========== -->
+        <div class="flex flex-col w-full landscape:w-auto landscape:flex-1 landscape:h-full shrink-0 relative z-20 bg-black">
             
-            <!-- NowPlaying帯 (映像上部) -->
-            <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
-                <div id="listener-eq" class="equalizer scale-75 shrink-0 origin-left"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
-                <div class="marquee-container h-4 flex-1">
-                    <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
-                        <span id="listener-now-playing">接続待ち...</span>
-                        <span id="listener-now-requester" class="text-indigo-300 font-normal"></span>
+            <!-- 1. 映像エリア (上部固定 / 横画面時は全画面) -->
+            <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden aspect-video landscape:aspect-auto landscape:flex-1">
+                
+                <!-- NowPlaying帯 (映像上部) -->
+                <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
+                    <div id="listener-eq" class="equalizer scale-75 shrink-0 origin-left"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
+                    <div class="marquee-container h-4 flex-1">
+                        <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
+                            <span id="listener-now-playing">接続待ち...</span>
+                            <span id="listener-now-requester" class="text-indigo-300 font-normal"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stream映像レイヤー -->
+                <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
+                    <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
+                        <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
+                    </button>
+                    <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
+                </div>
+                
+                <!-- Jukebox映像レイヤー -->
+                <div id="listener-wp-layer" class="absolute inset-0 layer-visible bg-black">
+                    <div id="listener-youtube-player-wrapper" class="w-full h-full">
+                        <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
+                    </div>
+                    <!-- 初回タップ用オーバーレイ -->
+                    <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
+                        <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
+                        <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Stream映像レイヤー -->
-            <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
-                <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
-                    <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
+            <!-- 1.5 配信主からのコメント表示（テーマ） -->
+            <div id="listener-theme-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
+
+            <div id="listener-controls-bar" class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
+                <!-- 映像切り替えタブ -->
+                <div class="flex gap-2">
+                    <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
+                    <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
+                </div>
+                <!-- 設定モーダル呼び出しボタン -->
+                <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
+                    <i class="fa-solid fa-gear"></i>
                 </button>
-                <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
             </div>
-            
-            <!-- Jukebox映像レイヤー -->
-            <div id="listener-wp-layer" class="absolute inset-0 layer-visible bg-black">
-                <div id="listener-youtube-player-wrapper" class="w-full h-full">
-                    <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
-                </div>
-                <!-- 初回タップ用オーバーレイ -->
-                <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
-                    <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
-                    <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
-                </div>
-            </div>
-        </div>
 
-        <!-- 1.5 配信主からのコメント表示（テーマ） -->
-        <div id="listener-theme-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
+        </div> <!-- 左ペイン終了 -->
 
-        <div id="listener-controls-bar" class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
-            <!-- 映像切り替えタブ -->
-            <div class="flex gap-2">
-                <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
-                <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
-            </div>
-            <!-- 設定モーダル呼び出しボタン -->
-            <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
-                <i class="fa-solid fa-gear"></i>
-            </button>
-        </div>
-
-        <!-- 3. スクロール領域 (リクエスト類 ＋ チャット) -->
-        <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0">
+        <!-- ========== 右ペイン: スクロール領域 (リクエスト類 ＋ チャット) ========== -->
+        <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0 landscape:w-[320px] lg:landscape:w-[400px] landscape:flex-none landscape:border-l landscape:border-gray-800">
             
             <!-- リクエスト・ステータス等（アコーディオン） -->
             <details id="listener-menu-details" class="bg-[#18181b] border-b border-gray-800 shrink-0 group z-10 relative">
@@ -319,7 +332,8 @@
                     <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
             </div>
-        </div>
+
+        </div> <!-- 右ペイン終了 -->
     </div>
 
     <!-- 全画面共通リロードボタン (アイコン化) -->
