@@ -3,18 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Remote Jukebox - Host Dashboard</title>
+    <title>Remote Jukebox - Listener</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #0e0e10; color: #e4e4e7; overscroll-behavior-y: none; }
-        
-        /* ツール風の細くフラットなスクロールバー */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0e0e10; border-left: 1px solid #27272a; }
-        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 0px; }
-        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: white; overscroll-behavior-y: none; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
         .marquee-container { overflow: hidden; white-space: nowrap; position: relative; width: 100%; display: flex; }
         .marquee-content { 
@@ -34,1315 +32,634 @@
         }
         .toast.show { transform: translateX(0); }
 
-        .youtube-hidden { position: absolute; width: 1px; height: 1px; top: -9999px; left: -9999px; opacity: 0; pointer-events: none; }
+        .equalizer {
+            display: flex; align-items: flex-end; gap: 3px; height: 20px; opacity: 0; transition: opacity 0.3s;
+        }
+        .equalizer.active { opacity: 1; }
+        .eq-bar {
+            width: 4px; background-color: #ef4444; border-radius: 2px;
+            animation: eq-bounce 0.5s infinite alternate ease-in-out;
+        }
+        .eq-bar:nth-child(1) { animation-delay: 0.1s; height: 30%; }
+        .eq-bar:nth-child(2) { animation-delay: 0.3s; height: 60%; }
+        .eq-bar:nth-child(3) { animation-delay: 0.0s; height: 100%; }
+        .eq-bar:nth-child(4) { animation-delay: 0.4s; height: 40%; }
+        .eq-bar:nth-child(5) { animation-delay: 0.2s; height: 70%; }
+        
+        @keyframes eq-bounce {
+            0% { transform: scaleY(0.3); }
+            100% { transform: scaleY(1); }
+        }
 
-        /* ツール風の入力フォームリセット */
-        input[type="text"], input[type="password"], input[type="number"], select {
-            background-color: #0e0e10;
-            border: 1px solid #3f3f46;
-            color: #e4e4e7;
-            border-radius: 2px;
-            outline: none;
-            transition: border-color 0.2s;
+        .youtube-hidden { position: absolute; width: 1px; height: 1px; top: -9999px; left: -9999px; }
+
+        .banned-overlay {
+            position: fixed; inset: 0; background: #000; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
-        input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus, select:focus {
-            border-color: #6366f1;
+
+        .layer-hidden { opacity: 0; pointer-events: none; z-index: 0; }
+        .layer-visible { opacity: 1; pointer-events: auto; z-index: 10; }
+        
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
+
+        /* チャット入力フローティング作戦 (キーボード対策) */
+        .chat-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 30;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
         }
-        button { border-radius: 2px; }
+        .chat-input-container {
+            transition: all 0.2s ease;
+        }
+
+        /* 縦画面時のみフローティング化 */
+        @media (orientation: portrait) {
+            .chat-backdrop.active {
+                opacity: 1;
+                pointer-events: auto;
+            }
+            .chat-input-floating {
+                position: fixed !important;
+                top: 48vh !important; 
+                left: 0 !important;
+                right: 0 !important;
+                z-index: 9999 !important;
+                padding: 15px !important;
+                background: rgba(24, 24, 27, 0.98) !important;
+                border-top: 1px solid #4f46e5 !important;
+                border-bottom: 1px solid #4f46e5 !important;
+                box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important;
+            }
+        }
+        /* 横画面時はバックドロップ等フローティング効果を無効化 */
+        @media (orientation: landscape) {
+            .chat-backdrop { display: none !important; }
+        }
     </style>
 </head>
-<!-- フルスクリーン固定のツール風レイアウト -->
-<body class="h-[100dvh] w-full flex flex-col p-0 m-0 overflow-hidden text-sm">
+<body class="p-0 overflow-hidden relative">
 
     <!-- トースト通知 -->
-    <div id="toast" class="toast bg-gray-800 border-l-4 border-indigo-500 text-white p-3 rounded-sm shadow-lg flex items-center gap-3 font-bold text-xs">
+    <div id="toast" class="toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3">
         <span id="toast-msg"></span>
     </div>
 
-    <!-- ================= 1. ルーム作成画面 (初期画面) ================= -->
-    <div id="setup-view" class="w-full max-w-sm bg-[#18181b] border border-gray-700 p-6 shadow-2xl m-auto relative overflow-hidden rounded-sm">
-        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-600 to-indigo-400"></div>
-        <h1 class="text-xl font-black text-center mb-1 text-white tracking-wide"><i class="fa-solid fa-music text-indigo-400"></i> REMOTE JUKEBOX</h1>
-        <p class="text-gray-500 text-center text-[10px] font-bold tracking-widest uppercase mb-6">Host Dashboard</p>
-        
-        <div class="space-y-4">
-            <div>
-                <label class="block text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-hashtag"></i> ROOM ID</label>
-                <input type="text" id="input-room-id" placeholder="Ex: my-radio-123" class="w-full p-2.5 text-xs shadow-inner">
-            </div>
-            <div>
-                <label class="block text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-user"></i> HOST NAME</label>
-                <input type="text" id="input-host-name" placeholder="Ex: 配信太郎" class="w-full p-2.5 text-xs shadow-inner">
-            </div>
-            <div class="border-t border-gray-800 pt-4 mt-2">
-                <label class="block text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-lock"></i> PASSWORD (OPTIONAL)</label>
-                <input type="password" id="input-host-password" placeholder="Ex: 1234" class="w-full p-2.5 text-xs shadow-inner">
-                <p class="text-[9px] text-gray-500 mt-1 leading-tight">※設定すると、コントローラーやカメラからの接続時にパスワードを要求します。</p>
-            </div>
-            <button onclick="createRoom()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 transition-colors shadow mt-2 text-xs uppercase tracking-wider">
-                Create Room
-            </button>
-            
-            <div class="border-t border-gray-800 pt-4 mt-4">
-                <h3 class="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-wider"><i class="fa-regular fa-clock"></i> Recent Rooms</h3>
-                <div id="setup-history-list" class="flex flex-col gap-1.5 max-h-32 overflow-y-auto pr-1">
-                    <!-- 履歴がここに入る -->
-                </div>
+    <!-- パスワード入力モーダル -->
+    <div id="password-modal" class="hidden fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-indigo-500 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
+            <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-lock"></i> パスワードが必要です</h3>
+            <p class="text-sm text-gray-400 mb-6">このルームを操作・配信するには<br>ホストが設定したパスワードが必要です。</p>
+            <input type="password" id="room-password-input" placeholder="管理パスワードを入力" class="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white mb-2 outline-none focus:border-indigo-500">
+            <p id="password-error" class="hidden text-red-500 text-xs mb-4">パスワードが間違っています</p>
+            <div class="flex gap-3 mt-4">
+                <button onclick="closePasswordModal()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">キャンセル</button>
+                <button onclick="submitPassword()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg">接続する</button>
             </div>
         </div>
     </div>
 
-    <!-- ================= 2. 配信者 (Host) 画面 (The ツール風UI) ================= -->
-    <div id="host-view" class="hidden flex-col w-full h-full">
-        
-        <!-- ヘッダーダッシュボード (固定) -->
-        <header class="h-12 bg-[#18181b] border-b border-gray-700 flex items-center justify-between px-4 shrink-0 shadow-sm z-30">
-            <div class="flex items-center gap-4">
-                <h2 class="font-black text-sm text-gray-200 tracking-wider"><i class="fa-solid fa-crown text-yellow-500"></i> HOST DASHBOARD</h2>
-                <div class="hidden sm:flex items-center gap-2 border-l border-gray-700 pl-4">
-                    <span class="text-[10px] text-gray-500 font-bold uppercase">Room ID:</span>
-                    <span id="display-room-id" class="text-indigo-400 font-mono font-bold text-xs bg-[#0e0e10] border border-gray-800 px-2 py-0.5 rounded-sm"></span>
-                </div>
+    <!-- リスナー名入力モーダル -->
+    <div id="name-modal" class="hidden fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-indigo-500 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
+            <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-user"></i> お名前を入力してください</h3>
+            <p class="text-sm text-gray-400 mb-6">※入室後の名前変更はできません。<br>（入室後に匿名にすることは可能です）</p>
+            <input type="text" id="initial-name-input" onkeypress="if(event.key === 'Enter') submitName()" placeholder="例: リスナーA" class="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white mb-2 outline-none focus:border-indigo-500">
+            <p id="name-error" class="hidden text-red-500 text-xs mb-4">名前を入力してください</p>
+            <div class="flex mt-4">
+                <button onclick="submitName()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg">入室する</button>
             </div>
-            
-            <div class="flex-1 overflow-hidden flex items-center justify-center px-4">
-                <div id="host-news-ticker" class="text-yellow-400 font-bold text-xs opacity-0 transition-opacity duration-300 whitespace-nowrap overflow-hidden text-ellipsis"></div>
-            </div>
-
-            <div id="connection-status" class="flex items-center gap-3 shrink-0">
-                <span id="error-text" class="text-[10px] text-red-400 hidden font-bold"></span>
-                <div class="flex items-center gap-2 bg-[#0e0e10] border border-gray-800 px-2 py-1 rounded-sm">
-                    <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse shadow-[0_0_5px_rgba(234,179,8,0.8)]" id="status-dot"></span>
-                    <span id="status-text" class="text-[10px] font-bold text-gray-300">起動中...</span>
-                </div>
-            </div>
-        </header>
-
-        <!-- スマホ用タブヘッダー (PCでは非表示) -->
-        <div id="mobile-tab-header" class="flex lg:hidden bg-[#18181b] border-b border-gray-800 shrink-0 z-20">
-            <button onclick="switchHostMobileTab('col1')" id="mobile-tab-col1" class="flex-1 py-2 text-[10px] font-bold text-indigo-400 border-b-2 border-indigo-500 transition-colors"><i class="fa-solid fa-desktop"></i> PREVIEW</button>
-            <button onclick="switchHostMobileTab('col2')" id="mobile-tab-col2" class="flex-1 py-2 text-[10px] font-bold text-gray-500 border-b-2 border-transparent transition-colors"><i class="fa-solid fa-list-ul"></i> QUEUE</button>
-            <button onclick="switchHostMobileTab('col3')" id="mobile-tab-col3" class="flex-1 py-2 text-[10px] font-bold text-gray-500 border-b-2 border-transparent transition-colors"><i class="fa-solid fa-gear"></i> SETTINGS</button>
         </div>
+    </div>
 
-        <!-- 3カラムのメインペイン -->
-        <main class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-            
-            <!-- ===== Column 1: Preview & Mixer (左) ===== -->
-            <div id="host-col-1" class="flex flex-col w-full lg:w-5/12 h-full border-b lg:border-b-0 lg:border-r border-gray-800 bg-[#111827] overflow-y-auto p-3 gap-3">
-                
-                <!-- スマホ用: 1行Now Playing (PCでは非表示) -->
-                <div id="mobile-now-playing-container" class="lg:hidden flex items-center gap-2 bg-[#0e0e10] border border-gray-700 p-2 rounded-sm shrink-0 shadow-sm">
-                    <span class="text-[9px] font-black text-red-500 tracking-widest shrink-0"><i class="fa-solid fa-play"></i> NOW:</span>
-                    <div class="marquee-container h-4 flex-1">
-                        <div class="marquee-content host-now-playing-text font-bold text-[10px] text-gray-100 tracking-wide">BGM停止中</div>
-                    </div>
-                </div>
-
-                <!-- テーマ (独立表示) -->
-                <div class="flex items-center gap-2 bg-[#0e0e10] border border-gray-700 p-1.5 rounded-sm shrink-0 shadow-sm">
-                    <span class="bg-gray-800 text-yellow-500 text-[9px] font-black tracking-widest px-2 py-1 rounded-sm border border-gray-700">THEME</span>
-                    <input type="text" id="setting-theme" class="flex-1 bg-transparent outline-none text-xs text-white placeholder-gray-600 font-bold" placeholder="現在のテーマ・気分を入力して共有..." onchange="updateHostSettings()">
-                </div>
-
-                <!-- PC用 1行Now Playing & 映像ONボタン -->
-                <div class="flex justify-between items-center shrink-0">
-                    <div class="hidden lg:flex items-center gap-2 overflow-hidden flex-1 mr-4 bg-[#0e0e10] border border-gray-700 p-1.5 rounded-sm shadow-sm">
-                        <span class="text-[9px] font-black text-red-500 tracking-widest shrink-0"><i class="fa-solid fa-play"></i> NOW:</span>
-                        <div class="marquee-container h-4 flex-1">
-                            <div class="marquee-content host-now-playing-text font-bold text-[10px] text-gray-100 tracking-wide">BGM停止中</div>
-                        </div>
-                        <span class="host-now-requester-text text-gray-500 font-normal text-[10px] shrink-0 ml-2">---</span>
-                    </div>
-                    <div class="flex justify-end lg:shrink-0 w-full lg:w-auto">
-                        <button onclick="toggleLightMode()" id="btn-light-mode" class="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded-sm transition-colors flex items-center gap-1.5 font-bold shadow-sm">
-                            <i class="fa-solid fa-video"></i> 映像ON
-                        </button>
-                    </div>
-                </div>
-
-                <!-- マルチビュー (Jukebox & Stream) -->
-                <div class="flex flex-col lg:flex-row gap-2 shrink-0">
-                    <!-- Jukebox Monitor -->
-                    <div class="flex-1 bg-black border border-gray-700 relative aspect-video shadow-inner rounded-sm overflow-hidden">
-                        <div class="absolute top-1 left-1 bg-indigo-600/90 border border-indigo-400 px-1.5 py-0.5 text-[9px] font-bold z-10 text-white rounded-sm tracking-wider">JUKEBOX</div>
-                        <div id="youtube-player-container" class="w-full h-full"><div id="youtube-player"></div></div>
-                    </div>
-                    <!-- Stream Monitor (PC Only) -->
-                    <div class="hidden lg:flex flex-1 bg-black border border-gray-700 relative aspect-video items-center justify-center shadow-inner rounded-sm overflow-hidden">
-                        <div class="absolute top-1 left-1 bg-red-600/90 border border-red-400 px-1.5 py-0.5 text-[9px] font-bold z-10 text-white rounded-sm tracking-wider">STREAM</div>
-                        <span id="host-stream-offline" class="text-gray-700 text-[10px] font-black tracking-widest z-0">NO SIGNAL</span>
-                        <video id="host-stream-preview" playsinline class="w-full h-full object-contain absolute inset-0 z-10 hidden"></video>
-                    </div>
-                </div>
-
-                <!-- スマホ用: 映像下のコントロールとリクエスト欄 (PCでは非表示) -->
-                <div id="mobile-controls-container" class="lg:hidden flex flex-col gap-2 shrink-0">
-                    <div class="flex justify-center gap-4">
-                        <button onclick="togglePlayHost()" class="btn-host-play bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-10 shadow transition-colors">
-                            <i class="fa-solid fa-play text-sm"></i>
-                        </button>
-                        <button onclick="playNext(true)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-10 shadow transition-colors">
-                            <i class="fa-solid fa-forward-step text-sm"></i>
-                        </button>
-                    </div>
-                    <div class="flex gap-1.5">
-                        <input type="text" id="host-request-url-mobile" placeholder="YouTube URLをリクエスト..." class="flex-1 p-2 text-[10px] shadow-inner bg-[#0e0e10] border border-gray-700 text-white">
-                        <button onclick="sendHostRequest('mobile')" class="bg-red-600 hover:bg-red-500 text-white px-3 rounded-sm text-[10px] font-bold transition-colors shadow-sm">追加</button>
-                    </div>
-                </div>
-
-                <!-- オーディオミキサー (PC Only) -->
-                <div id="host-audio-mixer" class="hidden lg:block bg-[#18181b] border border-gray-700 p-2.5 rounded-sm shrink-0 shadow-sm">
-                    <div class="text-[9px] font-black text-gray-500 mb-2 border-b border-gray-800 pb-1 tracking-widest">AUDIO MIXER (MONITORING)</div>
-                    <div class="space-y-2.5">
-                        <!-- Jukebox Vol -->
-                        <div class="flex items-center gap-3">
-                            <span class="w-14 text-[10px] font-bold text-indigo-400 tracking-wider">JUKEBOX</span>
-                            <button onclick="toggleHostJukeboxMute()" class="w-6 h-6 bg-[#0e0e10] hover:bg-gray-800 border border-gray-700 rounded-sm flex items-center justify-center text-gray-400 transition-colors shrink-0">
-                                <i id="icon-host-jukebox-mute" class="fa-solid fa-volume-high text-[10px]"></i>
-                            </button>
-                            <input type="range" id="host-jukebox-vol" min="0" max="100" value="100" class="flex-1 h-1.5 bg-gray-800 rounded-full appearance-none accent-indigo-500 cursor-pointer" oninput="changeHostJukeboxVol(this.value)">
-                        </div>
-                        <!-- Stream Vol -->
-                        <div class="flex items-center gap-3">
-                            <span class="w-14 text-[10px] font-bold text-red-400 tracking-wider">STREAM</span>
-                            <button onclick="toggleHostStreamMute()" class="w-6 h-6 bg-[#0e0e10] hover:bg-gray-800 border border-gray-700 rounded-sm flex items-center justify-center text-gray-500 transition-colors shrink-0">
-                                <i id="icon-host-stream-mute" class="fa-solid fa-volume-xmark text-[10px]"></i>
-                            </button>
-                            <input type="range" id="host-stream-vol" min="0" max="100" value="0" class="flex-1 h-1.5 bg-gray-800 rounded-full appearance-none accent-red-500 cursor-pointer" oninput="changeHostStreamVol(this.value)">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Controls & Request (PC Only) -->
-                <div id="pc-controls-container" class="hidden lg:flex bg-[#18181b] border border-gray-700 p-3 rounded-sm flex-col gap-2 shrink-0 shadow-sm mt-1">
-                    <div class="flex justify-center gap-4">
-                        <button onclick="togglePlayHost()" class="btn-host-play bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-8 transition-colors shadow">
-                            <i class="fa-solid fa-play text-sm"></i>
-                        </button>
-                        <button onclick="playNext(true)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 p-2.5 rounded-sm flex items-center justify-center w-12 h-8 transition-colors shadow">
-                            <i class="fa-solid fa-forward-step text-sm"></i>
-                        </button>
-                    </div>
-
-                    <!-- Hostからのリクエスト入力欄 -->
-                    <div class="border-t border-gray-800 pt-2 flex gap-1.5 shrink-0 mt-1">
-                        <input type="text" id="host-request-url-pc" placeholder="YouTube URLをリクエスト..." class="flex-1 p-1.5 text-[10px] bg-[#0e0e10] border border-gray-700 text-white">
-                        <button onclick="sendHostRequest('pc')" class="bg-red-600 hover:bg-red-500 text-white px-3 rounded-sm text-[10px] font-bold transition-colors shadow-sm">追加</button>
-                    </div>
-                </div>
-
-                <!-- スマホ用: チャット＆参加者コンテナ (JSで移動させるプレースホルダー) -->
-                <div id="mobile-chat-participant-container" class="flex flex-col gap-3 lg:hidden shrink-0 pb-4"></div>
+    <!-- リスナーチュートリアルモーダル -->
+    <div id="tutorial-modal" class="hidden fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center relative">
+            <h3 class="text-xl font-bold text-white mb-4">配信者にリクエストを送ろう！</h3>
+            <div class="text-sm text-gray-300 space-y-2 text-left mb-6">
+                <p>Youtube / Youtube musicの動画・音楽の共有URLをコピー＆ペースト！</p>
+                <p class="text-yellow-400">※おすすめはYoutube musicです！</p>
+                <p class="text-red-400">※動画の権利の関係で再生されないものもあります</p>
             </div>
+            <button onclick="document.getElementById('tutorial-modal').classList.add('hidden')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg">閉じる</button>
+        </div>
+    </div>
 
-            <!-- ===== Column 2: Queue & History (中央) ===== -->
-            <div id="host-col-2" class="hidden lg:flex flex-col w-full lg:w-3/12 h-full border-b lg:border-b-0 lg:border-r border-gray-800 bg-[#0e0e10]">
-                <!-- リクエストキュー (上半分) -->
-                <div class="h-1/2 flex flex-col border-b border-gray-800 p-2.5">
-                    <div class="flex justify-between items-center border-b border-gray-800 pb-1.5 mb-2 shrink-0">
-                        <h3 class="text-[10px] font-black text-gray-400 tracking-widest uppercase"><i class="fa-solid fa-list-ul"></i> REQUEST QUEUE</h3>
-                        <span class="text-[9px] bg-gray-800 px-1.5 py-0.5 rounded-sm text-gray-300 font-bold border border-gray-700" id="queue-badge">0</span>
-                    </div>
-                    <div id="host-queue-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0"></div>
+    <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
+    <div id="listener-view" class="flex fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex-col landscape:flex-row text-sm">
+        <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
+            <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
+                <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                    <h3 class="text-white font-bold text-sm"><i class="fa-solid fa-gear"></i> 設定</h3>
+                    <button onclick="document.getElementById('listener-settings-modal').classList.add('hidden')" class="text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
                 </div>
-
-                <!-- 再生履歴 (下半分) -->
-                <div class="h-1/2 flex flex-col p-2.5">
-                    <h3 class="text-[10px] font-black text-gray-400 border-b border-gray-800 pb-1.5 mb-2 shrink-0 tracking-widest uppercase"><i class="fa-regular fa-clock"></i> HISTORY</h3>
-                    <div id="host-history-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0"></div>
-                </div>
-            </div>
-
-            <!-- ===== Column 3: Chat & Settings (右) ===== -->
-            <div id="host-col-3" class="hidden lg:flex flex-col w-full lg:w-4/12 h-full bg-[#0e0e10]">
                 
-                <!-- チャット (上半分 / スマホ時はcol1へ移動して非表示になる) -->
-                <div id="host-col-3-top" class="hidden lg:flex h-1/2 flex-col border-b border-gray-800 p-2.5">
-                    <div id="chat-container" class="flex flex-col h-full bg-[#111827] rounded-sm p-2 shadow-sm">
-                        <div class="flex justify-between items-center border-b border-gray-800 pb-1.5 mb-2 shrink-0">
-                            <h3 class="text-[10px] font-black text-gray-400 tracking-widest uppercase"><i class="fa-solid fa-comment-dots"></i> LIVE CHAT</h3>
-                            <label class="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 cursor-pointer hover:text-gray-200 transition-colors">
-                                <input type="checkbox" id="host-tts-toggle" class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500 focus:ring-transparent">
-                                <i class="fa-solid fa-head-side-waveform"></i> 読上
-                            </label>
-                        </div>
-                        <div id="host-chat-list" class="flex-1 overflow-y-auto space-y-1 pr-1 mb-2 min-h-0"></div>
-                        <div class="flex gap-1.5 shrink-0">
-                            <input type="text" id="host-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest()" placeholder="メッセージ..." class="flex-1 p-2 text-xs bg-[#0e0e10] border border-gray-700" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
-                            <button onclick="sendChatRequest()" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 w-10 rounded-sm flex items-center justify-center transition-colors shadow-sm"><i class="fa-solid fa-paper-plane text-xs"></i></button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 設定タブエリア (下半分 / スマホ時は全画面) -->
-                <div class="flex-1 lg:h-1/2 flex flex-col">
-                    <!-- サブタブヘッダー -->
-                    <div class="flex bg-[#18181b] border-b border-gray-700 shrink-0 shadow-sm">
-                        <button onclick="switchHostSettingsTab('bgm')" id="tab-btn-bgm" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-indigo-500 text-indigo-400 transition-colors">BGM</button>
-                        <button onclick="switchHostSettingsTab('settings')" id="tab-btn-settings" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-transparent text-gray-500 hover:text-gray-300 transition-colors">SETTING/URL</button>
-                    </div>
-
-                    <!-- サブタブコンテンツ -->
-                    <div class="flex-1 overflow-y-auto p-2.5 relative min-h-0">
-                        
-                        <!-- 参加者管理コンテナ (PC用は元々タブだったが、チャットと同じく独立エリア扱い、JSで移動) -->
-                        <div id="participant-container" class="hidden lg:flex flex-col h-full bg-[#111827] rounded-sm p-2 shadow-sm min-h-0">
-                            <div class="flex justify-between items-center mb-2 border-b border-gray-800 pb-1.5 shrink-0">
-                                <h3 class="text-[10px] font-bold text-gray-400"><i class="fa-solid fa-users"></i> 参加者 <span id="host-participant-count" class="font-normal ml-1"></span></h3>
-                                <label class="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 cursor-pointer hover:text-gray-200">
-                                    <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-red-500 focus:ring-transparent">
-                                    視聴承認制
-                                </label>
-                            </div>
-                            <div id="host-participant-list" class="flex-1 space-y-1 pr-1 overflow-y-auto min-h-0"></div>
-                        </div>
-
-                        <!-- BGMタブ -->
-                        <div id="tab-content-bgm" class="absolute inset-0 p-2.5 flex flex-col overflow-y-auto space-y-3">
+                <div class="space-y-5">
+                    <!-- メディア設定 -->
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-500 mb-3 uppercase">メディア設定</h4>
+                        <div class="space-y-4">
                             <div>
-                                <div class="flex gap-1.5 mb-2">
-                                    <input type="text" id="input-bgm-url" placeholder="YouTube URL" class="min-w-0 flex-1 p-2 text-[10px]">
-                                    <button onclick="addBGM()" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-3 rounded-sm text-[10px] font-bold transition-colors">追加</button>
-                                    <button onclick="saveToMyList()" title="マイリストに保存" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-yellow-500 px-2.5 rounded-sm text-[10px] transition-colors"><i class="fa-solid fa-star"></i></button>
-                                </div>
-                                <div class="flex flex-wrap gap-x-3 gap-y-1.5 mb-2 text-[9px] text-gray-400 border-b border-gray-800 pb-2 font-bold uppercase">
-                                    <label class="flex items-center gap-1 cursor-pointer hover:text-gray-200">
-                                        <input type="checkbox" id="bgm-shuffle" onchange="updateBGMPlaybackSettings()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500 focus:ring-transparent"> <i class="fa-solid fa-shuffle"></i> SHUF
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer hover:text-gray-200">
-                                        <input type="checkbox" id="bgm-loop" checked onchange="updateBGMPlaybackSettings()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500 focus:ring-transparent"> <i class="fa-solid fa-repeat"></i> LOOP
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer hover:text-gray-200">
-                                        <input type="checkbox" id="bgm-loop-one" onchange="updateBGMPlaybackSettings()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500 focus:ring-transparent"> <i class="fa-solid fa-rotate-right"></i> 1-TRK
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-video"></i> Streamの音声</span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="toggle-cam-mute" class="sr-only peer" onchange="toggleListenerAudioFromSwitch(this.checked)">
+                                        <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                                     </label>
                                 </div>
-                                <div class="mb-2">
-                                    <label class="text-[9px] text-gray-500 font-bold block mb-1">★ LOAD FROM MY LIST</label>
-                                    <select id="select-mylist" onchange="loadFromMyList()" class="w-full p-1.5 text-[10px]">
-                                        <option value="">-- SELECT --</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="flex-1 border-t border-gray-800 pt-2 min-h-0">
-                                <div id="host-bgm-list" class="space-y-1 max-h-full overflow-y-auto pr-1"></div>
-                            </div>
-                        </div>
-
-                        <!-- 設定・URLタブ -->
-                        <div id="tab-content-settings" class="hidden absolute inset-0 p-2.5 flex flex-col overflow-y-auto space-y-3">
-                            <!-- 基本設定 -->
-                            <div class="space-y-2 border-b border-gray-800 pb-3">
-                                <h3 class="text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-gear"></i> BASIC CONFIG</h3>
-                                <div>
-                                    <label class="block text-[9px] text-gray-500 mb-0.5">HOST NAME</label>
-                                    <input type="text" id="setting-host-name" class="w-full p-1.5 text-xs" onchange="updateHostSettings()">
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] text-gray-500 mb-0.5">MAX DURATION (MIN, 0=UNLIMITED)</label>
-                                    <input type="number" id="setting-duration" value="10" class="w-full p-1.5 text-xs" onchange="updateHostSettings()">
+                                <div class="flex flex-col mt-3 pl-2 border-l-2 border-gray-700 ml-1">
+                                    <span class="text-gray-400 text-xs font-bold mb-2"><i class="fa-solid fa-bolt text-yellow-500"></i> 音量ブースト (最大50倍)</span>
+                                    <div class="flex items-center">
+                                        <input type="range" id="stream-boost-slider" min="1" max="50" step="0.5" value="2.0" class="w-full h-1.5 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeStreamBoost(this.value)">
+                                    </div>
+                                    <span class="text-[10px] text-gray-500 mt-1">※配信者の声が小さい場合のみ上げてください</span>
                                 </div>
                             </div>
                             
-                            <!-- URL群 -->
-                            <div class="space-y-2.5">
-                                <h3 class="text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-link"></i> SHARED URLs</h3>
-                                <div>
-                                    <label class="block text-[9px] font-bold text-gray-400 mb-0.5">LISTENER (VIEWER)</label>
-                                    <div class="flex gap-1.5">
-                                        <input type="text" id="url-listener" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
-                                        <button onclick="copyURL('url-listener')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-bold text-yellow-600 mb-0.5">REMOTE CONTROLLER</label>
-                                    <div class="flex gap-1.5">
-                                        <input type="text" id="url-remote" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
-                                        <button onclick="copyURL('url-remote')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-bold text-green-600 mb-0.5">CAMERA PORTAL</label>
-                                    <div class="flex gap-1.5">
-                                        <input type="text" id="url-camera" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
-                                        <button onclick="copyURL('url-camera')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-bold text-blue-600 mb-0.5">OBS (CAM + JUKEBOX)</label>
-                                    <div class="flex gap-1.5">
-                                        <input type="text" id="url-obs-cam" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
-                                        <button onclick="copyURL('url-obs-cam')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-bold text-gray-600 mb-0.5">OBS (JUKEBOX ONLY)</label>
-                                    <div class="flex gap-1.5">
-                                        <input type="text" id="url-obs" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
-                                        <button onclick="copyURL('url-obs')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
-                                    </div>
-                                </div>
+                            <div class="flex justify-between items-center border-t border-gray-800 pt-3">
+                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-music"></i> Jukeboxの音声</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="toggle-wp-mute" class="sr-only peer" onchange="toggleWatchPartyMuteFromSwitch(this.checked)">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                                </label>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-desktop"></i> Jukeboxの映像</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="toggle-wp-video" class="sr-only peer" checked onchange="toggleWatchPartyVideoFromSwitch(this.checked); saveListenerSettings();">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                                </label>
                             </div>
                         </div>
+                    </div>
 
+                    <hr class="border-gray-800 my-4">
+
+                    <!-- コメント設定 -->
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-500 mb-3 uppercase">コメント設定</h4>
+                        <div class="space-y-4">
+                            <div>
+                                <input type="text" id="listener-name" placeholder="入室時に入力した名前" readonly class="w-full bg-gray-900/50 border border-gray-700 rounded p-2 text-gray-400 text-xs focus:outline-none cursor-not-allowed">
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-user-secret"></i> 匿名(184)にする</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="listener-anon" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </main>
+        </div>
+
+        <!-- ========== 左ペイン: 映像とコントロール (横画面時は残り幅全占有) ========== -->
+        <div class="flex flex-col w-full landscape:w-auto landscape:flex-1 landscape:h-full shrink-0 relative z-20 bg-black">
+            
+            <!-- 1. 映像エリア (上部固定 / 横画面時は全画面) -->
+            <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden aspect-video landscape:aspect-auto landscape:flex-1">
+                
+                <!-- NowPlaying帯 (映像上部) -->
+                <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
+                    <div id="listener-eq" class="equalizer scale-75 shrink-0 origin-left"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
+                    <div class="marquee-container h-4 flex-1">
+                        <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
+                            <span id="listener-now-playing">接続待ち...</span>
+                            <span id="listener-now-requester" class="text-indigo-300 font-normal"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stream映像レイヤー -->
+                <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
+                    <!-- Web Audio API にルーティングするため、常にミュートにする -->
+                    <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
+                </div>
+                
+                <!-- Jukebox映像レイヤー -->
+                <div id="listener-wp-layer" class="absolute inset-0 layer-visible bg-black">
+                    <div id="listener-youtube-player-wrapper" class="w-full h-full">
+                        <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
+                    </div>
+                    <!-- 初回タップ用オーバーレイ -->
+                    <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
+                        <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
+                        <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 1.5 配信主からのコメント表示（テーマ） -->
+            <div id="listener-theme-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
+
+            <div id="listener-controls-bar" class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
+                <!-- 映像切り替えタブ -->
+                <div class="flex gap-2">
+                    <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
+                    <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
+                </div>
+
+                <!-- Jukebox音量バー (WPタブ選択時かつ横画面時のみ表示) -->
+                <div class="hidden landscape:flex flex-1 max-w-[150px] mx-4 items-center">
+                    <div id="wp-volume-container" class="hidden items-center gap-2 w-full transition-opacity duration-300">
+                        <span class="text-[10px] text-gray-400 font-bold whitespace-nowrap"><i class="fa-solid fa-volume-high"></i> 🎵音量</span>
+                        <input type="range" id="wp-volume-slider" min="0" max="100" value="100" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeWpVolume(this.value)">
+                    </div>
+                </div>
+
+                <!-- 設定モーダル呼び出しボタン -->
+                <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white shrink-0" title="設定">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+            </div>
+
+        </div> <!-- 左ペイン終了 -->
+
+        <!-- ========== 右ペイン: スクロール領域 (リクエスト類 ＋ チャット) ========== -->
+        <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0 landscape:w-[320px] lg:landscape:w-[400px] landscape:flex-none landscape:border-l landscape:border-gray-800">
+            
+            <!-- リクエスト・ステータス等（アコーディオン） -->
+            <details id="listener-menu-details" class="bg-[#18181b] border-b border-gray-800 shrink-0 group z-10 relative">
+                <summary class="p-3 cursor-pointer text-gray-400 font-bold text-xs flex justify-between items-center outline-none hover:text-white transition-colors">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-music text-indigo-400 text-sm"></i> 
+                        <span>リクエスト等 (タップで開閉)</span>
+                    </div>
+                    <span class="group-open:rotate-180 transition-transform"><i class="fa-solid fa-chevron-down"></i></span>
+                </summary>
+                
+                <!-- アコーディオンの中身 (チャットを隠して表示) -->
+                <div class="p-4 space-y-6 bg-[#111827] border-t border-gray-800 h-full overflow-y-auto pb-32">
+                    
+                    <!-- ① リクエスト送信 -->
+                    <div class="space-y-3">
+                        <h3 class="text-xs font-bold text-indigo-400 flex items-center gap-1">
+                            <i class="fa-solid fa-arrow-down text-indigo-400"></i> リクエストはこちらから！
+                            <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="bg-gray-700 text-gray-300 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-2"><i class="fa-solid fa-question"></i></button>
+                        </h3>
+                        <div class="flex gap-2">
+                            <input type="text" id="listener-url" placeholder="https://youtu.be/..." class="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs outline-none focus:border-indigo-500">
+                            <button onclick="sendRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded text-xs font-bold transition-colors">送信</button>
+                        </div>
+                    </div>
+
+                    <!-- ② キューと履歴 -->
+                    <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-800/60">
+                        <div>
+                            <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">順番待ち (<span id="listener-queue-count">0</span>)</h3>
+                            <div id="listener-queue-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px]"></div>
+                        </div>
+                        <div>
+                            <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">再生履歴</h3>
+                            <div id="listener-history-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px] text-gray-500"></div>
+                        </div>
+                    </div>
+
+                    <!-- 最下部余白用バージョン表記 -->
+                    <div class="pt-8 text-center text-gray-700 text-[10px]">
+                        v1.0.40
+                    </div>
+
+                </div>
+            </details>
+
+            <!-- チャットリスト領域 (アコーディオン開閉時に隠れるラッパー) -->
+            <div id="listener-chat-area-wrapper" class="flex-1 flex flex-col min-h-0 relative">
+                <!-- 接続ステータス -->
+                <div id="listener-status" class="absolute top-2 left-0 w-full text-center text-[10px] text-yellow-500 animate-pulse pointer-events-none">ルームに接続中...</div>
+
+                <!-- フローティング用のバックドロップ（チャット履歴領域のみ暗くする） -->
+                <div id="listener-chat-backdrop" class="chat-backdrop" onclick="closeChatInput()"></div>
+
+                <div id="listener-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto min-h-0 flex flex-col justify-end pb-4 pt-6 relative z-10">
+                    <!-- Chat messages here -->
+                </div>
+
+                <!-- 4. チャット入力エリア -->
+                <div id="listener-chat-input-container" class="flex-shrink-0 px-3 pt-2 pb-safe bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20">
+                    <input type="text" id="listener-chat-input" name="dummy-chat-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusChatInput()" onblur="blurChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest(false)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
+                    <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+            </div>
+
+        </div> <!-- 右ペイン終了 -->
     </div>
 
-    <!-- カメラ中継用のダミー要素 -->
-    <audio id="dummy-audio" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" loop playsinline></audio>
+    <!-- 全画面共通リロードボタン (アイコン化) -->
+    <button onclick="location.reload()" class="fixed top-3 right-3 bg-gray-800/80 hover:bg-gray-700 border border-gray-600 text-white w-9 h-9 flex items-center justify-center rounded-full shadow-lg text-sm font-bold z-[9999] backdrop-blur-sm transition-colors active:bg-gray-600" title="画面を更新">
+        <i class="fa-solid fa-rotate-right"></i>
+    </button>
 
     <script>
         let peer = null;
         let currentRoomId = null;
-        let isHost = true;
         
-        let hostPassword = ''; 
+        let savedPasswords = JSON.parse(localStorage.getItem('jukebox_passwords')) || {};
+
         let queue = [];
-        let bgmQueue = [];
         let historyQueue = [];
         let chatHistory = []; 
         let currentSong = null;
-        let player = null;
-        let isLightMode = false;
-        let hostName = "配信太郎";
-        let hostTheme = "";
-        let durationLimit = 10 * 60;
-        let bgmResumeData = null; 
 
-        let connectedListeners = {}; 
-        let bannedUsers = {}; 
-        let cameraApprovalMode = false;
-        let myList = [];
-        let approvedUsers = {};
-
-        let hostMediaConn = null; 
-        let currentStreamToListeners = null;
-
-        // スマホ用: DOMの動的配置変更処理
-        function adjustLayoutForMobile() {
-            const isMobile = window.innerWidth < 1024;
-            const chatContainer = document.getElementById('chat-container');
-            const participantContainer = document.getElementById('participant-container');
-            const col3Top = document.getElementById('host-col-3-top');
-            const mobileContainer = document.getElementById('mobile-chat-participant-container');
-            
-            if (isMobile) {
-                // スマホレイアウトに移動
-                if (chatContainer.parentNode !== mobileContainer) {
-                    mobileContainer.appendChild(chatContainer);
-                    chatContainer.classList.remove('h-full');
-                    chatContainer.style.height = '280px';
-                }
-                if (participantContainer.parentNode !== mobileContainer) {
-                    mobileContainer.appendChild(participantContainer);
-                    participantContainer.classList.remove('hidden', 'lg:flex');
-                    participantContainer.classList.add('flex');
-                    participantContainer.classList.remove('h-full');
-                    participantContainer.style.height = '250px';
-                }
-            } else {
-                // PCレイアウトに戻す (元の非表示領域へ)
-                if (chatContainer.parentNode !== col3Top) {
-                    col3Top.appendChild(chatContainer);
-                    chatContainer.classList.add('h-full');
-                    chatContainer.style.height = '100%';
-                }
-                if (participantContainer.parentNode !== document.querySelector('#host-col-3 .flex-1 .min-h-0')) {
-                    // PARTICIPANTSはPCでは独立ではなく非表示状態に隠す
-                    const tabContent = document.querySelector('#host-col-3 .flex-1 .min-h-0');
-                    tabContent.appendChild(participantContainer);
-                    participantContainer.classList.add('hidden', 'lg:flex');
-                    participantContainer.classList.remove('flex');
-                }
-            }
+        let listenerConn = null;
+        let listenerId = null;
+        
+        let myGuestUUID = localStorage.getItem('jukebox_uuid');
+        if (!myGuestUUID) {
+            myGuestUUID = 'user-' + generateId() + generateId();
+            localStorage.setItem('jukebox_uuid', myGuestUUID);
         }
-        window.addEventListener('resize', adjustLayoutForMobile);
 
-        // スマホ用ペイン切り替え
-        function switchHostMobileTab(tabName) {
-            ['col1', 'col2', 'col3'].forEach(name => {
-                const btn = document.getElementById('mobile-tab-' + name);
-                if(btn) {
-                    if(name === tabName) {
-                        btn.classList.add('text-indigo-400', 'border-indigo-500');
-                        btn.classList.remove('text-gray-500', 'border-transparent');
+        let isListenerVideoOpen = false;
+        let listenerHasStream = false;
+        let isWatchPartyEnabled = true;
+
+        let viewerYTPlayer = null;
+        let isWpOverlayActive = true;
+        let hostCurrentTime = 0;
+        let hostCurrentStatus = -1;
+        let pendingConnection = null;
+
+        // Web Audio API 用の変数
+        let streamAudioCtx = null;
+        let streamAudioSource = null;
+        let streamGainNode = null;
+        let streamMuteNode = null;
+        let streamCompressorNode = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const menuDetails = document.getElementById('listener-menu-details');
+            if (menuDetails) {
+                menuDetails.addEventListener('toggle', () => {
+                    const chatWrapper = document.getElementById('listener-chat-area-wrapper');
+                    if (menuDetails.open) {
+                        chatWrapper.classList.add('hidden');
                     } else {
-                        btn.classList.remove('text-indigo-400', 'border-indigo-500');
-                        btn.classList.add('text-gray-500', 'border-transparent');
+                        chatWrapper.classList.remove('hidden');
+                        const chatList = document.getElementById('listener-chat-list');
+                        if(chatList) chatList.scrollTop = chatList.scrollHeight;
                     }
-                }
-            });
-
-            const col1 = document.getElementById('host-col-1');
-            const col2 = document.getElementById('host-col-2');
-            const col3 = document.getElementById('host-col-3');
-            
-            if(window.innerWidth < 1024) {
-                if(tabName === 'col1') {
-                    col1.classList.remove('hidden'); col1.classList.add('flex');
-                    col2.classList.add('hidden'); col2.classList.remove('flex');
-                    col3.classList.add('hidden'); col3.classList.remove('flex');
-                } else if(tabName === 'col2') {
-                    col1.classList.add('hidden'); col1.classList.remove('flex');
-                    col2.classList.remove('hidden'); col2.classList.add('flex');
-                    col3.classList.add('hidden'); col3.classList.remove('flex');
-                } else {
-                    col1.classList.add('hidden'); col1.classList.remove('flex');
-                    col2.classList.add('hidden'); col2.classList.remove('flex');
-                    col3.classList.remove('hidden'); col3.classList.add('flex');
-                    
-                    if (document.getElementById('tab-btn-bgm').classList.contains('border-transparent') && document.getElementById('tab-btn-settings').classList.contains('border-transparent')) {
-                        switchHostSettingsTab('bgm');
-                    }
-                }
-            }
-        }
-
-        window.addEventListener('resize', () => {
-            if(window.innerWidth >= 1024) {
-                document.getElementById('host-col-1').classList.remove('hidden');
-                document.getElementById('host-col-1').classList.add('flex');
-                document.getElementById('host-col-2').classList.remove('hidden');
-                document.getElementById('host-col-2').classList.add('flex');
-                document.getElementById('host-col-3').classList.remove('hidden');
-                document.getElementById('host-col-3').classList.add('flex');
+                });
             }
         });
 
-        // サブタブ切り替え (Col 3 下半分)
-        function switchHostSettingsTab(tabName) {
-            ['bgm', 'settings'].forEach(name => {
-                const btn = document.getElementById('tab-btn-' + name);
-                const content = document.getElementById('tab-content-' + name);
-                if(btn) {
-                    if(name === tabName) {
-                        btn.classList.add('text-indigo-400', 'border-indigo-500');
-                        btn.classList.remove('text-gray-500', 'border-transparent');
-                        if(content) content.classList.remove('hidden');
-                    } else {
-                        btn.classList.remove('text-indigo-400', 'border-indigo-500');
-                        btn.classList.add('text-gray-500', 'border-transparent');
-                        if(content) content.classList.add('hidden');
-                    }
-                }
-            });
+        // チャット入力欄フローティング機能のJS関数 (リスナー用)
+        function focusChatInput() {
+            document.getElementById('listener-chat-input-container').classList.add('chat-input-floating');
+            document.getElementById('listener-chat-backdrop').classList.add('active');
         }
 
-        // オーディオミキサー制御
-        function toggleHostJukeboxMute() {
-            const icon = document.getElementById('icon-host-jukebox-mute');
-            const isCurrentlyMuted = icon.classList.contains('fa-volume-xmark');
-
-            if(isCurrentlyMuted) {
-                icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                if(player && typeof player.unMute === 'function') {
-                    player.unMute();
-                    const vol = document.getElementById('host-jukebox-vol').value;
-                    player.setVolume(vol);
-                }
-            } else {
-                icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
-                icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
-                if(player && typeof player.mute === 'function') {
-                    player.mute();
-                }
-            }
-            saveHostState();
-        }
-        function changeHostJukeboxVol(val) {
-            if(player && typeof player.setVolume === 'function') {
-                player.setVolume(val);
-            }
-            if(val > 0) {
-                const icon = document.getElementById('icon-host-jukebox-mute');
-                if (icon.classList.contains('fa-volume-xmark')) {
-                    icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                    icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                    if(player && typeof player.unMute === 'function') {
-                        player.unMute();
-                    }
-                }
-            }
-            saveHostState();
+        function closeChatInput() {
+            const input = document.getElementById('listener-chat-input');
+            if (input) input.blur();
+            document.getElementById('listener-chat-input-container').classList.remove('chat-input-floating');
+            document.getElementById('listener-chat-backdrop').classList.remove('active');
         }
 
-        function toggleHostStreamMute() {
-            const vid = document.getElementById('host-stream-preview');
-            const icon = document.getElementById('icon-host-stream-mute');
-            const isCurrentlyMuted = icon.classList.contains('fa-volume-xmark');
-            
-            if(isCurrentlyMuted) {
-                icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                if (vid) {
-                    vid.muted = false;
-                    vid.play().catch(e=>{});
+        function blurChatInputDelay() {
+            setTimeout(() => {
+                const input = document.getElementById('listener-chat-input');
+                if (document.activeElement !== input) {
+                    document.getElementById('listener-chat-input-container').classList.remove('chat-input-floating');
+                    document.getElementById('listener-chat-backdrop').classList.remove('active');
                 }
-            } else {
-                icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
-                icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
-                if (vid) {
-                    vid.muted = true;
-                }
-            }
-            saveHostState();
-        }
-        function changeHostStreamVol(val) {
-            const vid = document.getElementById('host-stream-preview');
-            if (vid) {
-                vid.volume = val / 100;
-            }
-            if(val > 0) {
-                const icon = document.getElementById('icon-host-stream-mute');
-                if (icon.classList.contains('fa-volume-xmark')) {
-                    icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                    icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                    if (vid) {
-                        vid.muted = false;
-                        vid.play().catch(e=>{});
-                    }
-                }
-            }
-            saveHostState();
+            }, 200);
         }
 
         window.onload = () => {
-            adjustLayoutForMobile(); // 初期レイアウト調整
-            
-            const unlockTTS = () => { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); };
-            const hTts = document.getElementById('host-tts-toggle');
-            if(hTts) hTts.addEventListener('change', unlockTTS);
+            loadListenerSettings();
 
-            try {
-                const rawData = localStorage.getItem('jukebox_mylist');
-                if (rawData) {
-                    const parsed = JSON.parse(rawData);
-                    if (Array.isArray(parsed)) myList = parsed;
-                }
-            } catch(e) { myList = []; }
+            const savedName = localStorage.getItem('jukebox_guest_name');
+            const savedAnon = localStorage.getItem('jukebox_guest_anon');
+            const nameEl = document.getElementById('listener-name');
+            const anonEl = document.getElementById('listener-anon');
+            if (savedName && nameEl) nameEl.value = savedName;
+            if (savedAnon !== null && anonEl) anonEl.checked = (savedAnon === 'true');
 
             const params = new URLSearchParams(window.location.search);
             try {
-                if(params.has('setup_host')) {
-                    currentRoomId = params.get('setup_host');
-                    const history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
-                    const item = history.find(h => h.roomId === currentRoomId);
-                    if(item) {
-                        document.getElementById('input-room-id').value = item.roomId;
-                        document.getElementById('input-host-name').value = item.hostName;
-                        document.getElementById('input-host-password').value = item.password || '';
-                        createRoom();
-                    } else {
-                        showView('setup-view');
-                        renderHostHistory();
-                    }
+                if(params.has('host')) {
+                    currentRoomId = params.get('host');
+                    initListener();
                 } else {
-                    showView('setup-view');
-                    renderHostHistory();
+                    document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500">エラー</h1><p class="text-gray-300">ルームIDが指定されていません。URLを確認してください。</p></div>';
                 }
             } catch(e) {
                 console.error("Initialization error:", e);
-                showView('setup-view');
-                renderHostHistory();
             }
         };
-
-        function showView(viewId) {
-            ['setup-view', 'host-view'].forEach(id => {
-                const el = document.getElementById(id);
-                if(el) { el.classList.add('hidden'); el.classList.remove('flex'); }
-            });
-            const v = document.getElementById(viewId);
-            if(v) {
-                v.classList.remove('hidden');
-                if(viewId === 'host-view') v.classList.add('flex');
-            }
-        }
 
         function showToast(msg, type="info") {
             const toast = document.getElementById('toast');
             document.getElementById('toast-msg').innerHTML = msg;
-            toast.className = `toast bg-[#18181b] border-l-4 border-indigo-500 text-gray-200 p-3 rounded-sm shadow-xl flex items-center gap-3 text-xs font-bold`;
+            toast.className = `toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3 text-sm`;
             if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
             else toast.classList.replace('border-red-500', 'border-indigo-500');
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
-        let hostNewsTimeout = null;
-        function showHostNews(msg) {
-            const ticker = document.getElementById('host-news-ticker');
-            if(ticker) {
-                ticker.innerHTML = msg;
-                ticker.style.opacity = '1';
-                if(hostNewsTimeout) clearTimeout(hostNewsTimeout);
-                hostNewsTimeout = setTimeout(() => {
-                    ticker.style.opacity = '0';
-                }, 5000);
-            }
-        }
-
         function generateId() { return Math.random().toString(36).substring(2, 9); }
 
-        function generateHash(str) {
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                hash = ((hash << 5) - hash) + str.charCodeAt(i);
-                hash = hash & hash; 
-            }
-            return Math.abs(hash).toString(36);
+        function showBannedScreen() {
+            document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500"><i class="fa-solid fa-ban"></i> アクセスがブロックされました</h1><p class="text-gray-300">管理者の操作により、このルームへのアクセスが制限されています。</p></div>';
         }
 
-        function createRoom() {
-            try {
-                const idInput = document.getElementById('input-room-id').value.trim();
-                const nameInput = document.getElementById('input-host-name').value.trim();
-                const passInput = document.getElementById('input-host-password').value.trim(); 
-                if(!idInput) { showToast("ルームIDを入力してください", "error"); return; }
-                
-                let baseId = idInput.replace(/[^a-zA-Z0-9-]/g, '');
-                if(!baseId) { showToast("ルームIDは半角英数字で入力してください", "error"); return; }
-                
-                hostName = nameInput || "配信太郎";
-                hostPassword = passInput; 
-                
-                if (hostPassword) {
-                    currentRoomId = baseId + '-' + generateHash(hostPassword);
-                } else {
-                    currentRoomId = baseId;
-                }
-                
-                const settingNameEl = document.getElementById('setting-host-name');
-                if(settingNameEl) settingNameEl.value = hostName;
-                
-                generateURLs();
-                updateMyListSelect();
-                saveHostHistory(baseId, hostName, hostPassword); 
-                initHost();
-            } catch (err) {
-                showToast("エラーが発生しました: " + err.message, "error");
-            }
-        }
-
-        function generateURLs() {
-            const base = window.location.href.split('?')[0].split('#')[0];
-            const baseUrlPath = base.substring(0, base.lastIndexOf('/') + 1);
-
-            const elListener = document.getElementById('url-listener');
-            if(elListener) elListener.value = `${baseUrlPath}listener.html?host=${currentRoomId}`;
-
-            const elRemote = document.getElementById('url-remote');
-            if(elRemote) elRemote.value = `${baseUrlPath}controller.html`;
-
-            const elCamera = document.getElementById('url-camera');
-            if(elCamera) elCamera.value = `${baseUrlPath}camera.html`;
-
-            const elObsCam = document.getElementById('url-obs-cam');
-            if(elObsCam) elObsCam.value = `${baseUrlPath}OBS.html?obs_cam=${currentRoomId}`;
-
-            const elObs = document.getElementById('url-obs');
-            if(elObs) elObs.value = `${baseUrlPath}OBS.html?obs=${currentRoomId}`;
-        }
-
-        function copyURL(inputId) {
-            document.getElementById(inputId).select();
-            document.execCommand("copy");
-            showToast("URLをコピーしました！");
-        }
-
-        function renderHostHistory() {
-            const list = document.getElementById('setup-history-list');
-            if(!list) return;
-            const history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
-            
-            if(history.length === 0) {
-                list.innerHTML = '<p class="text-gray-600 text-center text-xs py-4 font-bold">過去の作成履歴はありません</p>';
-                return;
-            }
-
-            list.innerHTML = '';
-            history.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'bg-[#0e0e10] p-2.5 rounded-sm flex justify-between items-center cursor-pointer hover:bg-gray-800 transition border border-gray-800 hover:border-indigo-500/50 mb-1.5 shadow-inner group';
-                div.innerHTML = `
-                    <div class="flex-1 min-w-0" onclick="joinFromHostHistory('${item.roomId}', '${item.hostName}', '${item.password || ''}')">
-                        <div class="font-bold text-gray-200 text-xs truncate group-hover:text-indigo-400 transition-colors">${item.hostName} の部屋</div>
-                        <div class="text-[9px] text-gray-500 font-mono mt-0.5 tracking-wider">ID: ${item.roomId}</div>
-                    </div>
-                    <button class="text-gray-600 hover:text-red-400 px-2 transition-colors" onclick="deleteHostHistory('${item.roomId}', event)"><i class="fa-solid fa-trash-can"></i></button>
-                `;
-                list.appendChild(div);
-            });
-        }
-
-        function saveHostHistory(roomId, hostName, password) {
+        function saveGuestHistory(roomId, hostName) {
             if(!roomId) return;
-            let history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
+            let history = JSON.parse(localStorage.getItem('jukebox_guest_history')) || [];
             history = history.filter(h => h.roomId !== roomId);
-            history.unshift({ roomId: roomId, hostName: hostName || roomId, password: password || '', time: Date.now() });
+            history.unshift({ roomId: roomId, hostName: hostName || roomId, time: Date.now() });
             if(history.length > 10) history = history.slice(0, 10);
-            localStorage.setItem('jukebox_host_history', JSON.stringify(history));
+            localStorage.setItem('jukebox_guest_history', JSON.stringify(history));
         }
 
-        function deleteHostHistory(roomId, event) {
-            event.stopPropagation();
-            let history = JSON.parse(localStorage.getItem('jukebox_host_history')) || [];
-            history = history.filter(h => h.roomId !== roomId);
-            localStorage.setItem('jukebox_host_history', JSON.stringify(history));
-            renderHostHistory();
-            showToast("履歴を削除しました");
+        // リスナー用メディア設定の保存と読み込み
+        function saveListenerSettings() {
+            const settings = {
+                camAudioOn: document.getElementById('toggle-cam-mute').checked,
+                wpAudioOn: document.getElementById('toggle-wp-mute').checked,
+                wpVideoOn: document.getElementById('toggle-wp-video').checked,
+                wpVolume: document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100,
+                streamBoost: document.getElementById('stream-boost-slider') ? document.getElementById('stream-boost-slider').value : 2.0
+            };
+            localStorage.setItem('jukebox_listener_settings', JSON.stringify(settings));
         }
 
-        function joinFromHostHistory(roomId, hostName, password) {
-            document.getElementById('input-room-id').value = roomId;
-            document.getElementById('input-host-name').value = hostName;
-            document.getElementById('input-host-password').value = password || '';
-            createRoom();
-        }
-
-        function initHost() {
-            showView('host-view');
-            document.getElementById('display-room-id').textContent = currentRoomId;
-            generateURLs();
-
-            const url = new URL(window.location);
-            url.searchParams.set('setup_host', currentRoomId);
-            history.replaceState(null, '', url);
-
-            peer = new Peer(`jukebox-${currentRoomId}`);
-
-            peer.on('open', (id) => {
-                document.getElementById('status-dot').classList.replace('bg-yellow-500', 'bg-green-500');
-                document.getElementById('status-dot').classList.replace('shadow-[0_0_5px_rgba(234,179,8,0.8)]', 'shadow-[0_0_5px_rgba(34,197,94,0.8)]');
-                document.getElementById('status-text').textContent = "ONLINE / WAITING";
-                document.getElementById('error-text').classList.add('hidden');
-                loadHostState(); 
-                loadYouTubeAPI(); 
-                
-                setInterval(() => {
-                    if (player && typeof player.getCurrentTime === 'function' && typeof player.getPlayerState === 'function') {
-                        let actualVideoId = currentSong ? currentSong.videoId : null;
-                        try {
-                            const vData = player.getVideoData();
-                            if(vData && vData.video_id) actualVideoId = vData.video_id;
-                        } catch(e) {}
-
-                        const syncData = {
-                            type: 'sync_playback',
-                            videoId: actualVideoId,
-                            time: player.getCurrentTime(),
-                            status: player.getPlayerState()
-                        };
-                        Object.values(connectedListeners).forEach(p => {
-                            if(p.conn.open) p.conn.send(syncData);
-                        });
-                    }
-                }, 1000);
-
-                setInterval(() => {
-                    const now = Date.now();
-                    Object.values(connectedListeners).forEach(p => {
-                        if (p.conn.open) {
-                            if (!p.lastPongReceived) p.lastPongReceived = now;
-                            if (now - p.lastPongReceived > 30000) {
-                                p.conn.close();
-                                delete connectedListeners[p.id];
-                                updateParticipantsUI();
-                                broadcastState();
-                            } else {
-                                p.conn.send({ type: 'ping' });
-                            }
-                        } else {
-                            delete connectedListeners[p.id];
-                            updateParticipantsUI();
-                            broadcastState();
-                        }
-                    });
-                }, 10000);
-            });
-
-            peer.on('error', (err) => {
-                document.getElementById('status-dot').classList.replace('bg-green-500', 'bg-red-500');
-                document.getElementById('status-dot').classList.replace('shadow-[0_0_5px_rgba(34,197,94,0.8)]', 'shadow-[0_0_5px_rgba(239,68,68,0.8)]');
-                document.getElementById('status-text').textContent = "ERROR";
-                const errTxt = document.getElementById('error-text');
-                errTxt.textContent = err.type;
-                errTxt.classList.remove('hidden');
-            });
-
-            peer.on('connection', (conn) => {
-                if(bannedUsers[conn.peer]) {
-                    conn.on('open', () => { conn.send({type: 'banned'}); conn.close(); });
-                    return;
-                }
-                
-                conn.isAuthenticated = false;
-
-                connectedListeners[conn.peer] = {
-                    id: conn.peer, conn: conn, name: "名無し", isMuted: false, cameraStatus: 'none', isRemote: false, isObs: false, call: null, hasAnnounced: false, lastPongReceived: Date.now(), isCam: conn.peer.startsWith('cam-')
-                };
-                updateParticipantsUI();
-
-                conn.on('open', () => { 
-                    conn.send({
-                        type: 'state',
-                        status: player ? (player.getPlayerState && player.getPlayerState() === 1 ? 'playing' : 'paused') : 'paused',
-                        videoId: currentSong ? currentSong.videoId : null,
-                        hostName: hostName,
-                        requirePassword: !!hostPassword 
-                    });
-                    broadcastState(); 
-                });
-                
-                conn.on('data', (data) => { 
-                    if (hostPassword) {
-                        if (data.type === 'auth_request') {
-                            if (data.password === hostPassword) {
-                                conn.isAuthenticated = true;
-                                conn.send({ type: 'auth_response', success: true });
-                                broadcastState();
-                            } else {
-                                conn.send({ type: 'auth_response', success: false });
-                            }
-                            return;
-                        }
-
-                        if (data.uuid) {
-                            const isBannedUUID = Object.values(bannedUsers).some(u => u.uuid === data.uuid);
-                            if (isBannedUUID) {
-                                conn.send({type: 'banned'});
-                                conn.close();
-                                return;
-                            }
-                        }
-
-                        const isRemoteOrCam = data.isRemote || conn.peer.startsWith('cam-');
-                        if (isRemoteOrCam && !conn.isAuthenticated) {
-                            conn.send({ type: 'auth_required' }); 
-                            return;
-                        }
-                    } else {
-                        conn.isAuthenticated = true;
-                    }
-
-                    if (data.type === 'pong') {
-                        if (connectedListeners[conn.peer]) {
-                            connectedListeners[conn.peer].lastPongReceived = Date.now();
-                        }
-                        return;
-                    }
-                    
-                    handleHostData(data, conn); 
-                });
-                
-                conn.on('close', () => {
-                    if(connectedListeners[conn.peer]) {
-                        delete connectedListeners[conn.peer];
-                        updateParticipantsUI();
-                    }
-                });
-            });
-
-            peer.on('call', (call) => {
-                if(call.peer.startsWith('cam-')) {
-                    hostMediaConn = call;
-                    call.answer();
-                    call.on('stream', (stream) => {
-                        // Multi-view: Preview incoming stream
-                        const previewVid = document.getElementById('host-stream-preview');
-                        if (previewVid) {
-                            previewVid.srcObject = stream;
-                            previewVid.classList.remove('hidden');
-                            document.getElementById('host-stream-offline').classList.add('hidden');
-                            // Use mixer state to set initial mute and volume
-                            previewVid.muted = document.getElementById('icon-host-stream-mute').classList.contains('fa-volume-xmark');
-                            if(document.getElementById('host-stream-vol')) {
-                                previewVid.volume = document.getElementById('host-stream-vol').value / 100;
-                            }
-                            previewVid.play().catch(e=>{});
-                        }
-                        
-                        document.getElementById('dummy-audio').play().catch(e=>{});
-                        broadcastStreamToListeners(stream);
-                    });
-                    call.on('close', () => {
-                        stopBroadcastStream();
-                        const previewVid = document.getElementById('host-stream-preview');
-                        if(previewVid) {
-                            previewVid.srcObject = null;
-                            previewVid.classList.add('hidden');
-                            document.getElementById('host-stream-offline').classList.remove('hidden');
-                        }
-                    });
-                }
-            });
-        }
-
-        async function fetchYouTubeTitle(videoId) {
+        function loadListenerSettings() {
             try {
-                const res = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
-                if(res.ok) {
-                    const data = await res.json();
-                    return data.title || "不明なタイトル";
+                const saved = localStorage.getItem('jukebox_listener_settings');
+                if (saved) {
+                    const settings = JSON.parse(saved);
+                    const camMute = document.getElementById('toggle-cam-mute');
+                    const wpMute = document.getElementById('toggle-wp-mute');
+                    const wpVideo = document.getElementById('toggle-wp-video');
+                    const wpVol = document.getElementById('wp-volume-slider');
+                    const streamBoost = document.getElementById('stream-boost-slider');
+                    
+                    if(camMute && settings.camAudioOn !== undefined) camMute.checked = settings.camAudioOn;
+                    if(wpMute && settings.wpAudioOn !== undefined) wpMute.checked = settings.wpAudioOn;
+                    if(wpVideo && settings.wpVideoOn !== undefined) {
+                        wpVideo.checked = settings.wpVideoOn;
+                        toggleWatchPartyVideoFromSwitch(settings.wpVideoOn);
+                    }
+                    if(wpVol && settings.wpVolume !== undefined) {
+                        wpVol.value = settings.wpVolume;
+                    }
+                    if(streamBoost && settings.streamBoost !== undefined) {
+                        streamBoost.value = settings.streamBoost;
+                        changeStreamBoost(settings.streamBoost);
+                    }
+                    return settings;
                 }
             } catch(e) {}
-            return "不明なタイトル";
+            return null;
         }
 
-        function handleHostData(data, conn) {
-            const peerId = conn.peer;
-            const listener = connectedListeners[peerId];
-
-            if(bannedUsers[peerId]) return; 
-
-            if(data.type === 'update_profile') {
-                if(listener) {
-                    let isReconnected = false;
-                    let restoredCameraStatus = 'none';
-                    let restoredIsMuted = false;
-
-                    if (data.uuid) {
-                        Object.values(connectedListeners).forEach(oldP => {
-                            if (oldP.uuid === data.uuid && oldP.id !== peerId) {
-                                isReconnected = true;
-                                restoredCameraStatus = oldP.cameraStatus;
-                                restoredIsMuted = oldP.isMuted;
-                                oldP.conn.close();
-                                delete connectedListeners[oldP.id];
-                            }
-                        });
-                    }
-
-                    const isNew = (listener.name === "名無し" || !listener.hasAnnounced) && data.name !== "名無し" && !data.isObs && !data.isRemote && !isReconnected && !listener.isCam;
-                    listener.name = data.name;
-                    listener.isRemote = data.isRemote || false;
-                    listener.isObs = data.isObs || false;
-                    listener.uuid = data.uuid; 
-                    listener.lastPongReceived = Date.now();
-                    
-                    if (isReconnected) {
-                        listener.cameraStatus = restoredCameraStatus;
-                        listener.isMuted = restoredIsMuted;
-                    }
-
-                    if (listener.uuid && approvedUsers[listener.uuid]) {
-                        listener.cameraStatus = 'approved';
-                    }
-
-                    if (listener.isObs || listener.isRemote) {
-                        listener.cameraStatus = 'approved';
-                        if (currentStreamToListeners && !listener.call) {
-                            sendStreamToPeer(listener.id);
-                        }
-                    } else if (listener.cameraStatus === 'approved') {
-                        if (currentStreamToListeners && !listener.call) {
-                            sendStreamToPeer(listener.id);
-                        }
-                    }
-
-                    if (isNew) {
-                        listener.hasAnnounced = true;
-                        showHostNews(`<i class="fa-solid fa-door-open text-gray-500"></i> <span class="text-white">${data.name}</span> <span class="text-gray-400">JOINED</span>`);
-                        Object.values(connectedListeners).forEach(p => {
-                            if (p.isRemote && p.conn.open) p.conn.send({type: 'remote_alert', msg: `<i class="fa-solid fa-door-open"></i> <b>${data.name}</b> が入室しました`});
-                        });
-                    } else if (isReconnected) {
-                        listener.hasAnnounced = true;
-                    }
-
-                    updateParticipantsUI();
+        // --- Web Audio API を用いた Stream 音声のブーストとリミッター ---
+        function setupStreamAudio(stream) {
+            try {
+                if (!streamAudioCtx) {
+                    streamAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
-            }
-            else if(data.type === 'request') {
-                if(listener && listener.isMuted) {
-                    conn.send({type: 'error', msg: '現在リクエストが制限されています'});
-                    return;
+
+                if (streamAudioSource) {
+                    streamAudioSource.disconnect();
                 }
-                const song = {
-                    id: generateId(), videoId: data.videoId, title: "取得中...", requester: data.requester, requesterReal: data.requesterReal, isAnon: data.isAnon, isRemote: data.isRemote || false
-                };
-                queue.push(song);
-                showToast(`REQ: ${song.requester}`);
-                showHostNews(`<i class="fa-solid fa-music text-indigo-400"></i> <span class="text-white">REQ:</span> ${data.requesterReal}`);
+
+                // 1. WebRTCの生ストリームを直接Web Audio APIに接続
+                streamAudioSource = streamAudioCtx.createMediaStreamSource(stream);
                 
-                Object.values(connectedListeners).forEach(p => {
-                    if (p.isRemote && p.conn.open) p.conn.send({type: 'remote_alert', msg: `<i class="fa-solid fa-music"></i> リクエスト追加: <b>${data.requesterReal}</b>`});
-                });
+                // 2. GainNodeの作成 (音量増幅)
+                streamGainNode = streamAudioCtx.createGain();
+                const boostVal = document.getElementById('stream-boost-slider') ? parseFloat(document.getElementById('stream-boost-slider').value) : 2.0;
+                streamGainNode.gain.value = boostVal;
 
-                saveHostState();
-                updateUI();
-                
-                fetchYouTubeTitle(song.videoId).then(title => {
-                    const qItem = queue.find(q => q.id === song.id);
-                    if(qItem) { qItem.title = title; saveHostState(); updateUI(); }
-                });
+                // 2.5 BiquadFilterNodeの作成 (低音ブーストEQ: 声に厚みを持たせる)
+                if (!window.streamEqNode) {
+                    window.streamEqNode = streamAudioCtx.createBiquadFilter();
+                    window.streamEqNode.type = 'lowshelf';
+                    window.streamEqNode.frequency.value = 250; // 250Hz以下の低音域を対象
+                    window.streamEqNode.gain.value = 4.0; // +4dB持ち上げる
+                }
 
-                if(!currentSong || currentSong.isBGM) {
-                    if(player && typeof player.getPlayerState === 'function') playNext();
-                }
-            }
-            else if(data.type === 'cancel') {
-                queue = queue.filter(q => q.id !== data.id);
-                saveHostState();
-                updateUI();
-            }
-            else if(data.type === 'remote_cmd') {
-                if(data.cmd === 'toggle') togglePlayHost();
-                else if(data.cmd === 'skip') playNext(true); 
-                else if(data.cmd === 'manage') {
-                    if (data.action === 'cancel_req') removeQueue(data.targetId);
-                    else if (data.action === 'toggle_cam_approval') {
-                        const el = document.getElementById('setting-cam-approval');
-                        if (el) el.checked = data.targetId;
-                        toggleCamApproval();
-                    }
-                    else manageUser(data.targetId, data.action);
-                }
-            }
-            else if(data.type === 'update_theme') {
-                hostTheme = data.theme;
-                const themeInput = document.getElementById('setting-theme');
-                if(themeInput) themeInput.value = hostTheme;
-                saveHostState();
-                broadcastState();
-                showToast("THEME UPDATED");
-            }
-            else if(data.type === 'request_camera') {
-                if(listener) {
-                    if(cameraApprovalMode && !listener.isRemote && !listener.isObs) {
-                        listener.cameraStatus = 'requested';
-                        updateParticipantsUI();
-                        showHostNews(`<i class="fa-solid fa-bell text-yellow-400"></i> ${listener.name} がStream視聴承認待ちです`);
-                        Object.values(connectedListeners).forEach(p => {
-                            if(p.isRemote && p.conn.open) p.conn.send({type: 'camera_request_alert', id: listener.id, name: listener.name});
-                        });
-                    } else {
-                        listener.cameraStatus = 'approved';
-                        if(currentStreamToListeners && !listener.call) sendStreamToPeer(peerId);
-                    }
-                }
-            }
-            else if(data.type === 'camera_stop') {
-                if(hostMediaConn) hostMediaConn.close();
-                stopBroadcastStream();
-            }
-            else if(data.type === 'chat') {
-                const newChat = {
-                    id: generateId(), text: data.text, sender: data.sender, senderReal: data.senderReal, isAnon: data.isAnon, isRemote: data.isRemote, time: Date.now()
-                };
+                // 3. ミュート制御用GainNode
+                streamMuteNode = streamAudioCtx.createGain();
+                const camMuteToggle = document.getElementById('toggle-cam-mute');
+                streamMuteNode.gain.value = (camMuteToggle && camMuteToggle.checked) ? 1.0 : 0.0;
+
+                // 4. DynamicsCompressorNodeの作成 (音割れ防止リミッター)
+                // ※自然な音を保つため極力かからないようにマイルドな設定に変更
+                streamCompressorNode = streamAudioCtx.createDynamicsCompressor();
+                streamCompressorNode.threshold.value = -1;   // 限界(-1dB)まで圧縮を始めない
+                streamCompressorNode.knee.value = 30;        // ソフトニー (徐々に潰す)
+                streamCompressorNode.ratio.value = 4;        // 潰し方を1/4に緩和 (以前は20)
+                streamCompressorNode.attack.value = 0.01;
+                streamCompressorNode.release.value = 0.1;
+
+                // ノードの接続: Source -> Boost Gain -> Bass EQ -> Mute Gain -> Compressor -> Destination
+                streamAudioSource.connect(streamGainNode);
+                streamGainNode.connect(window.streamEqNode);
+                window.streamEqNode.connect(streamMuteNode);
+                streamMuteNode.connect(streamCompressorNode);
+                streamCompressorNode.connect(streamAudioCtx.destination);
                 
-                if(!chatHistory.some(c => c.id === newChat.id)) {
-                    chatHistory.push(newChat);
-                    if(chatHistory.length > 100) chatHistory.shift();
-                    saveHostState();
-                    updateUI(); 
-                    showHostNews(`<i class="fa-solid fa-comment-dots text-gray-500"></i> <span class="text-indigo-300">${newChat.senderReal}</span>: ${newChat.text}`);
-                    
-                    Object.values(connectedListeners).forEach(p => {
-                        if(p.conn.open) p.conn.send({type: 'new_chat', chat: newChat});
-                    });
-                    triggerTTS(newChat);
+                // AudioContextがサスペンド状態なら再開を試みる
+                if (streamAudioCtx.state === 'suspended') {
+                    streamAudioCtx.resume().catch(e => console.warn(e));
                 }
-            }
-            else if(data.type === 'delete_chat') {
-                deleteChat(data.id);
+            } catch (e) {
+                console.error("Web Audio API setup error:", e);
             }
         }
 
-        function sendHostRequest(mode = 'pc') {
-            const inputId = mode === 'mobile' ? 'host-request-url-mobile' : 'host-request-url-pc';
-            const url = document.getElementById(inputId).value;
-            if(!url) return;
-            const vid = extractVideoId(url);
-            if(vid) {
-                const song = {
-                    id: generateId(), videoId: vid, title: "取得中...", requester: "👑 " + hostName, requesterReal: hostName, isAnon: false, isRemote: true
-                };
-                queue.push(song);
-                showToast(`リクエストを追加しました`);
-                saveHostState();
-                updateUI();
-                
-                fetchYouTubeTitle(song.videoId).then(title => {
-                    const qItem = queue.find(q => q.id === song.id);
-                    if(qItem) { qItem.title = title; saveHostState(); updateUI(); }
-                });
-                
-                if(!currentSong || currentSong.isBGM) {
-                    if(player && typeof player.getPlayerState === 'function') playNext();
+        function changeStreamBoost(val) {
+            if (streamGainNode) {
+                streamGainNode.gain.value = parseFloat(val);
+            }
+            saveListenerSettings();
+        }
+
+        function changeWpVolume(val) {
+            if (viewerYTPlayer && typeof viewerYTPlayer.setVolume === 'function') {
+                viewerYTPlayer.setVolume(val);
+                if (val > 0) {
+                    const toggle = document.getElementById('toggle-wp-mute');
+                    if (toggle && !toggle.checked) {
+                        toggle.checked = true;
+                        if (typeof viewerYTPlayer.unMute === 'function') viewerYTPlayer.unMute();
+                    }
                 }
-                document.getElementById(inputId).value = '';
-            } else {
-                showToast("無効なYouTube URLです", "error");
             }
+            saveListenerSettings();
         }
 
-        function toggleCamApproval() {
-            cameraApprovalMode = document.getElementById('setting-cam-approval').checked;
-            if(!cameraApprovalMode) {
-                Object.values(connectedListeners).forEach(p => {
-                    if(!p.isRemote && !p.isObs) {
-                        p.cameraStatus = 'approved';
-                        if(currentStreamToListeners && !p.call) sendStreamToPeer(p.id);
-                    }
-                });
-            } else {
-                Object.values(connectedListeners).forEach(p => {
-                    if(!p.isObs && !p.isRemote && p.cameraStatus !== 'approved') {
-                        p.cameraStatus = 'none';
-                    }
-                });
-            }
-            broadcastState();
-            updateParticipantsUI();
+        function showPasswordModal() {
+            document.getElementById('password-modal').classList.remove('hidden');
+            document.getElementById('room-password-input').value = '';
+            document.getElementById('password-error').classList.add('hidden');
         }
 
-        function manageUser(peerId, action) {
-            const p = connectedListeners[peerId];
-            if(action === 'unban') {
-                delete bannedUsers[peerId];
-                saveHostState();
-                updateParticipantsUI();
-                showToast("UNBANNED");
+        function hidePasswordModal() {
+            document.getElementById('password-modal').classList.add('hidden');
+        }
+
+        function closePasswordModal() {
+            hidePasswordModal();
+            showToast("接続をキャンセルしました", "info");
+            if (pendingConnection) pendingConnection.close();
+        }
+
+        function submitPassword() {
+            const pwd = document.getElementById('room-password-input').value;
+            if (!pwd) {
+                const err = document.getElementById('password-error');
+                err.textContent = "パスワードを入力してください";
+                err.classList.remove('hidden');
                 return;
             }
+            document.getElementById('password-error').classList.add('hidden');
 
-            if(!p) return;
-            if(action === 'approve_cam') {
-                p.cameraStatus = 'approved';
-                if(p.uuid) {
-                    approvedUsers[p.uuid] = true;
-                    saveHostState();
-                }
-                if(currentStreamToListeners && !p.call) sendStreamToPeer(peerId);
-                showToast(`${p.name}: CAM APPROVED`);
-            } else if(action === 'reject_cam') {
-                p.cameraStatus = 'none';
-                if(p.uuid) {
-                    delete approvedUsers[p.uuid];
-                    saveHostState();
-                }
-                showToast(`${p.name}: CAM REJECTED`);
-            } else if(action === 'mute') {
-                p.isMuted = !p.isMuted;
-                showToast(`${p.name}: MUTE ${p.isMuted ? 'ON' : 'OFF'}`);
-            } else if(action === 'ban') {
-                bannedUsers[peerId] = { name: p.name, time: Date.now(), uuid: p.uuid }; 
-                if(p.uuid) delete approvedUsers[p.uuid];
-                saveHostState();
-                if(p.call) p.call.close();
-                p.conn.send({type: 'banned'});
-                p.conn.close();
-                delete connectedListeners[peerId];
-                showToast(`BANNED`, 'error');
+            if (pendingConnection) {
+                pendingConnection.send({ type: 'auth_request', password: pwd });
             }
-            updateParticipantsUI();
-            broadcastState(); 
         }
 
-        function updateParticipantsUI() {
-            const hList = document.getElementById('host-participant-list');
-            if(hList) renderParticipantList(hList);
-            const countEl = document.getElementById('host-participant-count');
+        function showNameModal() {
+            document.getElementById('name-modal').classList.remove('hidden');
+            const savedName = localStorage.getItem('jukebox_guest_name');
+            if (savedName) {
+                document.getElementById('initial-name-input').value = savedName;
+            }
+            document.getElementById('name-error').classList.add('hidden');
+        }
+
+        function submitName() {
+            const nameInput = document.getElementById('initial-name-input').value.trim();
+            if (!nameInput) {
+                document.getElementById('name-error').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('name-error').classList.add('hidden');
+            document.getElementById('name-modal').classList.add('hidden');
             
-            let validParticipantCount = 0;
-            Object.values(connectedListeners).forEach(p => { if(!p.isObs && !p.isCam) validParticipantCount++; });
-            if (countEl) countEl.textContent = `(${validParticipantCount})`;
+            document.getElementById('listener-name').value = nameInput;
+            localStorage.setItem('jukebox_guest_name', nameInput);
+            
+            startListenerConnection();
         }
-
-        function renderParticipantList(container) {
-            if(!container) return;
-            container.innerHTML = '';
-            const list = Object.values(connectedListeners);
-
-            list.forEach(p => {
-                if(p.isObs || p.isCam) return; 
-                const div = document.createElement('div');
-                div.className = "flex items-center justify-between bg-[#18181b] border border-gray-800 p-2 rounded-sm text-[10px] mb-1";
-                
-                let nameLabel = p.name;
-                if(p.isRemote) nameLabel += ' <span class="text-[9px] text-yellow-500 ml-1 font-bold">ADMIN</span>';
-                if(p.isMuted) nameLabel += ' <span class="text-[9px] text-red-500 ml-1 font-bold">MUTED</span>';
-
-                let controls = '';
-                if(!p.isRemote) {
-                    if(cameraApprovalMode) {
-                        if(p.cameraStatus === 'requested') {
-                            controls += `<button onclick="manageUser('${p.id}', 'approve_cam')" class="bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded-sm mr-1"><i class="fa-solid fa-check"></i></button>`;
-                            controls += `<button onclick="manageUser('${p.id}', 'reject_cam')" class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white px-2 py-1 rounded-sm mr-2"><i class="fa-solid fa-xmark"></i></button>`;
-                        } else if(p.cameraStatus === 'approved') {
-                            controls += `<span class="text-[9px] text-green-500 mr-2 font-bold tracking-widest">CAM:OK</span>`;
-                        }
-                    }
-                    controls += `<button onclick="manageUser('${p.id}', 'mute')" class="${p.isMuted ? 'bg-gray-700 text-gray-400' : 'bg-orange-600 text-white'} px-2 py-1 rounded-sm mr-1 transition-colors" title="リクエスト禁止"><i class="fa-solid fa-volume-xmark"></i></button>`;
-                    controls += `<button onclick="manageUser('${p.id}', 'ban')" class="bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded-sm transition-colors" title="BAN"><i class="fa-solid fa-ban"></i></button>`;
-                }
-
-                div.innerHTML = `<div class="truncate flex-1 font-bold text-gray-300">${nameLabel}</div><div class="flex-shrink-0 flex items-center">${controls}</div>`;
-                container.appendChild(div);
-            });
-
-            if(Object.keys(bannedUsers).length > 0) {
-                const banHeader = document.createElement('div');
-                banHeader.className = "text-[9px] font-black text-red-500 mt-3 mb-1 border-b border-gray-800 pb-1 tracking-widest";
-                banHeader.innerHTML = `BANNED USERS`;
-                container.appendChild(banHeader);
-
-                Object.entries(bannedUsers).forEach(([id, info]) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-red-950/20 border border-red-900/30 p-2 rounded-sm text-[10px] mb-1";
-                    div.innerHTML = `
-                        <div class="truncate flex-1"><span class="text-gray-500 line-through">${info.name}</span></div>
-                        <button onclick="manageUser('${id}', 'unban')" class="text-[9px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded-sm font-bold">解除</button>
-                    `;
-                    container.appendChild(div);
-                });
-            }
-        }
-
-        function updateHostSettings() {
-            hostName = document.getElementById('setting-host-name').value || "配信太郎";
-            hostTheme = document.getElementById('setting-theme').value;
-            durationLimit = parseInt(document.getElementById('setting-duration').value) * 60;
-            if(isNaN(durationLimit)) durationLimit = 0;
-            saveHostState();
-            broadcastState();
-        }
-
-        function broadcastState() {
-            const safeParticipants = Object.values(connectedListeners).map(p => ({
-                id: p.id, name: p.name, isMuted: p.isMuted, cameraStatus: p.cameraStatus, isRemote: p.isRemote, isObs: p.isObs, isCam: p.isCam
-            }));
-
-            let stateCurrentSong = currentSong ? { ...currentSong } : null;
-            if (stateCurrentSong && player && typeof player.getVideoData === 'function') {
-                try {
-                    const vData = player.getVideoData();
-                    if(vData && vData.video_id) {
-                        stateCurrentSong.videoId = vData.video_id;
-                    }
-                } catch(e) {}
-            }
-
-            const state = {
-                type: 'state', queue: queue, historyQueue: historyQueue, chatHistory: chatHistory, currentSong: stateCurrentSong,
-                isPlaying: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1) : false,
-                hostTheme: hostTheme, isLive: !!currentStreamToListeners, cameraApprovalMode: cameraApprovalMode,
-                participants: safeParticipants, bannedUsers: bannedUsers
-            };
-            Object.values(connectedListeners).forEach(p => { if(p.conn.open) p.conn.send(state); });
-        }
-
+        
         function loadYouTubeAPI() {
             if (window.YT && window.YT.Player) {
-                if (document.getElementById('youtube-player')) {
-                    initPlayer();
-                }
+                // Ignore for listener if not ready to play
             } else if (!document.getElementById('youtube-api-script')) {
                 const tag = document.createElement('script');
                 tag.id = 'youtube-api-script';
@@ -1351,162 +668,358 @@
                 firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
             }
         }
+
+        function handleOverlayClick() {
+            if (isWpOverlayActive) {
+                // Web Audio APIのコンテキストの再開 (iOS対策)
+                if (streamAudioCtx && streamAudioCtx.state === 'suspended') {
+                    streamAudioCtx.resume().catch(e => console.error(e));
+                }
+
+                // 設定されている状態に基づいて Jukebox (YouTube) を反映
+                if (viewerYTPlayer) {
+                    const wpToggle = document.getElementById('toggle-wp-mute');
+                    if (wpToggle && wpToggle.checked) {
+                        if (typeof viewerYTPlayer.unMute === 'function') viewerYTPlayer.unMute();
+                        const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
+                        if (typeof viewerYTPlayer.setVolume === 'function') viewerYTPlayer.setVolume(savedVol);
+                    } else {
+                        if (typeof viewerYTPlayer.mute === 'function') viewerYTPlayer.mute();
+                    }
+
+                    if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
+                        viewerYTPlayer.playVideo();
+                    }
+                }
+                
+                const overlayId = 'listener-youtube-overlay';
+                const overlay = document.getElementById(overlayId);
+                if(overlay) {
+                    overlay.style.display = 'none'; 
+                }
+                
+                isWpOverlayActive = false;
+                showToast("視聴を開始しました！", "info");
+            }
+        }
         
-        window.onYouTubeIframeAPIReady = function() { 
-            if (document.getElementById('youtube-player')) {
-                initPlayer(); 
-            }
-        };
+        function switchListenerLayer(layer) {
+            const camLayer = document.getElementById('listener-cam-layer');
+            const wpLayer = document.getElementById('listener-wp-layer');
+            const tabCam = document.getElementById('tab-cam');
+            const tabWp = document.getElementById('tab-wp');
+            const volContainer = document.getElementById('wp-volume-container');
 
-        function initPlayer() {
-            if(player && typeof player.playVideo === 'function') return;
-            if(!document.getElementById('youtube-player')) return; 
-            player = new YT.Player('youtube-player', {
-                height: '100%', width: '100%',
-                playerVars: { autoplay: 1, controls: 1, rel: 0 },
-                events: { 
-                    'onReady': (event) => {
-                        const vol = document.getElementById('host-jukebox-vol').value;
-                        event.target.setVolume(vol);
-                        if (document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-xmark')) {
-                            event.target.mute();
-                        } else {
-                            event.target.unMute();
-                        }
-                        onPlayerReady(event);
-                    }, 
-                    'onStateChange': onPlayerStateChange 
-                }
-            });
-        }
-
-        function onPlayerReady(event) {
-            if(currentSong) {
-                if (currentSong.listId) player.loadPlaylist({list: currentSong.listId, index: currentSong.playlistIndex || 0, startSeconds: currentSong.startSeconds || 0});
-                else player.loadVideoById({videoId: currentSong.videoId, startSeconds: currentSong.startSeconds || 0});
-            } else if (queue.length > 0 || bgmQueue.length > 0) playNext();
-        }
-
-        let durationCheckTimeout = null;
-
-        function onPlayerStateChange(event) {
-            updateUI(); 
-            if (event.data === YT.PlayerState.PLAYING) {
-                
-                // ミキサーの音量を強制反映 (PCでの自動再生時リセット対策)
-                const vol = document.getElementById('host-jukebox-vol').value;
-                player.setVolume(vol);
-                if (document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-high')) {
-                    player.unMute();
-                } else {
-                    player.mute();
-                }
-
-                if (currentSong && currentSong.isBGM && currentSong.listId && !currentSong._settingsApplied) {
-                    currentSong._settingsApplied = true;
-                    if (typeof player.setShuffle === 'function') {
-                        player.setShuffle(document.getElementById('bgm-shuffle').checked);
-                    }
-                    if (typeof player.setLoop === 'function') {
-                        player.setLoop(document.getElementById('bgm-loop').checked);
-                    }
-                }
-
-                if(currentSong) {
-                    try {
-                        let videoData = player.getVideoData();
-                        if(videoData && videoData.title && currentSong.title === "取得中...") {
-                            currentSong.title = videoData.title;
-                            updateUI();
-                        }
-                    } catch(e) {}
-                }
-                
-                if(currentSong && !currentSong.isBGM && durationLimit > 0) {
-                    if(durationCheckTimeout) clearTimeout(durationCheckTimeout);
-                    durationCheckTimeout = setTimeout(() => {
-                        const dur = player.getDuration();
-                        if(dur > durationLimit) {
-                            showToast(`曲が長すぎるためスキップしました(${Math.floor(dur/60)}分)`, "error");
-                            playNext(true);
-                        }
-                    }, 1000); 
-                }
-            } 
-            else if (event.data === YT.PlayerState.ENDED) {
-                if (currentSong && currentSong.isBGM && document.getElementById('bgm-loop-one') && document.getElementById('bgm-loop-one').checked) {
-                    player.seekTo(0);
-                    player.playVideo();
-                    return;
-                }
-                playNext();
-            }
-        }
-
-        function togglePlayHost() {
-            if(!player || !currentSong || typeof player.getPlayerState !== 'function') return;
-            if(player.getPlayerState() === 1) player.pauseVideo();
-            else player.playVideo();
-        }
-
-        function playNext(forceSkip = false) {
-            if (!player || typeof player.loadVideoById !== 'function') return;
-
-            if (currentSong && !currentSong.isBGM) {
-                historyQueue.unshift(currentSong);
-                if (historyQueue.length > 20) historyQueue.pop();
-            }
-
-            if (currentSong && currentSong.isBGM && queue.length > 0 && !forceSkip) {
-                bgmResumeData = {
-                    videoId: currentSong.videoId, listId: currentSong.listId, title: currentSong.title,
-                    time: player.getCurrentTime(), playlistIndex: player.getPlaylistIndex ? player.getPlaylistIndex() : 0
-                };
-            }
-
-            if (queue.length > 0) {
-                currentSong = queue.shift();
-                player.loadVideoById({videoId: currentSong.videoId});
-            } 
-            else if (bgmResumeData) {
-                currentSong = {
-                    id: 'bgm-resumed', videoId: bgmResumeData.videoId, listId: bgmResumeData.listId,
-                    title: bgmResumeData.title, requester: 'BGM RESUMED', isBGM: true,
-                    startSeconds: bgmResumeData.time, playlistIndex: bgmResumeData.playlistIndex
-                };
-                if (currentSong.listId) player.loadPlaylist({list: currentSong.listId, index: bgmResumeData.playlistIndex, startSeconds: bgmResumeData.time});
-                else player.loadVideoById({videoId: currentSong.videoId, startSeconds: bgmResumeData.time});
-                bgmResumeData = null; 
-            }
-            else if (bgmQueue.length > 0) {
-                let bgm;
-                let shuffleOn = document.getElementById('bgm-shuffle') && document.getElementById('bgm-shuffle').checked;
-                let loopOn = document.getElementById('bgm-loop') && document.getElementById('bgm-loop').checked;
-
-                if (shuffleOn && bgmQueue.length > 1 && !bgmQueue[0].isPlaylist) {
-                    let randomIndex = Math.floor(Math.random() * bgmQueue.length);
-                    bgm = bgmQueue.splice(randomIndex, 1)[0];
-                } else {
-                    bgm = bgmQueue.shift();
-                }
-
-                if (loopOn) {
-                    bgmQueue.push(bgm); 
-                }
-                
-                if(bgm.isPlaylist) {
-                    currentSong = { id: 'bgm-pl', videoId: '', listId: bgm.listId, title: '📁 プレイリスト', requester: 'BGM', isBGM: true };
-                    player.loadPlaylist({list: bgm.listId});
-                } else {
-                    currentSong = { id: 'bgm-' + generateId(), videoId: bgm.videoId, listId: null, title: bgm.title || "取得中...", requester: 'BGM', isBGM: true };
-                    player.loadVideoById({videoId: currentSong.videoId});
+            if(layer === 'cam') {
+                camLayer.classList.replace('layer-hidden', 'layer-visible');
+                wpLayer.classList.replace('layer-visible', 'layer-hidden');
+                tabCam.classList.add('bg-red-600', 'text-white');
+                tabCam.classList.remove('bg-gray-700', 'text-gray-400');
+                tabWp.classList.add('bg-gray-700', 'text-gray-400');
+                tabWp.classList.remove('bg-indigo-600', 'text-white');
+                if(volContainer) {
+                    volContainer.classList.add('hidden');
+                    volContainer.classList.remove('flex');
                 }
             } else {
-                currentSong = null;
-                player.stopVideo();
+                wpLayer.classList.replace('layer-hidden', 'layer-visible');
+                camLayer.classList.replace('layer-visible', 'layer-hidden');
+                tabWp.classList.add('bg-indigo-600', 'text-white');
+                tabWp.classList.remove('bg-gray-700', 'text-gray-400');
+                tabCam.classList.add('bg-gray-700', 'text-gray-400');
+                tabCam.classList.remove('bg-red-600', 'text-white');
+                if(volContainer) {
+                    volContainer.classList.remove('hidden');
+                    volContainer.classList.add('flex');
+                }
             }
-            saveHostState();
-            updateUI();
+        }
+
+        function toggleListenerAudioFromSwitch(isSoundOn) {
+            // videoタグ自体は常にミュートにしておく（Web Audio APIから音を出すため）
+            const video = document.getElementById('listener-video');
+            if (video) {
+                video.muted = true;
+                if (video.paused) video.play().catch(e=>{});
+            }
+
+            // Web Audio APIのミュート用GainNodeで出力をコントロール
+            if (streamMuteNode) {
+                streamMuteNode.gain.value = isSoundOn ? 1.0 : 0.0;
+            }
+
+            // Web Audio APIのコンテキストの再開
+            if (isSoundOn && streamAudioCtx && streamAudioCtx.state === 'suspended') {
+                streamAudioCtx.resume().catch(e => console.error(e));
+            }
+
+            saveListenerSettings();
+        }
+
+        function toggleWatchPartyMuteFromSwitch(isSoundOn) {
+            if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
+            if (isSoundOn) {
+                viewerYTPlayer.unMute();
+                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
+                viewerYTPlayer.setVolume(savedVol);
+            } else {
+                viewerYTPlayer.mute();
+            }
+            saveListenerSettings();
+        }
+
+        function toggleWatchPartyVideoFromSwitch(isOn) {
+            const playerWrapper = document.getElementById('listener-youtube-player-wrapper');
+            if (playerWrapper) {
+                playerWrapper.style.opacity = isOn ? '1' : '0';
+                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
+            }
+        }
+
+        function handleSyncPlayback(data) {
+            const wpPlayerId = 'listener-youtube-player';
+
+            if (!isWatchPartyEnabled) {
+                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
+                    viewerYTPlayer.pauseVideo();
+                }
+                return;
+            }
+
+            if (!viewerYTPlayer) {
+                if (typeof YT === 'undefined' || !YT.Player) {
+                    loadYouTubeAPI(); 
+                    return;
+                }
+                
+                let playerOptions = {
+                    height: '100%', width: '100%',
+                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
+                    events: {
+                        'onReady': (event) => {
+                            event.target.mute(); 
+                        },
+                        'onStateChange': (event) => {
+                            // PCの自動再生等で再生開始時に強制的に保存された音量を再適用
+                            if (event.data === YT.PlayerState.PLAYING) {
+                                const wpToggle = document.getElementById('toggle-wp-mute');
+                                if (wpToggle && wpToggle.checked) {
+                                    event.target.unMute();
+                                    const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
+                                    event.target.setVolume(savedVol);
+                                }
+                            }
+                        }
+                    }
+                };
+                if (data.videoId) {
+                    playerOptions.videoId = data.videoId;
+                }
+                
+                if (document.getElementById(wpPlayerId)) {
+                    viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
+                }
+                return;
+            }
+
+            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
+            
+            if (!data.videoId) {
+                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
+                    viewerYTPlayer.stopVideo();
+                }
+                currentSong = null;
+                return;
+            }
+
+            const state = viewerYTPlayer.getPlayerState();
+            const currentTime = viewerYTPlayer.getCurrentTime();
+            hostCurrentTime = data.time; 
+            hostCurrentStatus = data.status;
+
+            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
+                currentSong = { videoId: data.videoId };
+                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
+                return;
+            }
+
+            if (data.status === 1) { 
+                if (state !== 1 && state !== 3) {
+                    viewerYTPlayer.playVideo();
+                }
+                
+                const diff = hostCurrentTime - currentTime;
+                
+                if (Math.abs(diff) < 1.0) {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
+                    if (diff > 0) {
+                        viewerYTPlayer.setPlaybackRate(1.05); 
+                    } else {
+                        viewerYTPlayer.setPlaybackRate(0.95); 
+                    }
+                } else {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                }
+            } else if (data.status === 2 || data.status === -1) { 
+                if (state === 1) {
+                    viewerYTPlayer.pauseVideo();
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                }
+            }
+        }
+
+        function initListener() {
+            const savedName = localStorage.getItem('jukebox_guest_name');
+            if (savedName) {
+                document.getElementById('listener-name').value = savedName;
+                startListenerConnection();
+            } else {
+                showNameModal();
+            }
+        }
+
+        function startListenerConnection() {
+            listenerId = generateId();
+            peer = new Peer(`listener-${listenerId}`);
+
+            peer.on('open', () => {
+                listenerConn = peer.connect(`jukebox-${currentRoomId}`);
+                
+                listenerConn.on('open', () => {
+                    const statusId = 'listener-status';
+                    if(document.getElementById(statusId)) {
+                        document.getElementById(statusId).textContent = "接続完了！";
+                        document.getElementById(statusId).classList.replace('text-yellow-500', 'text-green-500');
+                    }
+                    sendProfileUpdate();
+                });
+
+                listenerConn.on('data', (data) => {
+                    if (data.type === 'ping') {
+                        listenerConn.send({ type: 'pong' });
+                        return;
+                    }
+                    if(data.type === 'banned') {
+                        showBannedScreen();
+                        if(peer) peer.destroy();
+                        return;
+                    }
+                    if(data.type === 'error') { showToast(data.msg, "error"); return; }
+                    
+                    if(data.type === 'sync_playback') {
+                        handleSyncPlayback(data);
+                    }
+                    
+                    if(data.type === 'state') {
+                        saveGuestHistory(currentRoomId, data.hostName);
+                        renderListenerState(data);
+                    }
+                    
+                    if (data.type === 'auth_response') {
+                        if (data.success) {
+                            hidePasswordModal();
+                            showToast("認証に成功しました");
+                            const pwdInput = document.getElementById('room-password-input').value;
+                            if (pwdInput) {
+                                savedPasswords[currentRoomId] = pwdInput;
+                                localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                            }
+                            pendingConnection = null;
+                            sendProfileUpdate();
+                        } else {
+                            document.getElementById('password-error').classList.remove('hidden');
+                            delete savedPasswords[currentRoomId];
+                            localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                            showPasswordModal(); 
+                        }
+                    }
+                    
+                    if (data.type === 'auth_required') {
+                         showToast("操作にはパスワード認証が必要です", "error");
+                         pendingConnection = listenerConn;
+                         showPasswordModal();
+                    }
+                    
+                    if(data.type === 'new_chat') {
+                        if(!chatHistory.some(c => c.id === data.chat.id)) {
+                            chatHistory.push(data.chat);
+                            if(chatHistory.length > 100) chatHistory.shift();
+                            
+                            renderChatList('listener-chat-list', chatHistory, false);
+                        }
+                    }
+                });
+            });
+
+            peer.on('call', (call) => {
+                call.answer(); 
+                call.on('stream', (stream) => {
+                    listenerHasStream = true;
+                    const video = document.getElementById('listener-video');
+                    const btn = document.getElementById('btn-toggle-camera');
+                    
+                    if(btn) btn.classList.add('hidden'); 
+                    video.srcObject = stream;
+                    
+                    // Web Audio APIのセットアップを呼び出し (生ストリームを渡す)
+                    setupStreamAudio(stream);
+                    
+                    // 二重再生・干渉を防ぐため videoタグ自体の音声は強制ミュート
+                    video.muted = true;
+                    
+                    video.play().catch(e => {
+                        video.play().catch(er=>{});
+                    });
+                    
+                    isListenerVideoOpen = true;
+                });
+                call.on('close', () => { 
+                    resetListenerVideo(); 
+                });
+            });
+
+            const url = new URL(window.location);
+            url.searchParams.set('host', currentRoomId);
+            history.replaceState(null, '', url);
+        }
+
+        function resetListenerVideo() {
+            listenerHasStream = false;
+            isListenerVideoOpen = false;
+            const videoEl = document.getElementById('listener-video');
+            if (videoEl) videoEl.srcObject = null;
+            const btn = document.getElementById('btn-toggle-camera');
+            if(btn) { 
+                btn.classList.remove('hidden'); 
+            }
+        }
+
+        function sendProfileUpdate() {
+            if(!listenerConn || !listenerConn.open) return;
+            let name = document.getElementById('listener-name').value.trim() || "名無し";
+            const isAnon = document.getElementById('listener-anon').checked;
+            localStorage.setItem('jukebox_guest_name', name);
+            localStorage.setItem('jukebox_guest_anon', isAnon);
+            
+            listenerConn.send({ type: 'update_profile', name: name, isRemote: false, isObs: false, uuid: myGuestUUID });
+        }
+
+        const nameInput = document.getElementById('listener-name');
+        if(nameInput) nameInput.addEventListener('change', () => sendProfileUpdate());
+        const anonInput = document.getElementById('listener-anon');
+        if(anonInput) anonInput.addEventListener('change', () => sendProfileUpdate());
+
+        function requestListenerCamera() {
+            const btn = document.getElementById('btn-toggle-camera');
+            if (btn && btn.disabled) return; 
+
+            if (listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'request_camera' });
+                if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+            }
         }
 
         function extractVideoId(url) {
@@ -1514,371 +1027,202 @@
             return match ? match[1] : null;
         }
 
-        function extractPlaylistId(url) {
-            const match = url.match(/[?&]list=([^#\&\?]+)/);
-            return match ? match[1] : null;
+        function sendRequest() {
+            const url = document.getElementById('listener-url').value;
+            const name = document.getElementById('listener-name').value.trim();
+            const isAnon = document.getElementById('listener-anon').checked;
+            if(!name) return showToast("あなたの名前を入力してください！", "error");
+            if(!url) return showToast("URLを入力してください！", "error");
+
+            localStorage.setItem('jukebox_guest_name', name);
+            localStorage.setItem('jukebox_guest_anon', isAnon);
+
+            const vid = extractVideoId(url);
+            if(vid) {
+                listenerConn.send({ type: 'request', videoId: vid, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
+                document.getElementById('listener-url').value = '';
+                showToast("リクエストを送信しました！");
+            } else showToast("無効なYouTube URLです", "error");
         }
 
-        function addBGM() {
-            const url = document.getElementById('input-bgm-url').value;
-            if(!url) return;
-
-            const listId = extractPlaylistId(url);
-            if(listId) {
-                bgmQueue.push({ isPlaylist: true, listId: listId, rawUrl: url, title: "📁 プレイリスト" });
-                showToast("プレイリストを追加しました");
-                updateAndSaveBGM();
-            } else {
-                const vid = extractVideoId(url);
-                if(vid) {
-                    const bgmItem = { isPlaylist: false, videoId: vid, rawUrl: url, title: "取得中..." };
-                    bgmQueue.push(bgmItem);
-                    showToast("BGMを追加しました");
-                    updateAndSaveBGM();
-                    
-                    fetchYouTubeTitle(vid).then(title => {
-                        const bItem = bgmQueue.find(b => b.videoId === vid);
-                        if(bItem) { bItem.title = title; updateAndSaveBGM(); }
-                    });
-                } else showToast("無効なURLです", "error");
-            }
-            document.getElementById('input-bgm-url').value = '';
+        function cancelRequest(id) {
+            listenerConn.send({ type: 'cancel', id: id });
+            showToast("キャンセルしました");
         }
 
-        function updateAndSaveBGM() {
-            saveHostState();
-            updateUI();
-            if(!currentSong && player && typeof player.getPlayerState === 'function') playNext();
-        }
-
-        function updateBGMPlaybackSettings() {
-            saveHostState();
-            if (player && typeof player.setShuffle === 'function' && currentSong && currentSong.isBGM && currentSong.listId) {
-                player.setShuffle(document.getElementById('bgm-shuffle').checked);
-                player.setLoop(document.getElementById('bgm-loop').checked);
-            }
-        }
-
-        function toggleLightMode() {
-            isLightMode = !isLightMode;
-            const container = document.getElementById('youtube-player-container');
-            const btn = document.getElementById('btn-light-mode');
-            if(isLightMode) {
-                container.classList.add('youtube-hidden');
-                btn.innerHTML = '<i class="fa-solid fa-ban text-red-500"></i> 映像OFF';
-            } else {
-                container.classList.remove('youtube-hidden');
-                btn.innerHTML = '<i class="fa-solid fa-video"></i> 映像ON';
-            }
-        }
-
-        function updateUI() {
-            if(currentSong) {
-                document.querySelectorAll('.host-now-playing-text').forEach(el => el.textContent = currentSong.title);
-                document.querySelectorAll('.host-now-requester-text').forEach(el => {
-                    el.innerHTML = `<i class="fa-solid fa-user text-gray-600 text-[10px]"></i> ${currentSong.requester || ""}`;
-                });
-                document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
-            } else {
-                document.querySelectorAll('.host-now-playing-text').forEach(el => el.textContent = "STOPPED");
-                document.querySelectorAll('.host-now-requester-text').forEach(el => el.textContent = "---");
-            }
-
-            document.querySelectorAll('.btn-host-play').forEach(btn => {
-                if (player && typeof player.getPlayerState === 'function') {
-                    const isPlaying = player.getPlayerState() === 1;
-                    btn.innerHTML = isPlaying 
-                        ? `<i class="fa-solid fa-pause text-sm"></i>` 
-                        : `<i class="fa-solid fa-play text-sm ml-0.5"></i>`;
-                }
-            });
-
-            const qList = document.getElementById('host-queue-list');
-            const qBadge = document.getElementById('queue-badge');
-            if(qList) {
-                qList.innerHTML = '';
-                if(qBadge) qBadge.textContent = queue.length;
-                
-                queue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-[#18181b] p-2 rounded-sm border border-gray-800 text-[10px] mb-1.5 shadow-sm";
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-gray-600 font-black w-4 text-center">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-300 truncate font-bold">${q.title}</p>
-                                <p class="text-[9px] text-gray-500 truncate mt-0.5"><i class="fa-solid fa-user"></i> ${q.requesterReal || q.requester} ${q.isRemote ? '<span class="text-yellow-600 ml-1 font-bold">ADMIN</span>' : ''}</p>
-                            </div>
-                        </div>
-                        <button onclick="removeQueue('${q.id}')" class="text-gray-600 hover:text-red-500 px-2 flex-shrink-0 transition-colors"><i class="fa-solid fa-xmark"></i></button>
-                    `;
-                    qList.appendChild(div);
-                });
-            }
-
-            const hostHist = document.getElementById('host-history-list');
-            if(hostHist) {
-                hostHist.innerHTML = '';
-                historyQueue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-[#18181b] border border-gray-800 p-2 rounded-sm text-[10px] mb-1.5";
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden flex-1">
-                            <span class="text-gray-700 font-black w-4 text-center">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-400 truncate font-medium">${q.title}</p>
-                                <p class="text-[9px] text-gray-600 truncate"><i class="fa-solid fa-user"></i> ${q.requesterReal}</p>
-                            </div>
-                        </div>
-                        <button onclick="reRequestHost('${q.videoId}', '${q.requesterReal}')" class="text-[9px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 py-1 rounded-sm flex-shrink-0 transition-colors font-bold">RE-REQ</button>
-                    `;
-                    hostHist.appendChild(div);
-                });
-            }
-
-            const bList = document.getElementById('host-bgm-list');
-            if(bList) {
-                bList.innerHTML = '';
-                bgmQueue.forEach((b, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex justify-between bg-[#0e0e10] border border-gray-800 p-2 rounded-sm items-center mb-1";
-                    div.innerHTML = `
-                        <span class="text-gray-400 truncate text-[10px] flex-1 font-medium">${b.title || '取得中...'}</span>
-                        <button onclick="removeBGM(${idx})" class="text-gray-600 hover:text-red-500 px-2 transition-colors"><i class="fa-solid fa-xmark"></i></button>
-                    `;
-                    bList.appendChild(div);
-                });
-            }
-
-            renderChatList('host-chat-list', chatHistory);
-            broadcastState();
-        }
-
-        function reRequestHost(videoId, reqName) {
-            queue.push({ id: generateId(), videoId: videoId, title: "取得中...", requester: reqName, requesterReal: reqName, isAnon: false });
-            showToast("再リクエストしました");
-            updateUI();
+        function reRequestListener(videoId) {
+            const name = document.getElementById('listener-name').value.trim();
+            const isAnon = document.getElementById('listener-anon').checked;
+            if(!name) return showToast("名前を入力してください", "error");
             
-            fetchYouTubeTitle(videoId).then(title => {
-                const qItem = queue[queue.length - 1];
-                if(qItem && qItem.videoId === videoId) { qItem.title = title; updateUI(); }
-            });
-            if(!currentSong || currentSong.isBGM) playNext();
+            localStorage.setItem('jukebox_guest_name', name);
+            localStorage.setItem('jukebox_guest_anon', isAnon);
+            
+            listenerConn.send({ type: 'request', videoId: videoId, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
+            showToast("再リクエストを送信しました");
         }
 
-        function removeQueue(id) { queue = queue.filter(q => q.id !== id); saveHostState(); updateUI(); }
-        function removeBGM(idx) { bgmQueue.splice(idx, 1); saveHostState(); updateUI(); }
-
-        function saveHostState() {
-            const bgmSettings = {
-                shuffle: document.getElementById('bgm-shuffle') ? document.getElementById('bgm-shuffle').checked : false,
-                loop: document.getElementById('bgm-loop') ? document.getElementById('bgm-loop').checked : true,
-                loopOne: document.getElementById('bgm-loop-one') ? document.getElementById('bgm-loop-one').checked : false
-            };
-            const audioMixerSettings = {
-                jukeboxVol: document.getElementById('host-jukebox-vol') ? document.getElementById('host-jukebox-vol').value : 100,
-                jukeboxMuted: document.getElementById('icon-host-jukebox-mute') ? document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-xmark') : false,
-                streamVol: document.getElementById('host-stream-vol') ? document.getElementById('host-stream-vol').value : 0,
-                streamMuted: document.getElementById('icon-host-stream-mute') ? document.getElementById('icon-host-stream-mute').classList.contains('fa-volume-xmark') : true
-            };
-            const data = { queue, bgmQueue, historyQueue, chatHistory, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers, bgmSettings, approvedUsers, audioMixerSettings };
-            localStorage.setItem('jukebox_state_' + currentRoomId, JSON.stringify(data));
-        }
-
-        function loadHostState() {
-            try {
-                const saved = localStorage.getItem('jukebox_state_' + currentRoomId);
-                if(saved) {
-                    const data = JSON.parse(saved);
-                    queue = Array.isArray(data.queue) ? data.queue : [];
-                    bgmQueue = Array.isArray(data.bgmQueue) ? data.bgmQueue : [];
-                    historyQueue = Array.isArray(data.historyQueue) ? data.historyQueue : [];
-                    chatHistory = Array.isArray(data.chatHistory) ? data.chatHistory : [];
-                    currentSong = data.currentSong || null;
-                    bgmResumeData = data.bgmResumeData || null;
-                    cameraApprovalMode = !!data.cameraApprovalMode;
-                    bannedUsers = data.bannedUsers || {};
-                    approvedUsers = data.approvedUsers || {};
-                    
-                    const camAppEl = document.getElementById('setting-cam-approval');
-                    if(camAppEl) camAppEl.checked = cameraApprovalMode;
-                    
-                    if(data.hostName) { hostName = data.hostName; document.getElementById('setting-host-name').value = hostName; }
-                    if(data.hostTheme) { hostTheme = data.hostTheme; document.getElementById('setting-theme').value = hostTheme; }
-                    if(data.durationLimit !== undefined) { durationLimit = data.durationLimit; document.getElementById('setting-duration').value = durationLimit / 60; }
-                    
-                    if(data.bgmSettings) {
-                        if(document.getElementById('bgm-shuffle')) document.getElementById('bgm-shuffle').checked = data.bgmSettings.shuffle;
-                        if(document.getElementById('bgm-loop')) document.getElementById('bgm-loop').checked = data.bgmSettings.loop;
-                        if(document.getElementById('bgm-loop-one')) document.getElementById('bgm-loop-one').checked = data.bgmSettings.loopOne;
-                    }
-
-                    if(data.audioMixerSettings) {
-                        if(document.getElementById('host-jukebox-vol')) document.getElementById('host-jukebox-vol').value = data.audioMixerSettings.jukeboxVol;
-                        const jIcon = document.getElementById('icon-host-jukebox-mute');
-                        if (jIcon) {
-                            if (data.audioMixerSettings.jukeboxMuted) {
-                                jIcon.classList.replace('fa-volume-high', 'fa-volume-xmark');
-                                jIcon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
-                            } else {
-                                jIcon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                                jIcon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                            }
-                        }
-
-                        if(document.getElementById('host-stream-vol')) document.getElementById('host-stream-vol').value = data.audioMixerSettings.streamVol;
-                        const sIcon = document.getElementById('icon-host-stream-mute');
-                        if (sIcon) {
-                            if (data.audioMixerSettings.streamMuted) {
-                                sIcon.classList.replace('fa-volume-high', 'fa-volume-xmark');
-                                sIcon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
-                            } else {
-                                sIcon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                                sIcon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                            }
-                        }
-                    }
-
-                    updateUI();
-                }
-            } catch(e) { console.warn("Failed to load host state", e); }
-        }
-
-        function saveToMyList() {
-            const url = document.getElementById('input-bgm-url').value;
-            if(!url) return showToast("URLを入力してください", "error");
-            const name = prompt("このURLをマイリストに保存します。\n名前を付けてください:", "お気に入りBGM");
-            if(name) {
-                myList.push({ name: name, url: url });
-                try {
-                    localStorage.setItem('jukebox_mylist', JSON.stringify(myList));
-                    updateMyListSelect();
-                    showToast("マイリストに保存しました");
-                } catch(e) { showToast("保存に失敗しました", "error"); }
-            }
-        }
-
-        function updateMyListSelect() {
-            const sel = document.getElementById('select-mylist');
-            if(!sel) return;
-            sel.innerHTML = '<option value="">-- SELECT --</option>';
-            myList.forEach((item, idx) => {
-                const opt = document.createElement('option');
-                opt.value = idx;
-                opt.textContent = item.name;
-                sel.appendChild(opt);
-            });
-        }
-
-        function loadFromMyList() {
-            const sel = document.getElementById('select-mylist');
-            if(sel.value === "") return;
-            document.getElementById('input-bgm-url').value = myList[sel.value].url;
-            addBGM();
-            sel.value = ""; 
-        }
-
-        function applyBitrate(call, bitrateKbps) {
-            if(!call || !call.peerConnection) return;
-            const senders = call.peerConnection.getSenders();
-            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-            if (videoSender) {
-                const params = videoSender.getParameters();
-                if (!params.encodings) params.encodings = [{}];
-                params.encodings[0].maxBitrate = bitrateKbps * 1000;
-                videoSender.setParameters(params).catch(e => console.log("Bitrate error:", e));
-            }
-        }
-
-        function sendStreamToPeer(peerId) {
-            if(!currentStreamToListeners) return;
-            const listener = connectedListeners[peerId];
-            if(listener && listener.conn.open) {
-                const call = peer.call(peerId, currentStreamToListeners);
-                listener.call = call;
-                setTimeout(() => applyBitrate(call, 2500), 1000); 
-            }
-        }
-
-        function broadcastStreamToListeners(stream) {
-            currentStreamToListeners = stream;
-            Object.values(connectedListeners).forEach(listener => {
-                if(!cameraApprovalMode || listener.cameraStatus === 'approved' || listener.isObs || listener.isRemote) {
-                    sendStreamToPeer(listener.id);
-                }
-            });
-            showToast("カメラ中継を開始しました", "info");
-            broadcastState();
-        }
-
-        function stopBroadcastStream() {
-            currentStreamToListeners = null;
-            Object.values(connectedListeners).forEach(listener => {
-                if(listener.call) { listener.call.close(); listener.call = null; }
-            });
-            showToast("カメラ中継が停止しました", "info");
-            broadcastState(); 
-        }
-
-        function sendChatRequest() {
-            const inputId = 'host-chat-input';
+        function sendChatRequest(isDummyMode = false) {
+            const inputId = 'listener-chat-input';
             const text = document.getElementById(inputId).value.trim();
             if(!text) return;
 
-            const sender = `👑 ${hostName}`;
-            const senderReal = hostName;
+            const senderReal = document.getElementById('listener-name').value.trim() || "名無し";
+            const isAnon = document.getElementById('listener-anon').checked;
+            const sender = isAnon ? '184(匿名)' : senderReal;
             
-            handleHostData({type: 'chat', text: text, sender: sender, senderReal: senderReal, isAnon: false, isRemote: true}, {peer: 'host-self'});
-            document.getElementById(inputId).value = '';
+            localStorage.setItem('jukebox_guest_name', senderReal);
+            localStorage.setItem('jukebox_guest_anon', isAnon);
+
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'chat', text, sender, senderReal, isAnon, isRemote: false });
+                document.getElementById(inputId).value = '';
+                closeChatInput();
+            }
         }
 
-        function deleteChat(id) {
-            chatHistory = chatHistory.filter(c => c.id !== id);
-            saveHostState();
-            updateUI();
-        }
-
-        function renderChatList(containerId, chats) {
+        function renderChatList(containerId, chats, isPrivileged) {
             const container = document.getElementById(containerId);
             if(!container) return;
-            
+
             container.innerHTML = '';
             chats.forEach(c => {
                 const div = document.createElement('div');
-                div.className = "text-[11px] bg-[#18181b] border border-gray-800 p-2 rounded-sm mb-1 flex justify-between group shadow-sm";
+                div.className = "text-[13px] leading-relaxed flex group";
                 
-                const dispName = c.isAnon ? '184(匿名)' : c.senderReal;
-                const badge = c.isRemote ? '<span class="text-yellow-600 mr-1 font-bold">ADMIN</span>' : '';
+                const dispName = (c.isAnon && !isPrivileged) ? '184(匿名)' : c.senderReal;
+                const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400"></i> ' : '';
+                const nameColor = c.isRemote ? 'text-yellow-400' : 'text-indigo-400';
                 
                 div.innerHTML = `
-                    <div class="flex-1 min-w-0">
-                        <span class="text-[9px] text-gray-500 font-bold block truncate mb-0.5">${badge}${dispName}</span>
-                        <p class="text-gray-300 break-all">${c.text}</p>
+                    <div class="flex-1 break-words">
+                        <span class="font-bold ${nameColor} mr-1">${badge}${dispName}:</span>
+                        <span class="text-gray-100">${c.text}</span>
                     </div>
                 `;
-                const delBtn = document.createElement('button');
-                delBtn.className = "text-gray-700 hover:text-red-500 opacity-0 group-hover:opacity-100 px-2 transition-all flex-shrink-0";
-                delBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-                delBtn.onclick = () => deleteChat(c.id);
-                div.appendChild(delBtn);
-                
                 container.appendChild(div);
             });
             container.scrollTop = container.scrollHeight;
         }
 
-        function triggerTTS(chatObj) {
-            let ttsOn = false;
-            const toggle = document.getElementById('host-tts-toggle');
-            if(toggle) ttsOn = toggle.checked;
+        function renderListenerState(state) {
+            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, hostTheme, isLive, cameraApprovalMode, participants } = state;
+
+            if(serverChatHistory) {
+                chatHistory = serverChatHistory;
+                renderChatList('listener-chat-list', chatHistory, false);
+            }
+
+            const playingEl = document.getElementById('listener-now-playing');
             
-            if(!ttsOn) return;
+            if(currentSongData && playingEl) {
+                playingEl.textContent = currentSongData.title;
+                const reqName = currentSongData.isAnon ? '184(匿名)' : (currentSongData.requester || "");
+                const reqEl = document.getElementById('listener-now-requester');
+                if(reqEl) reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
+                
+                const eq = document.getElementById('listener-eq');
+                if(eq) isPlaying ? eq.classList.add('active') : eq.classList.remove('active');
+            } else if (playingEl) {
+                playingEl.textContent = "BGM停止中";
+                const reqEl = document.getElementById('listener-now-requester');
+                if(reqEl) reqEl.textContent = "";
+                const eq = document.getElementById('listener-eq');
+                if(eq) eq.classList.remove('active');
+            }
+
+            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
+
+            const tDiv = document.getElementById('listener-theme-container');
+            if(tDiv) {
+                if(hostTheme) { 
+                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
+                    tDiv.classList.remove('hidden'); 
+                } else {
+                    tDiv.classList.add('hidden');
+                }
+            }
+
+            const btn = document.getElementById('btn-toggle-camera');
+            const tabCamIcon = document.querySelector('#tab-cam i');
             
-            let name = chatObj.isAnon ? '184(匿名)' : chatObj.senderReal;
-            const text = `${name}さんから、${chatObj.text}`;
-            const ut = new SpeechSynthesisUtterance(text);
-            ut.lang = 'ja-JP';
-            window.speechSynthesis.speak(ut);
+            if(isLive) {
+                if(btn && !listenerHasStream) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    if(cameraApprovalMode) {
+                        const myData = participants ? participants.find(p => p.id === listenerId) : null;
+                        if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+                        else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
+                    } else btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
+                }
+                if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            } else { 
+                resetListenerVideo(); 
+                if(btn) {
+                    btn.textContent = "配信はオフラインです"; 
+                    btn.disabled = true;
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                if(tabCamIcon) tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            }
+
+            const countEl = document.getElementById('listener-queue-count');
+            if(countEl) countEl.textContent = serverQueue ? serverQueue.length : 0;
+            
+            const qList = document.getElementById('listener-queue-list');
+            if(qList && serverQueue) {
+                qList.innerHTML = '';
+                const myName = document.getElementById('listener-name').value.trim();
+                serverQueue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
+                    
+                    const dispName = q.isAnon ? '184(匿名)' : q.requester;
+                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
+                    
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
+                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    if(myName && q.requesterReal === myName && !q.isRemote) {
+                        const btn = document.createElement('button');
+                        btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
+                        btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                        btn.onclick = () => cancelRequest(q.id);
+                        div.appendChild(btn);
+                    }
+                    qList.appendChild(div);
+                });
+            }
+
+            if(serverHistQueue) {
+                const listenerHist = document.getElementById('listener-history-list');
+                if (listenerHist) {
+                    listenerHist.innerHTML = '';
+                    serverHistQueue.forEach((q, idx) => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center justify-between bg-gray-800/50 border border-gray-700/50 p-2 rounded text-sm mb-1";
+                        div.innerHTML = `
+                            <div class="flex items-center gap-2 overflow-hidden flex-1">
+                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                                <div class="truncate">
+                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                    <p class="text-[10px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                                </div>
+                            </div>
+                            <button onclick="reRequestListener('${q.videoId}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
+                        `;
+                        listenerHist.appendChild(div);
+                    });
+                }
+            }
         }
     </script>
 </body>
