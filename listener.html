@@ -65,7 +65,6 @@
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
 
-        /* チャット入力フローティング作戦 (キーボード対策) */
         .chat-backdrop {
             position: absolute;
             inset: 0;
@@ -79,7 +78,6 @@
             transition: all 0.2s ease;
         }
 
-        /* 縦画面時のみフローティング化 */
         @media (orientation: portrait) {
             .chat-backdrop.active {
                 opacity: 1;
@@ -98,9 +96,17 @@
                 box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important;
             }
         }
-        /* 横画面時はバックドロップ等フローティング効果を無効化 */
         @media (orientation: landscape) {
             .chat-backdrop { display: none !important; }
+        }
+
+        /* Youtube操作を完全にロックするためのクラス */
+        .yt-lock-shield {
+            position: absolute;
+            inset: 0;
+            z-index: 15;
+            background: transparent;
+            /* 初回オーバーレイが消えた後、クリックを遮断する透明な盾 */
         }
     </style>
 
@@ -112,7 +118,6 @@
 
         // ==========================================
         // 【重要】Firebase 接続設定
-        // ホスト側と同じ設定オブジェクトを貼り付けてください。
         // ==========================================
         const myFirebaseConfig = {
           apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
@@ -293,20 +298,22 @@
 
                     <!-- Stream映像レイヤー -->
                     <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
-                        <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
-                            <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
+                        <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-lg flex items-center justify-center gap-2 shadow-lg z-20 transition-colors opacity-50 cursor-not-allowed" disabled>
+                            配信はオフラインです
                         </button>
                         <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
                     </div>
                     
                     <!-- Jukebox映像レイヤー -->
                     <div id="listener-wp-layer" class="absolute inset-0 layer-visible bg-black">
-                        <!-- ここをポインターイベントなしに設定 -->
+                        <!-- 操作ブロック用の透明シールド -->
+                        <div class="yt-lock-shield"></div>
+                        
                         <div id="listener-youtube-player-wrapper" class="w-full h-full pointer-events-none">
-                            <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
+                            <div id="listener-youtube-player" class="w-full h-full"></div>
                         </div>
-                        <!-- 初回タップ用オーバーレイ -->
-                        <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300 pointer-events-auto" onclick="handleOverlayClick()">
+                        <!-- 初回タップ用オーバーレイ (ポインターイベントを受け取る) -->
+                        <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
                             <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
                             <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
                         </div>
@@ -369,10 +376,15 @@
                                 <div id="listener-history-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px] text-gray-500"></div>
                             </div>
                         </div>
+                        
+                        <div class="pt-4 border-t border-gray-800/60">
+                            <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">参加者 (<span id="listener-participant-count">0</span>)</h3>
+                            <div id="listener-participant-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px] text-gray-400"></div>
+                        </div>
 
                         <!-- 最下部余白用バージョン表記 -->
                         <div class="pt-8 text-center text-gray-700 text-[10px]">
-                            v1.0.42 (Canvas Security Fix)
+                            v2.0.0 (Cloud Sync & Lock)
                         </div>
 
                     </div>
@@ -409,9 +421,7 @@
     <script>
         let peer = null;
         let currentRoomId = null;
-        
         let savedPasswords = JSON.parse(localStorage.getItem('jukebox_passwords')) || {};
-
         let queue = [];
         let historyQueue = [];
         let chatHistory = []; 
@@ -420,6 +430,8 @@
         let listenerConn = null;
         let listenerId = null;
         
+        // UUIDの生成
+        function generateId() { return Math.random().toString(36).substring(2, 9); }
         let myGuestUUID = localStorage.getItem('jukebox_uuid');
         if (!myGuestUUID) {
             myGuestUUID = 'user-' + generateId() + generateId();
@@ -432,10 +444,9 @@
 
         let viewerYTPlayer = null;
         let isWpOverlayActive = true;
-        let hostCurrentTime = 0;
-        let hostCurrentStatus = -1;
         let pendingConnection = null;
 
+        // UI表示制御
         document.addEventListener('DOMContentLoaded', () => {
             const menuDetails = document.getElementById('listener-menu-details');
             if (menuDetails) {
@@ -452,7 +463,6 @@
             }
         });
 
-        // チャット入力欄フローティング機能のJS関数 (リスナー用)
         function focusChatInput() {
             document.getElementById('listener-chat-input-container').classList.add('chat-input-floating');
             document.getElementById('listener-chat-backdrop').classList.add('active');
@@ -505,8 +515,6 @@
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
-
-        function generateId() { return Math.random().toString(36).substring(2, 9); }
 
         function showBannedScreen() {
             document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500"><i class="fa-solid fa-ban"></i> アクセスがブロックされました</h1><p class="text-gray-300">管理者の操作により、このルームへのアクセスが制限されています。</p></div>';
@@ -575,10 +583,11 @@
             
             startListenerConnection();
         }
-        
+
+        // ================= Youtube Player & Sync =================
         function loadYouTubeAPI() {
             if (window.YT && window.YT.Player) {
-                // Ignore for listener if not ready to play
+                // API ready
             } else if (!document.getElementById('youtube-api-script')) {
                 const tag = document.createElement('script');
                 tag.id = 'youtube-api-script';
@@ -588,32 +597,28 @@
             }
         }
 
+        // 初回のみ手動タップでミュート再生を開始させ、自動再生ブロックを回避する
         function handleOverlayClick() {
             if (isWpOverlayActive) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
-                    viewerYTPlayer.unMute();
-                    
-                    const toggle = document.getElementById('toggle-wp-mute');
-                    if(toggle) toggle.checked = true;
-                    
-                    if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
-                        if (hostCurrentStatus === 1) {
-                            viewerYTPlayer.playVideo();
-                        }
-                    }
-                }
-                
                 const overlayId = 'listener-youtube-overlay';
                 const overlay = document.getElementById(overlayId);
-                if(overlay) {
-                    overlay.style.display = 'none'; 
-                }
-                
+                if(overlay) overlay.style.display = 'none'; 
                 isWpOverlayActive = false;
+                
+                // もしプレイヤーが準備完了していれば、音声をONにする
+                if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
+                    viewerYTPlayer.unMute();
+                    const toggle = document.getElementById('toggle-wp-mute');
+                    if(toggle) toggle.checked = true;
+                    // 再生中ではなく、ホスト側が「playing」状態なら強制再生
+                    if (currentSong && currentSong.status === 'playing') {
+                        viewerYTPlayer.playVideo();
+                    }
+                }
                 showToast("音声をONにして視聴を開始しました！", "info");
             }
         }
-        
+
         function switchListenerLayer(layer) {
             const camLayer = document.getElementById('listener-cam-layer');
             const wpLayer = document.getElementById('listener-wp-layer');
@@ -658,106 +663,27 @@
             const playerWrapper = document.getElementById('listener-youtube-player-wrapper');
             if (playerWrapper) {
                 playerWrapper.style.opacity = isOn ? '1' : '0';
-                // wrapper自体の pointerEvents は常に 'none' なので触らない
             }
         }
 
+        // P2P経由のミリ秒単位の微調整同期
         function handleSyncPlayback(data) {
-            const wpPlayerId = 'listener-youtube-player';
-
-            if (!isWatchPartyEnabled) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
-                    viewerYTPlayer.pauseVideo();
-                }
-                return;
-            }
-
-            if (!viewerYTPlayer) {
-                if (typeof YT === 'undefined' || !YT.Player) {
-                    loadYouTubeAPI(); 
-                    return;
-                }
-                
-                let playerOptions = {
-                    height: '100%', width: '100%',
-                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 1 }, // キーボード操作無効化
-                    events: {
-                        'onReady': (event) => {
-                            event.target.mute(); 
-                        }
-                    }
-                };
-                if (data.videoId) {
-                    playerOptions.videoId = data.videoId;
-                }
-                
-                if (document.getElementById(wpPlayerId)) {
-                    viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
-                }
-                return;
-            }
-
-            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
+            if (!isWatchPartyEnabled || !viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function') return;
             
-            if (!data.videoId) {
-                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
-                    viewerYTPlayer.stopVideo();
-                }
-                currentSong = null;
-                return;
-            }
-
-            const state = viewerYTPlayer.getPlayerState();
-            const currentTime = viewerYTPlayer.getCurrentTime() || 0;
-            hostCurrentTime = data.time || 0; 
-            hostCurrentStatus = data.status;
-
-            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
-                currentSong = { videoId: data.videoId };
-                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: hostCurrentTime});
-                return;
-            }
-
-            // 初回タップ待ちの場合は時間だけ合わせる（自動再生はしない）
-            if (isWpOverlayActive) {
-                 if (data.status === 2 || data.status === -1) {
-                     if (Math.abs(hostCurrentTime - currentTime) > 2.0) {
-                         viewerYTPlayer.seekTo(hostCurrentTime, true);
-                     }
-                 }
-                 return;
-            }
-
-            if (data.status === 1) { 
-                if (state !== 1 && state !== 3) {
-                    viewerYTPlayer.playVideo();
-                }
-                
-                const diff = hostCurrentTime - currentTime;
-                
-                if (Math.abs(diff) < 1.0) {
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
-                    if (diff > 0) {
-                        viewerYTPlayer.setPlaybackRate(1.05); 
-                    } else {
-                        viewerYTPlayer.setPlaybackRate(0.95); 
-                    }
+            // P2Pからの time データを使ってミリ秒単位の微調整を行う
+            if (data.status === 1 && viewerYTPlayer.getPlayerState() === 1) {
+                const diff = data.time - viewerYTPlayer.getCurrentTime();
+                if (Math.abs(diff) > 2.0) {
+                    viewerYTPlayer.seekTo(data.time, true);
+                } else if (Math.abs(diff) > 0.5) {
+                    viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
                 } else {
                     viewerYTPlayer.setPlaybackRate(1.0);
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
-                }
-            } else if (data.status === 2 || data.status === -1) { 
-                if (state === 1 || state === 3) {
-                    viewerYTPlayer.pauseVideo();
-                }
-                if (Math.abs(hostCurrentTime - currentTime) > 1.0) {
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
-                    viewerYTPlayer.setPlaybackRate(1.0);
                 }
             }
         }
 
+        // ================= Firestore Sync =================
         function initListener() {
             const savedName = localStorage.getItem('jukebox_guest_name');
             if (savedName) {
@@ -769,6 +695,233 @@
         }
 
         function startListenerConnection() {
+            // UI上の状態更新
+            const statusId = 'listener-status';
+            const statusEl = document.getElementById(statusId);
+            if(statusEl) {
+                statusEl.textContent = "クラウド同期中...";
+                statusEl.classList.replace('text-yellow-500', 'text-green-500');
+                statusEl.classList.replace('text-red-500', 'text-green-500');
+            }
+
+            // Firebaseのリスナー登録
+            if (window.db) {
+                // Room State
+                window.onSnapshot(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), (docSnap) => {
+                    if (docSnap.exists()) {
+                        handleRoomSync(docSnap.data());
+                    } else {
+                        if(statusEl) {
+                            statusEl.textContent = "ホストが見つかりません";
+                            statusEl.classList.replace('text-green-500', 'text-red-500');
+                        }
+                    }
+                }, (err) => console.error(err));
+
+                // Queues
+                window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), (snapshot) => {
+                    let allQ = [];
+                    snapshot.forEach(doc => {
+                        const d = doc.data();
+                        if (d.roomId === currentRoomId) allQ.push({ id: doc.id, ...d });
+                    });
+                    allQ.sort((a, b) => a.createdAt - b.createdAt);
+                    queue = allQ;
+                    renderQueue();
+                }, (err) => console.error(err));
+
+                // Chats
+                window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), (snapshot) => {
+                    let allC = [];
+                    snapshot.forEach(doc => {
+                        const d = doc.data();
+                        if (d.roomId === currentRoomId) allC.push({ id: doc.id, ...d });
+                    });
+                    allC.sort((a, b) => a.createdAt - b.createdAt);
+                    chatHistory = allC.slice(-100);
+                    renderChatList('listener-chat-list', chatHistory, false);
+                }, (err) => console.error(err));
+            }
+
+            // P2P通信の初期化（カメラと、微調整用のSyncのみ）
+            initP2PConnection();
+            
+            // YouTube API のロード
+            loadYouTubeAPI();
+
+            const url = new URL(window.location);
+            url.searchParams.set('host', currentRoomId);
+            history.replaceState(null, '', url);
+        }
+
+        // Firestore からのステータス同期による UIとYouTubeの更新
+        function handleRoomSync(state) {
+            saveGuestHistory(currentRoomId, state.hostName);
+
+            const { currentSong: currentSongData, isLive, cameraApprovalMode, participants, theme: hostTheme } = state;
+
+            // テーマの更新
+            const tDiv = document.getElementById('listener-theme-container');
+            if(tDiv) {
+                if(hostTheme) { 
+                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
+                    tDiv.classList.remove('hidden'); 
+                } else {
+                    tDiv.classList.add('hidden');
+                }
+            }
+
+            // 参加者リストの更新
+            window.remoteReceivedParticipants = participants;
+            renderParticipantList(document.getElementById('listener-participant-list'));
+
+            // UIとYouTubeの同期
+            const playingEl = document.getElementById('listener-now-playing');
+            const reqEl = document.getElementById('listener-now-requester');
+            const eq = document.getElementById('listener-eq');
+
+            if (currentSongData) {
+                playingEl.textContent = currentSongData.title;
+                const reqName = currentSongData.isAnon ? '184(匿名)' : (currentSongData.requesterReal || currentSongData.requester || "");
+                reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
+                if(state.status === 'playing') eq.classList.add('active'); else eq.classList.remove('active');
+
+                // 再生プレイヤーの準備
+                if (!viewerYTPlayer) {
+                    if (typeof YT === 'undefined' || !YT.Player) return; // APIロード待ち
+                    let playerOptions = {
+                        height: '100%', width: '100%',
+                        playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 1 }, // キーボード操作無効化
+                        events: {
+                            'onReady': (event) => {
+                                // 自動再生ブロック回避のため初期ミュート
+                                event.target.mute(); 
+                                // Firestoreのデータに基づいて初期化
+                                currentSong = currentSongData;
+                                currentSong.status = state.status;
+                                const startAt = state.status === 'playing' 
+                                    ? Math.max(0, (Date.now() - (currentSong.startedAt || Date.now())) / 1000)
+                                    : (currentSong.pausePosition || 0);
+                                event.target.loadVideoById({videoId: currentSong.videoId, startSeconds: startAt});
+                                
+                                if (state.status === 'paused') {
+                                    setTimeout(() => { 
+                                        if(viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function') {
+                                            viewerYTPlayer.pauseVideo(); 
+                                            viewerYTPlayer.seekTo(startAt, true);
+                                        }
+                                    }, 500);
+                                }
+                            }
+                        }
+                    };
+                    viewerYTPlayer = new YT.Player('listener-youtube-player', playerOptions);
+                    return;
+                }
+
+                // 既にプレイヤーがある場合
+                if (typeof viewerYTPlayer.getPlayerState === 'function') {
+                    if (!currentSong || currentSong.videoId !== currentSongData.videoId) {
+                        // 新しい曲
+                        currentSong = currentSongData;
+                        currentSong.status = state.status;
+                        const startAt = state.status === 'playing' 
+                            ? Math.max(0, (Date.now() - (currentSong.startedAt || Date.now())) / 1000)
+                            : (currentSong.pausePosition || 0);
+                        viewerYTPlayer.loadVideoById({videoId: currentSong.videoId, startSeconds: startAt});
+                        
+                        if (state.status === 'paused') {
+                            setTimeout(() => { 
+                                if(viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function') {
+                                    viewerYTPlayer.pauseVideo(); 
+                                    viewerYTPlayer.seekTo(startAt, true);
+                                }
+                            }, 500);
+                        }
+                    } else {
+                        // 同じ曲の場合、再生状態の同期
+                        currentSong.status = state.status;
+                        const ytState = viewerYTPlayer.getPlayerState();
+                        if (state.status === 'playing') {
+                            const expectedTime = Math.max(0, (Date.now() - (currentSong.startedAt || Date.now())) / 1000);
+                            if (ytState !== 1 && ytState !== 3 && !isWpOverlayActive) {
+                                viewerYTPlayer.seekTo(expectedTime, true);
+                                viewerYTPlayer.playVideo();
+                            } else if (ytState === 1) {
+                                const diff = expectedTime - viewerYTPlayer.getCurrentTime();
+                                if (Math.abs(diff) > 2.0) viewerYTPlayer.seekTo(expectedTime, true);
+                            }
+                        } else if (state.status === 'paused') {
+                            if (ytState === 1 || ytState === 3) {
+                                viewerYTPlayer.pauseVideo();
+                                viewerYTPlayer.seekTo(currentSongData.pausePosition || 0, true);
+                            }
+                        }
+                    }
+                }
+            } else {
+                currentSong = null;
+                playingEl.textContent = "BGM停止中";
+                reqEl.textContent = "";
+                eq.classList.remove('active');
+                if (viewerYTPlayer && typeof viewerYTPlayer.stopVideo === 'function') viewerYTPlayer.stopVideo();
+            }
+
+            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
+
+            // カメラボタンの制御 (FirestoreのisLiveに連動)
+            const btn = document.getElementById('btn-toggle-camera');
+            const tabCamIcon = document.querySelector('#tab-cam i');
+            
+            if(isLive) {
+                if(btn && !listenerHasStream) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    if(cameraApprovalMode) {
+                        const myData = participants ? participants.find(p => p.id === listenerId) : null;
+                        if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+                        else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
+                    } else {
+                        btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
+                    }
+                }
+                if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            } else { 
+                resetListenerVideo(); 
+                if(btn) {
+                    btn.innerHTML = '配信はオフラインです'; 
+                    btn.disabled = true;
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                if(tabCamIcon) tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            }
+            
+            // 履歴リストの更新
+            if(state.historyQueue) {
+                const listenerHist = document.getElementById('listener-history-list');
+                if (listenerHist) {
+                    listenerHist.innerHTML = '';
+                    state.historyQueue.forEach((q, idx) => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center justify-between bg-gray-800/50 border border-gray-700/50 p-2 rounded text-sm mb-1";
+                        div.innerHTML = `
+                            <div class="flex items-center gap-2 overflow-hidden flex-1">
+                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                                <div class="truncate">
+                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                    <p class="text-[10px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                                </div>
+                            </div>
+                            <button onclick="reRequestListener('${q.videoId}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
+                        `;
+                        listenerHist.appendChild(div);
+                    });
+                }
+            }
+        }
+
+        // ================= PeerJS (カメラ中継・マイナー同期用) =================
+        function initP2PConnection() {
             try {
                 listenerId = generateId();
                 peer = new Peer(`listener-${listenerId}`);
@@ -777,11 +930,6 @@
                     listenerConn = peer.connect(`jukebox-${currentRoomId}`);
                     
                     listenerConn.on('open', () => {
-                        const statusId = 'listener-status';
-                        if(document.getElementById(statusId)) {
-                            document.getElementById(statusId).textContent = "接続完了！";
-                            document.getElementById(statusId).classList.replace('text-yellow-500', 'text-green-500');
-                        }
                         sendProfileUpdate();
                     });
 
@@ -796,14 +944,8 @@
                             return;
                         }
                         if(data.type === 'error') { showToast(data.msg, "error"); return; }
-                        
                         if(data.type === 'sync_playback') {
                             handleSyncPlayback(data);
-                        }
-                        
-                        if(data.type === 'state') {
-                            saveGuestHistory(currentRoomId, data.hostName);
-                            renderListenerState(data);
                         }
                         
                         if (data.type === 'auth_response') {
@@ -829,15 +971,6 @@
                              showToast("操作にはパスワード認証が必要です", "error");
                              pendingConnection = listenerConn;
                              showPasswordModal();
-                        }
-                        
-                        if(data.type === 'new_chat') {
-                            if(!chatHistory.some(c => c.id === data.chat.id)) {
-                                chatHistory.push(data.chat);
-                                if(chatHistory.length > 100) chatHistory.shift();
-                                
-                                renderChatList('listener-chat-list', chatHistory, false);
-                            }
                         }
                     });
                 });
@@ -869,28 +1002,12 @@
                 });
 
                 peer.on('error', (err) => {
-                    console.warn("PeerJS Error:", err);
-                    if (err.type === 'network' || err.type === 'browser-incompatible') {
-                        const statusEl = document.getElementById('listener-status');
-                        if (statusEl) {
-                            statusEl.textContent = "プレビュー制限: 別タブで開いてください";
-                            statusEl.classList.replace('text-yellow-500', 'text-red-500');
-                        }
-                    }
+                    console.warn("PeerJS Error (Safe to ignore if Firestore is working):", err);
                 });
 
             } catch (e) {
-                console.warn("PeerJS initialization failed/blocked:", e);
-                const statusEl = document.getElementById('listener-status');
-                if (statusEl) {
-                    statusEl.textContent = "通信制限: 別タブで開いてください";
-                    statusEl.classList.replace('text-yellow-500', 'text-red-500');
-                }
+                console.warn("PeerJS initialization failed. Firestore sync will still work.", e);
             }
-
-            const url = new URL(window.location);
-            url.searchParams.set('host', currentRoomId);
-            history.replaceState(null, '', url);
         }
 
         function resetListenerVideo() {
@@ -898,10 +1015,8 @@
             isListenerVideoOpen = false;
             const videoEl = document.getElementById('listener-video');
             if (videoEl) videoEl.srcObject = null;
-            const btn = document.getElementById('btn-toggle-camera');
-            if(btn) { 
-                btn.classList.remove('hidden'); 
-            }
+            
+            // btnの再表示は handleRoomSync の isLive チェックに任せる
         }
 
         function sendProfileUpdate() {
@@ -929,11 +1044,6 @@
             }
         }
 
-        function extractVideoId(url) {
-            const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/);
-            return match ? match[1] : null;
-        }
-
         function sendRequest() {
             const url = document.getElementById('listener-url').value;
             const name = document.getElementById('listener-name').value.trim();
@@ -946,64 +1056,89 @@
 
             const vid = extractVideoId(url);
             if(vid) {
-                listenerConn.send({ type: 'request', videoId: vid, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
                 document.getElementById('listener-url').value = '';
-                showToast("リクエストを送信しました！");
-            } else showToast("無効なYouTube URLです", "error");
-        }
-
-        function cancelRequest(id) {
-            listenerConn.send({ type: 'cancel', id: id });
-            showToast("キャンセルしました");
-        }
-
-        function reRequestListener(videoId) {
-            const name = document.getElementById('listener-name').value.trim();
-            const isAnon = document.getElementById('listener-anon').checked;
-            if(!name) return showToast("名前を入力してください", "error");
-            
-            localStorage.setItem('jukebox_guest_name', name);
-            localStorage.setItem('jukebox_guest_anon', isAnon);
-            
-            listenerConn.send({ type: 'request', videoId: videoId, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
-            showToast("再リクエストを送信しました");
+                showToast("リクエストを送信中...");
+                fetchYouTubeTitle(vid).then(title => {
+                    const reqDisplayName = isAnon ? '184(匿名)' : name;
+                    window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
+                        roomId: currentRoomId,
+                        videoId: vid,
+                        title: title,
+                        requester: reqDisplayName,
+                        requesterReal: name,
+                        isAnon: isAnon,
+                        isRemote: false,
+                        createdAt: Date.now()
+                    });
+                    showToast("リクエストを送信しました！");
+                });
+            } else {
+                showToast("無効なYouTube URLです", "error");
+            }
         }
 
         function sendChatRequest(isDummyMode = false) {
             const inputId = 'listener-chat-input';
             const text = document.getElementById(inputId).value.trim();
             if(!text) return;
+            document.getElementById(inputId).value = '';
+            closeChatInput();
 
             const senderReal = document.getElementById('listener-name').value.trim() || "名無し";
             const isAnon = document.getElementById('listener-anon').checked;
             const sender = isAnon ? '184(匿名)' : senderReal;
-            
+
             localStorage.setItem('jukebox_guest_name', senderReal);
             localStorage.setItem('jukebox_guest_anon', isAnon);
 
-            if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'chat', text, sender, senderReal, isAnon, isRemote: false });
-                document.getElementById(inputId).value = '';
-                closeChatInput();
+            window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), {
+                roomId: currentRoomId,
+                text: text,
+                sender: sender,
+                senderReal: senderReal,
+                isAnon: isAnon,
+                isRemote: false,
+                createdAt: Date.now()
+            });
+        }
+
+        function renderQueue() {
+            const countEl = document.getElementById('listener-queue-count');
+            if(countEl) countEl.textContent = queue.length;
+            
+            const qList = document.getElementById('listener-queue-list');
+            if(qList) {
+                qList.innerHTML = '';
+                queue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
+                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
+                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${q.requester} ${isCrown}</p>
+                            </div>
+                        </div>
+                    `;
+                    qList.appendChild(div);
+                });
             }
         }
 
         function renderChatList(containerId, chats, isPrivileged) {
             const container = document.getElementById(containerId);
             if(!container) return;
-            
             container.innerHTML = '';
             chats.forEach(c => {
                 const div = document.createElement('div');
                 div.className = "text-[13px] leading-relaxed flex group";
-                
-                const dispName = (c.isAnon && !isPrivileged) ? '184(匿名)' : c.senderReal;
                 const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400"></i> ' : '';
                 const nameColor = c.isRemote ? 'text-yellow-400' : 'text-indigo-400';
-                
                 div.innerHTML = `
                     <div class="flex-1 break-words">
-                        <span class="font-bold ${nameColor} mr-1">${badge}${dispName}:</span>
+                        <span class="font-bold ${nameColor} mr-1">${badge}${c.senderReal}:</span>
                         <span class="text-gray-100">${c.text}</span>
                     </div>
                 `;
@@ -1012,163 +1147,30 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        function renderListenerState(state) {
-            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, hostTheme, isLive, cameraApprovalMode, participants } = state;
+        function renderParticipantList(container) {
+            if(!container) return;
+            container.innerHTML = '';
+            const list = window.remoteReceivedParticipants || [];
+            let validParticipantCount = 0;
 
-            if(serverChatHistory) {
-                chatHistory = serverChatHistory;
-                renderChatList('listener-chat-list', chatHistory, false);
-            }
-
-            const playingEl = document.getElementById('listener-now-playing');
-            
-            if(currentSongData && playingEl) {
-                playingEl.textContent = currentSongData.title;
-                const reqName = currentSongData.isAnon ? '184(匿名)' : (currentSongData.requester || "");
-                const reqEl = document.getElementById('listener-now-requester');
-                if(reqEl) reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
+            list.forEach(p => {
+                if(p.isObs || p.isCam) return; 
+                validParticipantCount++;
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between bg-gray-700/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
                 
-                const eq = document.getElementById('listener-eq');
-                if(eq) isPlaying ? eq.classList.add('active') : eq.classList.remove('active');
-            } else if (playingEl) {
-                playingEl.textContent = "BGM停止中";
-                const reqEl = document.getElementById('listener-now-requester');
-                if(reqEl) reqEl.textContent = "";
-                const eq = document.getElementById('listener-eq');
-                if(eq) eq.classList.remove('active');
-            }
+                let nameLabel = p.name;
+                if(p.isRemote) nameLabel += ' <span class="text-[10px] text-yellow-400 ml-1">(<i class="fa-solid fa-crown text-yellow-400"></i>)</span>';
+                if(p.isMuted) nameLabel += ' <span class="text-[10px] text-red-400 ml-1"><i class="fa-solid fa-volume-xmark"></i>ミュート</span>';
 
-            // Firestoreから「絶対時間」での同期（大枠の同期のみ、細かいシークはP2Pに任せる）
-            if (currentSongData) {
-                if (!currentSong || currentSong.videoId !== currentSongData.videoId) {
-                    currentSong = currentSongData;
-                    if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
-                        const startAt = state.status === 'playing' 
-                            ? Math.max(0, (Date.now() - (currentSong.startedAt || Date.now())) / 1000)
-                            : (currentSong.pausePosition || 0);
-                        viewerYTPlayer.loadVideoById({videoId: currentSong.videoId, startSeconds: startAt});
-                        
-                        if (state.status === 'paused') {
-                            setTimeout(() => { 
-                                if(viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function') {
-                                    viewerYTPlayer.pauseVideo(); 
-                                    viewerYTPlayer.seekTo(startAt, true);
-                                }
-                            }, 500);
-                        }
-                    }
-                } else {
-                    if (viewerYTPlayer && typeof viewerYTPlayer.getPlayerState === 'function') {
-                        const ytState = viewerYTPlayer.getPlayerState();
-                        if (state.status === 'playing') {
-                            if (ytState !== 1 && ytState !== 3 && !isWpOverlayActive) {
-                                viewerYTPlayer.playVideo();
-                            }
-                        } else if (state.status === 'paused') {
-                            if (ytState === 1 || ytState === 3) {
-                                viewerYTPlayer.pauseVideo();
-                            }
-                        }
-                    }
-                }
-            } else {
-                currentSong = null;
-                if (viewerYTPlayer && typeof viewerYTPlayer.stopVideo === 'function') viewerYTPlayer.stopVideo();
-            }
+                div.innerHTML = `<div class="truncate flex-1"><span class="text-gray-200">${nameLabel}</span></div>`;
+                container.appendChild(div);
+            });
 
-            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
-
-            const tDiv = document.getElementById('listener-theme-container');
-            if(tDiv) {
-                if(hostTheme) { 
-                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
-                    tDiv.classList.remove('hidden'); 
-                } else {
-                    tDiv.classList.add('hidden');
-                }
-            }
-
-            const btn = document.getElementById('btn-toggle-camera');
-            const tabCamIcon = document.querySelector('#tab-cam i');
-            
-            if(isLive) {
-                if(btn && !listenerHasStream) {
-                    btn.disabled = false;
-                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    if(cameraApprovalMode) {
-                        const myData = participants ? participants.find(p => p.id === listenerId) : null;
-                        if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
-                        else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
-                    } else btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
-                }
-                if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
-            } else { 
-                resetListenerVideo(); 
-                if(btn) {
-                    btn.textContent = "配信はオフラインです"; 
-                    btn.disabled = true;
-                    btn.classList.add('opacity-50', 'cursor-not-allowed');
-                }
-                if(tabCamIcon) tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
-            }
-
-            const countEl = document.getElementById('listener-queue-count');
-            if(countEl) countEl.textContent = serverQueue ? serverQueue.length : 0;
-            
-            const qList = document.getElementById('listener-queue-list');
-            if(qList && serverQueue) {
-                qList.innerHTML = '';
-                const myName = document.getElementById('listener-name').value.trim();
-                serverQueue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
-                    
-                    const dispName = q.isAnon ? '184(匿名)' : q.requesterReal;
-                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
-                    
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
-                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
-                            </div>
-                        </div>
-                    `;
-                    
-                    if(myName && q.requesterReal === myName && !q.isRemote) {
-                        const btn = document.createElement('button');
-                        btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
-                        btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-                        btn.onclick = () => cancelRequest(q.id);
-                        div.appendChild(btn);
-                    }
-                    qList.appendChild(div);
-                });
-            }
-
-            if(serverHistQueue) {
-                const listenerHist = document.getElementById('listener-history-list');
-                if (listenerHist) {
-                    listenerHist.innerHTML = '';
-                    serverHistQueue.forEach((q, idx) => {
-                        const div = document.createElement('div');
-                        div.className = "flex items-center justify-between bg-gray-800/50 border border-gray-700/50 p-2 rounded text-sm mb-1";
-                        div.innerHTML = `
-                            <div class="flex items-center gap-2 overflow-hidden flex-1">
-                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                                <div class="truncate">
-                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                    <p class="text-[10px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
-                                </div>
-                            </div>
-                            <button onclick="reRequestListener('${q.videoId}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
-                        `;
-                        listenerHist.appendChild(div);
-                    });
-                }
-            }
+            const countEl = document.getElementById('listener-participant-count');
+            if (countEl) countEl.textContent = `${validParticipantCount}`;
         }
+
     </script>
 </body>
 </html>
