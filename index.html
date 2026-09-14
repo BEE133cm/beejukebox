@@ -271,7 +271,7 @@
                         </div>
                         <div id="host-chat-list" class="flex-1 overflow-y-auto space-y-1 pr-1 mb-2 min-h-0"></div>
                         <div class="flex gap-1.5 shrink-0">
-                            <input type="text" id="host-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest()" placeholder="メッセージ..." class="flex-1 p-2 text-xs bg-[#0e0e10] border border-gray-700" autocomplete="off">
+                            <input type="text" id="host-chat-input" onkeypress="if(event.key === 'Enter') sendChatRequest()" placeholder="メッセージ..." class="flex-1 p-2 text-xs bg-[#0e0e10] border border-gray-700" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
                             <button onclick="sendChatRequest()" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 w-10 rounded-sm flex items-center justify-center transition-colors shadow-sm"><i class="fa-solid fa-paper-plane text-xs"></i></button>
                         </div>
                     </div>
@@ -345,7 +345,6 @@
 
     <!-- カメラ中継用ダミー -->
     <audio id="dummy-audio" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" loop playsinline></audio>
-    <video id="host-relay-video" class="hidden" autoplay playsinline muted></video>
 
     <script>
         let peer = null;
@@ -362,10 +361,6 @@
         let hostTheme = "";
 
         let connectedListeners = {}; 
-        let bannedUsers = {};
-        
-        let hostMediaConn = null;
-        let currentStreamToListeners = null;
 
         // === Layout Adjustments ===
         function adjustLayoutForMobile() {
@@ -423,7 +418,6 @@
                 if (tabName === 'col3') {
                     const partContent = document.getElementById('tab-content-participants');
                     if(partContent && !partContent.classList.contains('hidden')) switchHostSettingsTab('settings');
-                    else if (document.getElementById('tab-btn-settings').classList.contains('border-transparent')) switchHostSettingsTab('settings');
                 }
             }
         }
@@ -446,17 +440,6 @@
             if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 3000);
-        }
-
-        let hostNewsTimeout = null;
-        function showHostNews(msg) {
-            const ticker = document.getElementById('host-news-ticker');
-            if(ticker) {
-                ticker.innerHTML = msg;
-                ticker.style.opacity = '1';
-                if(hostNewsTimeout) clearTimeout(hostNewsTimeout);
-                hostNewsTimeout = setTimeout(() => { ticker.style.opacity = '0'; }, 5000);
-            }
         }
 
         function generateId() { return Math.random().toString(36).substring(2, 9); }
@@ -591,7 +574,7 @@
             createRoom();
         }
 
-        // ================= Firestore & P2P Integration =================
+        // ================= Firestore Integration =================
         function initHost() {
             showView('host-view');
             document.getElementById('display-room-id').textContent = currentRoomId;
@@ -606,9 +589,8 @@
                 theme: hostTheme,
                 status: 'paused',
                 currentSong: null,
-                isLive: !!currentStreamToListeners,
+                isLive: false,
                 historyQueue: historyQueue,
-                participants: [],
                 requirePassword: !!hostPassword
             }, { merge: true }).then(() => {
                 document.getElementById('status-dot').classList.replace('bg-yellow-500', 'bg-green-500');
@@ -653,7 +635,7 @@
 
             loadYouTubeAPI(); 
             
-            // 4. P2P接続の設定 (毎秒の高頻度同期とカメラ映像配信のため)
+            // 4. P2P接続の設定 (毎秒の高頻度同期用)
             try {
                 peer = new Peer(`jukebox-${currentRoomId}`);
                 
@@ -672,7 +654,7 @@
                             time: player.getCurrentTime(),
                             status: player.getPlayerState()
                         };
-                        // 繋がっているすべてのクライアントへ直接送信（高速・高頻度）
+                        // 繋がっているすべてのクライアントへ直接送信
                         Object.values(connectedListeners).forEach(p => {
                             if(p.conn.open) p.conn.send(syncData);
                         });
@@ -680,16 +662,10 @@
                 }, 1000);
 
                 peer.on('connection', (conn) => {
-                    if (bannedUsers[conn.peer]) {
-                        conn.on('open', () => { conn.send({type: 'banned'}); conn.close(); });
-                        return;
-                    }
-                    
                     conn.isAuthenticated = false;
                     connectedListeners[conn.peer] = {
                         id: conn.peer, conn: conn, name: "リスナー", isMuted: false, isRemote: false, isObs: false, isCam: conn.peer.startsWith('cam-'), lastPongReceived: Date.now()
                     };
-                    updateParticipantsUI();
                     broadcastStateToFirestore();
 
                     conn.on('open', () => { 
@@ -698,8 +674,7 @@
                             status: player ? (player.getPlayerState && player.getPlayerState() === 1 ? 'playing' : 'paused') : 'paused',
                             videoId: currentSong ? currentSong.videoId : null,
                             hostName: hostName,
-                            requirePassword: !!hostPassword,
-                            isLive: !!currentStreamToListeners
+                            requirePassword: !!hostPassword
                         });
                     });
                     
@@ -734,38 +709,9 @@
                     conn.on('close', () => {
                         if (connectedListeners[conn.peer]) {
                             delete connectedListeners[conn.peer];
-                            updateParticipantsUI();
                             broadcastStateToFirestore();
                         }
                     });
-                });
-
-                peer.on('call', (call) => {
-                    if(call.peer.startsWith('cam-')) {
-                        hostMediaConn = call;
-                        call.answer();
-                        call.on('stream', (stream) => {
-                            const previewVid = document.getElementById('host-stream-preview');
-                            if (previewVid) {
-                                previewVid.srcObject = stream;
-                                previewVid.classList.remove('hidden');
-                                document.getElementById('host-stream-offline').classList.add('hidden');
-                                updateStreamAudioByWindowSize();
-                                previewVid.play().catch(e=>{});
-                            }
-                            document.getElementById('dummy-audio').play().catch(e=>{});
-                            broadcastStreamToListeners(stream);
-                        });
-                        call.on('close', () => {
-                            stopBroadcastStream();
-                            const previewVid = document.getElementById('host-stream-preview');
-                            if(previewVid) {
-                                previewVid.srcObject = null;
-                                previewVid.classList.add('hidden');
-                                document.getElementById('host-stream-offline').classList.remove('hidden');
-                            }
-                        });
-                    }
                 });
 
                 peer.on('error', (err) => {
@@ -793,7 +739,6 @@
                         }
                     });
                     if(needsUpdate) {
-                        updateParticipantsUI();
                         broadcastStateToFirestore();
                     }
                 }, 10000);
@@ -821,7 +766,6 @@
         function handleHostData(data, conn) {
             const peerId = conn.peer;
             const listener = connectedListeners[peerId];
-            if (bannedUsers[peerId]) return;
 
             if (data.type === 'update_profile') {
                 if (listener) {
@@ -829,13 +773,12 @@
                     listener.isRemote = data.isRemote || false;
                     listener.isObs = data.isObs || false;
                     listener.uuid = data.uuid;
-                    updateParticipantsUI();
                     broadcastStateToFirestore();
                 }
             } else if (data.type === 'remote_cmd') {
                 // リモコンからのコマンドを処理
                 if (data.cmd === 'toggle') {
-                    togglePlayHost(); // 確実にトグルさせる
+                    togglePlayHost();
                 }
                 else if (data.cmd === 'skip') {
                     playNext(true);
@@ -857,8 +800,7 @@
                         status: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1 ? 'playing' : 'paused') : 'paused',
                         videoId: currentSong ? currentSong.videoId : null,
                         hostName: hostName,
-                        requirePassword: !!hostPassword,
-                        isLive: !!currentStreamToListeners
+                        requirePassword: !!hostPassword
                     });
                 }
             }
@@ -884,10 +826,18 @@
                 theme: hostTheme,
                 status: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1 ? 'playing' : 'paused') : 'paused',
                 currentSong: stateCurrentSong,
-                isLive: !!currentStreamToListeners,
                 participants: safeParticipants,
                 historyQueue: historyQueue
             }).catch(e => console.warn("Firestore broadcast error:", e));
+            
+            // P2Pにも一応送信しておく
+            const state = {
+                type: 'state', queue: queue, historyQueue: historyQueue, chatHistory: chatHistory, currentSong: stateCurrentSong,
+                isPlaying: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1) : false,
+                hostTheme: hostTheme, isLive: false,
+                participants: safeParticipants
+            };
+            Object.values(connectedListeners).forEach(p => { if(p.conn.open) p.conn.send(state); });
         }
 
         function sendHostRequest(mode = 'pc') {
@@ -1021,8 +971,13 @@
             }
 
             if (queue.length > 0) {
-                currentSong = queue[0];
-                removeQueue(currentSong.id);
+                // 配列から確実に取り除く (shiftに変更)
+                currentSong = queue.shift();
+                
+                // Firestoreのデータベースからも確実に削除する
+                if (currentSong.id) {
+                    removeQueue(currentSong.id);
+                }
                 
                 currentSong.startedAt = Date.now();
                 currentSong.pausePosition = 0;
@@ -1170,69 +1125,6 @@
             });
             showToast("再リクエストしました");
             if(!currentSong) playNext();
-        }
-
-        function updateParticipantsUI() {
-            const hList = document.getElementById('host-participant-list');
-            if(hList) {
-                hList.innerHTML = '';
-                const list = Object.values(connectedListeners);
-                let count = 0;
-                list.forEach(p => {
-                    if(p.isObs || p.isCam) return; 
-                    count++;
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-[#18181b] border border-gray-800 p-2 rounded-sm text-[10px] mb-1";
-                    
-                    let nameLabel = p.name;
-                    if(p.isRemote) nameLabel += ' <span class="text-[9px] text-yellow-500 ml-1 font-bold">ADMIN</span>';
-                    
-                    div.innerHTML = `<div class="truncate flex-1 font-bold text-gray-300">${nameLabel}</div>`;
-                    hList.appendChild(div);
-                });
-                const countEl = document.getElementById('host-participant-count');
-                if (countEl) countEl.textContent = `(${count})`;
-            }
-        }
-
-        function applyBitrate(call, bitrateKbps) {
-            if(!call || !call.peerConnection) return;
-            const senders = call.peerConnection.getSenders();
-            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-            if (videoSender) {
-                const params = videoSender.getParameters();
-                if (!params.encodings) params.encodings = [{}];
-                params.encodings[0].maxBitrate = bitrateKbps * 1000;
-                videoSender.setParameters(params).catch(e => console.log("Bitrate error:", e));
-            }
-        }
-
-        function sendStreamToPeer(peerId) {
-            if(!currentStreamToListeners) return;
-            const listener = connectedListeners[peerId];
-            if(listener && listener.conn.open) {
-                const call = peer.call(peerId, currentStreamToListeners);
-                listener.call = call;
-                setTimeout(() => applyBitrate(call, 2500), 1000);
-            }
-        }
-
-        function broadcastStreamToListeners(stream) {
-            currentStreamToListeners = stream;
-            Object.values(connectedListeners).forEach(listener => {
-                sendStreamToPeer(listener.id);
-            });
-            showToast("カメラ中継を開始しました", "info");
-            broadcastStateToFirestore();
-        }
-
-        function stopBroadcastStream() {
-            currentStreamToListeners = null;
-            Object.values(connectedListeners).forEach(listener => {
-                if(listener.call) { listener.call.close(); listener.call = null; }
-            });
-            showToast("カメラ中継が停止しました", "info");
-            broadcastStateToFirestore();
         }
 
         function toggleHostJukeboxMute() {
