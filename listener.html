@@ -154,7 +154,7 @@
     <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
     <div id="listener-view" class="flex fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex-col landscape:flex-row text-sm">
         <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
-            <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl">
+            <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl overflow-y-auto max-h-[90vh]">
                 <div class="flex justify-between items-center border-b border-gray-800 pb-3">
                     <h3 class="text-white font-bold text-sm"><i class="fa-solid fa-gear"></i> 設定</h3>
                     <button onclick="document.getElementById('listener-settings-modal').classList.add('hidden')" class="text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
@@ -176,9 +176,9 @@
                                 <div class="flex flex-col mt-3 pl-2 border-l-2 border-gray-700 ml-1">
                                     <span class="text-gray-400 text-xs font-bold mb-2"><i class="fa-solid fa-bolt text-yellow-500"></i> 音量ブースト (最大50倍)</span>
                                     <div class="flex items-center">
-                                        <input type="range" id="stream-boost-slider" min="1" max="50" step="0.5" value="2.0" class="w-full h-1.5 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeStreamBoost(this.value)">
+                                        <input type="range" id="stream-boost-slider" min="1" max="50" step="0.5" value="2.0" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeStreamBoost(this.value)">
                                     </div>
-                                    <span class="text-[10px] text-gray-500 mt-1">※配信者の声が小さい場合のみ上げてください</span>
+                                    <span class="text-[10px] text-gray-500 mt-2">※配信者の声が小さい場合のみ上げてください</span>
                                 </div>
                             </div>
                             
@@ -217,6 +217,15 @@
                             </div>
                         </div>
                     </div>
+
+                    <hr class="border-gray-800 my-4">
+
+                    <!-- 詳細設定 -->
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-500 mb-3 uppercase">PWA (ホーム画面追加) 用</h4>
+                        <button onclick="openYouTubeLoginPopup()" class="w-full bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 font-bold py-2.5 rounded transition-colors flex items-center justify-center gap-2 text-xs"><i class="fa-brands fa-youtube"></i> YouTubeにログインして広告を消す</button>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -325,7 +334,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.40
+                        v1.0.41
                     </div>
 
                 </div>
@@ -394,6 +403,25 @@
         let streamGainNode = null;
         let streamMuteNode = null;
         let streamCompressorNode = null;
+
+        // YouTube Login for PWA
+        function openYouTubeLoginPopup() {
+            const loginUrl = 'https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F';
+            const popup = window.open(loginUrl, 'youtubeLogin', 'width=500,height=600');
+            
+            if (popup) {
+                const checkPopup = setInterval(() => {
+                    if (popup.closed) {
+                        clearInterval(checkPopup);
+                        if (confirm('ログインが完了しましたか？\n設定を反映させるため、ページを再読み込みします。')) {
+                            location.reload();
+                        }
+                    }
+                }, 1000);
+            } else {
+                showToast("ポップアップがブロックされました。ブラウザの設定を確認してください。", "error");
+            }
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             const menuDetails = document.getElementById('listener-menu-details');
@@ -535,44 +563,36 @@
                     streamAudioSource.disconnect();
                 }
 
-                // 1. WebRTCの生ストリームを直接Web Audio APIに接続
                 streamAudioSource = streamAudioCtx.createMediaStreamSource(stream);
                 
-                // 2. GainNodeの作成 (音量増幅)
                 streamGainNode = streamAudioCtx.createGain();
                 const boostVal = document.getElementById('stream-boost-slider') ? parseFloat(document.getElementById('stream-boost-slider').value) : 2.0;
                 streamGainNode.gain.value = boostVal;
 
-                // 2.5 BiquadFilterNodeの作成 (低音ブーストEQ: 声に厚みを持たせる)
                 if (!window.streamEqNode) {
                     window.streamEqNode = streamAudioCtx.createBiquadFilter();
                     window.streamEqNode.type = 'lowshelf';
-                    window.streamEqNode.frequency.value = 250; // 250Hz以下の低音域を対象
-                    window.streamEqNode.gain.value = 4.0; // +4dB持ち上げる
+                    window.streamEqNode.frequency.value = 250; 
+                    window.streamEqNode.gain.value = 4.0; 
                 }
 
-                // 3. ミュート制御用GainNode
                 streamMuteNode = streamAudioCtx.createGain();
                 const camMuteToggle = document.getElementById('toggle-cam-mute');
                 streamMuteNode.gain.value = (camMuteToggle && camMuteToggle.checked) ? 1.0 : 0.0;
 
-                // 4. DynamicsCompressorNodeの作成 (音割れ防止リミッター)
-                // ※自然な音を保つため極力かからないようにマイルドな設定に変更
                 streamCompressorNode = streamAudioCtx.createDynamicsCompressor();
-                streamCompressorNode.threshold.value = -1;   // 限界(-1dB)まで圧縮を始めない
-                streamCompressorNode.knee.value = 30;        // ソフトニー (徐々に潰す)
-                streamCompressorNode.ratio.value = 4;        // 潰し方を1/4に緩和 (以前は20)
+                streamCompressorNode.threshold.value = -1;   
+                streamCompressorNode.knee.value = 30;        
+                streamCompressorNode.ratio.value = 4;        
                 streamCompressorNode.attack.value = 0.01;
                 streamCompressorNode.release.value = 0.1;
 
-                // ノードの接続: Source -> Boost Gain -> Bass EQ -> Mute Gain -> Compressor -> Destination
                 streamAudioSource.connect(streamGainNode);
                 streamGainNode.connect(window.streamEqNode);
                 window.streamEqNode.connect(streamMuteNode);
                 streamMuteNode.connect(streamCompressorNode);
                 streamCompressorNode.connect(streamAudioCtx.destination);
                 
-                // AudioContextがサスペンド状態なら再開を試みる
                 if (streamAudioCtx.state === 'suspended') {
                     streamAudioCtx.resume().catch(e => console.warn(e));
                 }
@@ -671,12 +691,10 @@
 
         function handleOverlayClick() {
             if (isWpOverlayActive) {
-                // Web Audio APIのコンテキストの再開 (iOS対策)
                 if (streamAudioCtx && streamAudioCtx.state === 'suspended') {
                     streamAudioCtx.resume().catch(e => console.error(e));
                 }
 
-                // 設定されている状態に基づいて Jukebox (YouTube) を反映
                 if (viewerYTPlayer) {
                     const wpToggle = document.getElementById('toggle-wp-mute');
                     if (wpToggle && wpToggle.checked) {
@@ -736,19 +754,16 @@
         }
 
         function toggleListenerAudioFromSwitch(isSoundOn) {
-            // videoタグ自体は常にミュートにしておく（Web Audio APIから音を出すため）
             const video = document.getElementById('listener-video');
             if (video) {
                 video.muted = true;
                 if (video.paused) video.play().catch(e=>{});
             }
 
-            // Web Audio APIのミュート用GainNodeで出力をコントロール
             if (streamMuteNode) {
                 streamMuteNode.gain.value = isSoundOn ? 1.0 : 0.0;
             }
 
-            // Web Audio APIのコンテキストの再開
             if (isSoundOn && streamAudioCtx && streamAudioCtx.state === 'suspended') {
                 streamAudioCtx.resume().catch(e => console.error(e));
             }
@@ -800,7 +815,6 @@
                             event.target.mute(); 
                         },
                         'onStateChange': (event) => {
-                            // PCの自動再生等で再生開始時に強制的に保存された音量を再適用
                             if (event.data === YT.PlayerState.PLAYING) {
                                 const wpToggle = document.getElementById('toggle-wp-mute');
                                 if (wpToggle && wpToggle.checked) {
@@ -964,10 +978,8 @@
                     if(btn) btn.classList.add('hidden'); 
                     video.srcObject = stream;
                     
-                    // Web Audio APIのセットアップを呼び出し (生ストリームを渡す)
                     setupStreamAudio(stream);
                     
-                    // 二重再生・干渉を防ぐため videoタグ自体の音声は強制ミュート
                     video.muted = true;
                     
                     video.play().catch(e => {
