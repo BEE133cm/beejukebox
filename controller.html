@@ -155,6 +155,14 @@
                         </label>
                     </div>
                 </div>
+
+                <hr class="border-gray-800 my-4">
+
+                <!-- PWA設定 -->
+                <div>
+                    <h4 class="text-xs font-bold text-gray-500 mb-3 uppercase">PWA (ホーム画面追加) 用</h4>
+                    <button onclick="openYouTubeLoginPopup()" class="w-full bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 font-bold py-2.5 rounded transition-colors flex items-center justify-center gap-2 text-xs"><i class="fa-brands fa-youtube"></i> YouTubeにログインして広告を消す</button>
+                </div>
             </div>
         </div>
 
@@ -328,6 +336,25 @@
         let remoteHasStream = false;
 
         let remoteNotifTimeout = null;
+
+        // YouTube Login for PWA
+        function openYouTubeLoginPopup() {
+            const loginUrl = 'https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F';
+            const popup = window.open(loginUrl, 'youtubeLogin', 'width=500,height=600');
+            
+            if (popup) {
+                const checkPopup = setInterval(() => {
+                    if (popup.closed) {
+                        clearInterval(checkPopup);
+                        if (confirm('ログインが完了しましたか？\n設定を反映させるため、ページを再読み込みします。')) {
+                            location.reload();
+                        }
+                    }
+                }, 1000);
+            } else {
+                showToast("ポップアップがブロックされました。設定を確認してください。", "error");
+            }
+        }
 
         function generateId() { return Math.random().toString(36).substring(2, 9); }
 
@@ -639,7 +666,7 @@
                     
                     const camMuteToggle = document.getElementById('toggle-remote-cam-mute');
                     if(camMuteToggle) camMuteToggle.checked = true;
-                    video.muted = true; // リモコンは最初はミュート
+                    video.muted = true; 
                     
                     video.play().catch(e => {
                         video.muted = true;
