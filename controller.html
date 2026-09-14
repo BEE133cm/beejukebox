@@ -52,70 +52,6 @@
             box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important;
         }
     </style>
-
-    <!-- Firebase Initialization -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // ==========================================
-        // 【重要】Firebase 接続設定
-        // ホスト側と同じ設定オブジェクトを貼り付けてください。
-        // ==========================================
-        const myFirebaseConfig = {
-          apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
-          authDomain: "beejukebox-94ad8.firebaseapp.com",
-          projectId: "beejukebox-94ad8",
-          storageBucket: "beejukebox-94ad8.firebasestorage.app",
-          messagingSenderId: "902266249398",
-          appId: "1:902266249398:web:8de3ff1d14ea5eef224617",
-          measurementId: "G-H4SV4FHX3Z"
-        };
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'jukebox-app';
-        let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        if (!firebaseConfig && myFirebaseConfig) {
-            firebaseConfig = myFirebaseConfig;
-        }
-
-        try {
-            if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
-                throw new Error("Firebaseの接続設定がありません。コード内の myFirebaseConfig を設定してください。");
-            }
-
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-
-            window.db = db;
-            window.auth = auth;
-            window.appId = appId;
-            window.collection = collection;
-            window.doc = doc;
-            window.setDoc = setDoc;
-            window.updateDoc = updateDoc;
-            window.addDoc = addDoc;
-            window.deleteDoc = deleteDoc;
-            window.onSnapshot = onSnapshot;
-
-            async function initFirebase() {
-                try {
-                    if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
-                    else await signInAnonymously(auth);
-                    window.dispatchEvent(new Event('firebase-auth-ready'));
-                } catch (e) {
-                    console.error("Firebase Auth Error:", e);
-                }
-            }
-            initFirebase();
-        } catch (e) {
-            console.error("Firebase Setup Error:", e);
-            window.firebaseInitError = e.message;
-        }
-    </script>
 </head>
 <body class="p-0 overflow-hidden relative">
 
@@ -388,14 +324,11 @@
         let isWatchPartyEnabled = true;
         let viewerYTPlayer = null;
         let isWpOverlayActive = true;
+        let hostCurrentTime = 0;
+        let hostCurrentStatus = -1;
         let remoteHasStream = false;
 
         let remoteNotifTimeout = null;
-
-        // ---- 強制同期のための変数 ----
-        let lastHostTime = 0;
-        let lastHostStatus = -1;
-        let lastHostTimeReceivedAt = 0;
 
         // --- 自動リカバリー用変数・処理 ---
         let reconnectTimeout = null;
@@ -548,10 +481,7 @@
             showView('remote-view');
             document.body.classList.remove('bg-[#111827]');
             document.body.classList.add('p-0', 'overflow-hidden');
-            
-            // クラウドへの接続を優先して開始
-            if (window.db) startCloudConnection();
-            else window.addEventListener('firebase-auth-ready', startCloudConnection, { once: true });
+            initRemoteConnection();
             
             const url = new URL(window.location);
             url.searchParams.set('remote', currentRoomId);
@@ -627,349 +557,168 @@
             }
         }
 
-        // ================= Firestore Integration =================
-        function startCloudConnection() {
-            const statusId = 'remote-now-playing';
-            if(document.getElementById(statusId)) {
-                document.getElementById(statusId).textContent = "クラウド同期中...";
-                document.getElementById(statusId).classList.replace('text-yellow-500', 'text-green-500');
-            }
-            
-            // Listen to Room State from Firestore
-            window.onSnapshot(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), (docSnap) => {
-                if (docSnap.exists()) {
-                    handleRoomSync(docSnap.data());
-                } else {
-                    document.getElementById('remote-now-playing').textContent = "ホストが見つかりません";
-                    document.getElementById('remote-now-playing').classList.replace('text-green-500', 'text-red-500');
-                }
-            }, (err) => console.error(err));
-
-            // Listen to Queues from Firestore
-            window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), (snapshot) => {
-                let allQ = [];
-                snapshot.forEach(doc => {
-                    const d = doc.data();
-                    if (d.roomId === currentRoomId) allQ.push({ id: doc.id, ...d });
-                });
-                allQ.sort((a, b) => a.createdAt - b.createdAt);
-                
-                const countEl = document.getElementById('remote-queue-count');
-                if(countEl) countEl.textContent = allQ.length;
-                
-                const qList = document.getElementById('remote-queue-list');
-                if(qList) {
-                    qList.innerHTML = '';
-                    allQ.forEach((q, idx) => {
-                        const div = document.createElement('div');
-                        div.className = "flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700 text-sm mb-1";
-                        const dispName = q.isAnon ? '184(匿名)' : q.requesterReal;
-                        const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
-                        div.innerHTML = `
-                            <div class="flex items-center gap-2 overflow-hidden">
-                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                                <div class="truncate">
-                                    <p class="text-gray-200 truncate font-medium">${q.title}</p>
-                                    <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
-                                </div>
-                            </div>
-                        `;
-                        const btn = document.createElement('button');
-                        btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
-                        btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-                        btn.onclick = () => window.deleteDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'queues', q.id));
-                        div.appendChild(btn);
-                        qList.appendChild(div);
-                    });
-                }
-            }, (err) => console.error(err));
-
-            // Listen to Chats from Firestore
-            window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), (snapshot) => {
-                let allC = [];
-                snapshot.forEach(doc => {
-                    const d = doc.data();
-                    if (d.roomId === currentRoomId) allC.push({ id: doc.id, ...d });
-                });
-                allC.sort((a, b) => a.createdAt - b.createdAt);
-                
-                if (allC.length > chatHistory.length && allC.length > 0) {
-                    const newestChat = allC[allC.length - 1];
-                    if (Date.now() - newestChat.createdAt < 5000) {
-                        triggerTTS(newestChat);
-                        if(newestChat.senderReal !== "配信管理者") {
-                            showRemoteTopNotification(`<i class="fa-solid fa-comment-dots text-gray-400"></i> <span class="text-gray-300 text-xs">${newestChat.senderReal}</span><br>${newestChat.text}`);
-                        }
-                    }
-                }
-                
-                chatHistory = allC.slice(-100);
-                renderChatList('remote-chat-list', chatHistory, true);
-            }, (err) => console.error(err));
-
-            loadYouTubeAPI();
-            initRemoteConnection();
-        }
-
-        function handleRoomSync(data) {
-            saveRemoteHistory(currentRoomId, data.hostName);
-            
-            if (data.requirePassword) {
-                const savedPwd = savedPasswords[currentRoomId];
-                if (!savedPwd) {
-                    showPasswordModal();
-                }
-            }
-
-            const toggleEl = document.getElementById('remote-cam-approval-toggle');
-            if (toggleEl) toggleEl.checked = !!data.cameraApprovalMode;
-
-            const tDiv = document.getElementById('remote-theme-display-container');
-            if(data.theme) { tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${data.theme}`; tDiv.classList.remove('hidden'); }
-            else tDiv.classList.add('hidden');
-
-            const playingEl = document.getElementById('remote-now-playing');
-            const reqEl = document.getElementById('remote-now-requester');
-
-            if (data.currentSong) {
-                playingEl.textContent = data.currentSong.title;
-                const reqName = data.currentSong.isAnon ? '184(匿名)' : (data.currentSong.requesterReal || data.currentSong.requester || "");
-                reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
-                
-                const remotePlayBtn = document.getElementById('btn-remote-play');
-                if(remotePlayBtn) {
-                    remotePlayBtn.innerHTML = data.status === 'playing'
-                        ? `<i class="fa-solid fa-pause text-lg"></i>`
-                        : `<i class="fa-solid fa-play text-lg"></i>`;
-                }
-
-                if(data.status === 'playing') {
-                    if (data.currentSong.startedAt) {
-                        lastHostTime = (Date.now() - data.currentSong.startedAt) / 1000;
-                        lastHostStatus = 1;
-                        lastHostTimeReceivedAt = Date.now();
-                    }
-                } else {
-                    lastHostTime = data.currentSong.pausePosition || 0;
-                    lastHostStatus = 2;
-                    lastHostTimeReceivedAt = Date.now();
-                }
-
-                if (!currentSong || currentSong.videoId !== data.currentSong.videoId) {
-                    currentSong = data.currentSong;
-                    if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
-                        viewerYTPlayer.loadVideoById({
-                            videoId: currentSong.videoId,
-                            startSeconds: lastHostTime || 0
-                        });
-                    }
-                }
-            } else {
-                currentSong = null;
-                playingEl.textContent = "BGM停止中";
-                reqEl.textContent = "";
-                const remotePlayBtn = document.getElementById('btn-remote-play');
-                if(remotePlayBtn) remotePlayBtn.innerHTML = `<i class="fa-solid fa-play text-lg"></i>`;
-                if (viewerYTPlayer && typeof viewerYTPlayer.stopVideo === 'function') viewerYTPlayer.stopVideo();
-            }
-
-            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
-
-            const btnRemote = document.getElementById('btn-remote-toggle-camera');
-            const tabRemoteCamIcon = document.querySelector('#remote-tab-cam i');
-            if(data.isLive) {
-                if(btnRemote && !remoteHasStream) {
-                    btnRemote.disabled = false;
-                    btnRemote.classList.remove('opacity-50', 'cursor-not-allowed');
-                    btnRemote.innerHTML = '<i class="fa-solid fa-video text-white text-xs"></i> 映像を受信 (タップ)';
-                }
-                if(tabRemoteCamIcon) tabRemoteCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
-            } else {
-                remoteHasStream = false;
-                const videoEl = document.getElementById('remote-video');
-                if (videoEl) videoEl.srcObject = null;
-                if(btnRemote) {
-                    btnRemote.classList.remove('hidden');
-                    btnRemote.textContent = "配信はオフラインです"; 
-                    btnRemote.disabled = true;
-                    btnRemote.classList.add('opacity-50', 'cursor-not-allowed');
-                }
-                if(tabRemoteCamIcon) tabRemoteCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
-            }
-
-            if (data.participants) {
-                window.remoteReceivedParticipants = data.participants;
-                renderParticipantList(document.getElementById('remote-participant-list'));
-            }
-
-            if(data.historyQueue) {
-                const hList = document.getElementById('remote-history-list');
-                if (hList) {
-                    hList.innerHTML = '';
-                    data.historyQueue.forEach((q, idx) => {
-                        const div = document.createElement('div');
-                        div.className = "flex items-center justify-between bg-gray-900 p-2 rounded text-sm mb-1";
-                        div.innerHTML = `
-                            <div class="flex items-center gap-2 overflow-hidden flex-1">
-                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                                <div class="truncate">
-                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                    <p class="text-xs text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
-                                </div>
-                            </div>
-                            <button onclick="reRequestRemote('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
-                        `;
-                        hList.appendChild(div);
-                    });
-                }
-            }
-        }
-
-        // ==========================
-        //  強制同期（自己補正）ループ
-        // ==========================
-        setInterval(() => {
-            enforceSync();
-        }, 1000);
-
-        function enforceSync() {
-            if (!viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function' || isWpOverlayActive) return;
-            if (Date.now() - lastHostTimeReceivedAt > 5000) return;
-
-            // エラー防止：動画がプレイヤーにロードされていない場合は操作しない
-            try {
-                const vData = viewerYTPlayer.getVideoData();
-                if (!vData || !vData.video_id) return;
-            } catch(e) {
-                return;
-            }
-
-            const myState = viewerYTPlayer.getPlayerState();
-            const myTime = viewerYTPlayer.getCurrentTime() || 0;
-            
-            let expectedHostTime = lastHostTime;
-            if (lastHostStatus === 1) { 
-                expectedHostTime += (Date.now() - lastHostTimeReceivedAt) / 1000;
-            }
-
-            const diff = expectedHostTime - myTime;
-
-            if (lastHostStatus === 1) { 
-                if (myState !== 1 && myState !== 3) {
-                    viewerYTPlayer.playVideo();
-                }
-                
-                if (Math.abs(diff) > 2.0) {
-                    viewerYTPlayer.seekTo(expectedHostTime, true);
-                } else if (Math.abs(diff) > 0.5) {
-                    viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
-                } else {
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                }
-            } else if (lastHostStatus === 2 || lastHostStatus === -1) { 
-                if (myState === 1 || myState === 3) {
-                    viewerYTPlayer.pauseVideo();
-                }
-                if (Math.abs(diff) > 1.0) {
-                    viewerYTPlayer.seekTo(expectedHostTime, true);
-                }
-            }
-        }
-
         function initRemoteConnection() {
-            try {
-                if (peer) peer.destroy();
-                listenerId = generateId();
-                peer = new Peer(`remote-${listenerId}`);
+            // クラウドへの接続を行っていた古いコードを削除し、P2P接続のみで完結させる
+            if (peer) peer.destroy();
+            listenerId = generateId();
+            peer = new Peer(`remote-${listenerId}`);
 
-                peer.on('open', () => {
-                    listenerConn = peer.connect(`jukebox-${currentRoomId}`);
+            peer.on('open', () => {
+                listenerConn = peer.connect(`jukebox-${currentRoomId}`);
+                pendingConnection = listenerConn;
+
+                listenerConn.on('open', () => {
+                    reconnectAttempts = 0; // 再接続試行回数をリセット
+                    const statusId = 'remote-now-playing';
+                    if(document.getElementById(statusId)) {
+                        document.getElementById(statusId).textContent = "ホストと同期中...";
+                        document.getElementById(statusId).classList.replace('text-yellow-500', 'text-green-500');
+                        document.getElementById(statusId).classList.replace('text-red-500', 'text-green-500');
+                    }
+                    sendProfileUpdate();
+                    // 復帰後の同期リクエスト (Host側にStateとSyncの自動送信を促す)
+                    listenerConn.send({ type: 'request_sync' });
+                });
+
+                listenerConn.on('close', () => {
+                    const statusId = 'remote-now-playing';
+                    if(document.getElementById(statusId)) {
+                        document.getElementById(statusId).textContent = "通信切断...";
+                        document.getElementById(statusId).classList.replace('text-green-500', 'text-red-500');
+                    }
+                    scheduleReconnect();
+                });
+
+                listenerConn.on('data', (data) => {
+                    if (data.type === 'ping') {
+                        listenerConn.send({ type: 'pong' });
+                        return;
+                    }
+                    if(data.type === 'banned') {
+                        document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500"><i class="fa-solid fa-ban"></i> ブロックされました</h1><p class="text-gray-300">アクセスが制限されています。</p></div>';
+                        if(peer) peer.destroy();
+                        return;
+                    }
+                    if(data.type === 'error') { showToast(data.msg, "error"); return; }
                     
-                    listenerConn.on('open', () => {
-                        reconnectAttempts = 0; // 再接続試行回数をリセット
-                        sendProfileUpdate();
-                    });
+                    if(data.type === 'remote_alert') {
+                        showRemoteTopNotification(data.msg);
+                        return;
+                    }
 
-                    listenerConn.on('data', (data) => {
-                        if (data.type === 'ping') {
-                            listenerConn.send({ type: 'pong' });
-                            return;
-                        }
-
-                        if(data.type === 'camera_request_alert') {
-                            showCameraRequestModal(data.id, data.name);
-                            const actionBtns = `
-                                <button onclick="handleRemoteCamRequestTop('approve', '${data.id}')" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded-lg text-sm shadow"><i class="fa-solid fa-check"></i> 承認する</button>
-                                <button onclick="handleRemoteCamRequestTop('reject', '${data.id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-lg text-sm shadow"><i class="fa-solid fa-xmark"></i> 拒否する</button>
-                            `;
-                            showRemoteTopNotification(`<i class="fa-solid fa-bell text-yellow-400"></i> <span class="text-yellow-400 text-base">${data.name}</span> が視聴承認待ちです`, actionBtns);
-                        }
-
-                        if(data.type === 'sync_playback') {
-                            if (!isWatchPartyEnabled || !viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function') return;
-                            
-                            lastHostTime = data.time || 0;
-                            lastHostStatus = data.status;
-                            lastHostTimeReceivedAt = Date.now();
-
-                            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
-                                currentSong = { videoId: data.videoId };
-                                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: lastHostTime});
-                            }
-                        }
+                    if(data.type === 'camera_request_alert') {
+                        showCameraRequestModal(data.id, data.name);
+                        const actionBtns = `
+                            <button onclick="handleRemoteCamRequestTop('approve', '${data.id}')" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded-lg text-sm shadow"><i class="fa-solid fa-check"></i> 承認する</button>
+                            <button onclick="handleRemoteCamRequestTop('reject', '${data.id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-lg text-sm shadow"><i class="fa-solid fa-xmark"></i> 拒否する</button>
+                        `;
+                        showRemoteTopNotification(`<i class="fa-solid fa-bell text-yellow-400"></i> <span class="text-yellow-400 text-base">${data.name}</span> が視聴承認待ちです`, actionBtns);
+                        return;
+                    }
+                    
+                    if(data.type === 'sync_playback') {
+                        if (!isWatchPartyEnabled || !viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function') return;
                         
-                        if (data.type === 'auth_response') {
-                            if (data.success) {
-                                hidePasswordModal();
-                                showToast("認証に成功しました");
-                                const pwdInput = document.getElementById('room-password-input').value;
-                                if (pwdInput) {
-                                    savedPasswords[currentRoomId] = pwdInput;
-                                    localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
-                                }
-                                pendingConnection = null;
-                                sendProfileUpdate();
+                        lastHostTime = data.time || 0;
+                        lastHostStatus = data.status;
+                        lastHostTimeReceivedAt = Date.now();
+
+                        if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
+                            currentSong = { videoId: data.videoId };
+                            viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: lastHostTime});
+                        }
+                    }
+                    
+                    if(data.type === 'state') {
+                        saveRemoteHistory(currentRoomId, data.hostName);
+                        
+                        if (data.requirePassword) {
+                            const savedPwd = savedPasswords[currentRoomId];
+                            if (savedPwd) {
+                                listenerConn.send({ type: 'auth_request', password: savedPwd });
                             } else {
-                                document.getElementById('password-error').classList.remove('hidden');
-                                delete savedPasswords[currentRoomId];
+                                showPasswordModal();
+                            }
+                        } else {
+                            pendingConnection = null;
+                        }
+                        
+                        renderRemoteState(data);
+                    }
+                    
+                    if (data.type === 'auth_response') {
+                        if (data.success) {
+                            hidePasswordModal();
+                            showToast("認証に成功しました");
+                            const pwdInput = document.getElementById('room-password-input').value;
+                            if (pwdInput) {
+                                savedPasswords[currentRoomId] = pwdInput;
                                 localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
-                                showPasswordModal(); 
+                            }
+                            pendingConnection = null;
+                            sendProfileUpdate();
+                        } else {
+                            document.getElementById('password-error').classList.remove('hidden');
+                            delete savedPasswords[currentRoomId];
+                            localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                            showPasswordModal(); 
+                        }
+                    }
+                    
+                    if (data.type === 'auth_required') {
+                         showToast("操作にはパスワード認証が必要です", "error");
+                         pendingConnection = listenerConn;
+                         showPasswordModal();
+                    }
+                    
+                    if(data.type === 'new_chat') {
+                        if(!chatHistory.some(c => c.id === data.chat.id)) {
+                            chatHistory.push(data.chat);
+                            if(chatHistory.length > 100) chatHistory.shift();
+                            renderChatList('remote-chat-list', chatHistory, true);
+                            if(data.chat.senderReal !== "配信管理者") {
+                                showRemoteTopNotification(`<i class="fa-solid fa-comment-dots text-gray-400"></i> <span class="text-gray-300 text-xs">${data.chat.senderReal}</span><br>${data.chat.text}`);
                             }
                         }
-                    });
+                        triggerTTS(data.chat);
+                    }
                 });
+            });
 
-                peer.on('call', (call) => {
-                    call.answer(); 
-                    call.on('stream', (stream) => {
-                        remoteHasStream = true;
-                        const video = document.getElementById('remote-video');
-                        const btn = document.getElementById('btn-remote-toggle-camera');
-                        
-                        if(btn) btn.classList.add('hidden'); 
-                        video.srcObject = stream;
-                        
-                        const camMuteToggle = document.getElementById('toggle-remote-cam-mute');
-                        if(camMuteToggle) camMuteToggle.checked = true;
-                        video.muted = true; 
-                        
-                        video.play().catch(e => {
-                            video.muted = true;
-                            if(camMuteToggle) camMuteToggle.checked = false;
-                            video.play().catch(er=>{});
-                        });
-                    });
-                    call.on('close', () => { 
-                        remoteHasStream = false;
-                        const videoEl = document.getElementById('remote-video');
-                        if (videoEl) videoEl.srcObject = null;
-                        const btn = document.getElementById('btn-remote-toggle-camera');
-                        if(btn) { btn.classList.remove('hidden'); }
+            peer.on('call', (call) => {
+                call.answer(); 
+                call.on('stream', (stream) => {
+                    remoteHasStream = true;
+                    const video = document.getElementById('remote-video');
+                    const btn = document.getElementById('btn-remote-toggle-camera');
+                    
+                    if(btn) btn.classList.add('hidden'); 
+                    video.srcObject = stream;
+                    
+                    const camMuteToggle = document.getElementById('toggle-remote-cam-mute');
+                    if(camMuteToggle) camMuteToggle.checked = true;
+                    video.muted = true; 
+                    
+                    video.play().catch(e => {
+                        video.muted = true;
+                        if(camMuteToggle) camMuteToggle.checked = false;
+                        video.play().catch(er=>{});
                     });
                 });
-            } catch(e) {
-                console.warn("PeerJS Init Skipped", e);
-            }
+                call.on('close', () => { 
+                    remoteHasStream = false;
+                    const videoEl = document.getElementById('remote-video');
+                    if (videoEl) videoEl.srcObject = null;
+                    const btn = document.getElementById('btn-remote-toggle-camera');
+                    if(btn) { btn.classList.remove('hidden'); }
+                });
+            });
+
+            peer.on('disconnected', () => scheduleReconnect());
+            peer.on('error', (err) => {
+                console.warn("PeerJS Error:", err);
+                scheduleReconnect();
+            });
         }
 
         function sendProfileUpdate() {
@@ -1045,22 +794,17 @@
             const text = document.getElementById(inputId).value.trim();
             if(!text) return;
 
-            window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), {
-                roomId: currentRoomId,
-                text: text,
-                sender: "👑 配信管理者",
-                senderReal: "配信管理者",
-                isAnon: false,
-                isRemote: true,
-                createdAt: Date.now()
-            });
-
-            document.getElementById(inputId).value = '';
-            closeRemoteChatInput();
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'chat', text: text, sender: "👑 配信管理者", senderReal: "配信管理者", isAnon: false, isRemote: true });
+                document.getElementById(inputId).value = '';
+                closeRemoteChatInput();
+            }
         }
 
         function deleteChat(id) {
-            window.deleteDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'chats', id));
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'delete_chat', id: id });
+            }
         }
 
         function sendRemoteCommand(cmd, action = null, targetId = null) {
@@ -1116,52 +860,23 @@
             if(!url) return;
             const vid = extractVideoId(url);
             if(vid) {
-                document.getElementById('remote-url').value = '';
-                showToast("追加しました！");
-                
-                fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${vid}`)
-                .then(res => res.json())
-                .then(data => {
-                    window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
-                        roomId: currentRoomId,
-                        videoId: vid,
-                        title: data.title || "不明なタイトル",
-                        requester: `👑 配信管理者`,
-                        requesterReal: '配信管理者',
-                        isAnon: false,
-                        isRemote: true,
-                        createdAt: Date.now()
-                    });
-                }).catch(() => {
-                    window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
-                        roomId: currentRoomId, videoId: vid, title: "不明なタイトル", requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true, createdAt: Date.now()
-                    });
-                });
+                if(listenerConn && listenerConn.open) {
+                    listenerConn.send({ type: 'request', videoId: vid, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
+                    document.getElementById('remote-url').value = '';
+                    showToast("追加しました！");
+                } else {
+                    showToast("ホストに接続されていません", "error");
+                }
             } else {
                 showToast("無効なYouTube URLです", "error");
             }
         }
 
         function reRequestRemote(videoId) {
-            showToast("再リクエストを追加しました");
-            fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`)
-            .then(res => res.json())
-            .then(data => {
-                window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
-                    roomId: currentRoomId,
-                    videoId: videoId,
-                    title: data.title || "不明なタイトル",
-                    requester: `👑 配信管理者`,
-                    requesterReal: '配信管理者',
-                    isAnon: false,
-                    isRemote: true,
-                    createdAt: Date.now()
-                });
-            }).catch(() => {
-                window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
-                    roomId: currentRoomId, videoId: videoId, title: "不明なタイトル", requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true, createdAt: Date.now()
-                });
-            });
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'request', videoId: videoId, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
+                showToast("再リクエストを追加しました");
+            }
         }
 
         function requestRemoteCamera() {
@@ -1185,24 +900,56 @@
             }
         }
 
-        window.onYouTubeIframeAPIReady = function() {
-            viewerYTPlayer = new YT.Player('remote-youtube-player', {
-                height: '100%', width: '100%',
-                playerVars: { autoplay: 1, controls: 1, rel: 0 },
-                events: {
-                    'onReady': (event) => {
-                        event.target.mute();
-                        // ページ更新時など、すでに曲データがある場合はロードする
-                        if (currentSong && currentSong.videoId) {
-                            event.target.loadVideoById({
-                                videoId: currentSong.videoId,
-                                startSeconds: lastHostTime || 0
-                            });
-                        }
-                    }
+        // ==========================
+        //  強制同期（自己補正）ループ
+        // ==========================
+        setInterval(() => {
+            enforceSync();
+        }, 1000);
+
+        function enforceSync() {
+            if (!viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function' || isWpOverlayActive) return;
+            if (Date.now() - lastHostTimeReceivedAt > 5000) return;
+
+            // エラー防止：動画がプレイヤーにロードされていない場合は操作しない
+            try {
+                const vData = viewerYTPlayer.getVideoData();
+                if (!vData || !vData.video_id) return;
+            } catch(e) {
+                return;
+            }
+
+            const myState = viewerYTPlayer.getPlayerState();
+            const myTime = viewerYTPlayer.getCurrentTime() || 0;
+            
+            let expectedHostTime = lastHostTime;
+            if (lastHostStatus === 1) { 
+                expectedHostTime += (Date.now() - lastHostTimeReceivedAt) / 1000;
+            }
+
+            const diff = expectedHostTime - myTime;
+
+            if (lastHostStatus === 1) { 
+                if (myState !== 1 && myState !== 3) {
+                    viewerYTPlayer.playVideo();
                 }
-            });
-        };
+                
+                if (Math.abs(diff) > 2.0) {
+                    viewerYTPlayer.seekTo(expectedHostTime, true);
+                } else if (Math.abs(diff) > 0.5) {
+                    viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
+                } else {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                }
+            } else if (lastHostStatus === 2 || lastHostStatus === -1) { 
+                if (myState === 1 || myState === 3) {
+                    viewerYTPlayer.pauseVideo();
+                }
+                if (Math.abs(diff) > 1.0) {
+                    viewerYTPlayer.seekTo(expectedHostTime, true);
+                }
+            }
+        }
 
         function handleOverlayClick() {
             if (isWpOverlayActive) {
@@ -1242,6 +989,25 @@
                 playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
             }
         }
+
+        window.onYouTubeIframeAPIReady = function() {
+            viewerYTPlayer = new YT.Player('remote-youtube-player', {
+                height: '100%', width: '100%',
+                playerVars: { autoplay: 1, controls: 1, rel: 0 },
+                events: {
+                    'onReady': (event) => {
+                        event.target.mute();
+                        // ページ更新時など、すでに曲データがある場合はロードする
+                        if (currentSong && currentSong.videoId) {
+                            event.target.loadVideoById({
+                                videoId: currentSong.videoId,
+                                startSeconds: lastHostTime || 0
+                            });
+                        }
+                    }
+                }
+            });
+        };
 
         function triggerTTS(chatObj) {
             let ttsOn = false;
@@ -1341,6 +1107,125 @@
             }
         }
 
+        function renderRemoteState(state) {
+            const { queue, historyQueue, chatHistory: serverChatHistory, currentSong, isPlaying, hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
+            
+            const toggleEl = document.getElementById('remote-cam-approval-toggle');
+            if (toggleEl) toggleEl.checked = serverCamAppMode;
+
+            if(serverChatHistory) {
+                chatHistory = serverChatHistory;
+                renderChatList('remote-chat-list', chatHistory, true);
+            }
+
+            const playingEl = document.getElementById('remote-now-playing');
+            if(currentSong && playingEl) {
+                playingEl.textContent = currentSong.title;
+                const remoteReqEl = document.getElementById('remote-now-requester');
+                if(remoteReqEl) {
+                    const reqName = currentSong.isAnon ? '184(匿名)' : (currentSong.requesterReal || "");
+                    remoteReqEl.innerHTML = reqName ? `<i class="fa-solid fa-user"></i> ${reqName}` : "---";
+                }
+            } else if (playingEl) {
+                playingEl.textContent = "BGM停止中";
+                const remoteReqEl = document.getElementById('remote-now-requester');
+                if(remoteReqEl) remoteReqEl.textContent = "---";
+            }
+
+            const remotePlayBtn = document.getElementById('btn-remote-play');
+            if(remotePlayBtn) {
+                remotePlayBtn.innerHTML = isPlaying
+                    ? `<i class="fa-solid fa-pause text-lg"></i>`
+                    : `<i class="fa-solid fa-play text-lg"></i>`;
+            }
+
+            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
+
+            const tDiv = document.getElementById('remote-theme-display-container');
+            if(tDiv) {
+                if(hostTheme) { 
+                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
+                    tDiv.classList.remove('hidden'); 
+                } else {
+                    tDiv.classList.add('hidden');
+                }
+            }
+
+            const btnRemote = document.getElementById('btn-remote-toggle-camera');
+            const tabRemoteCamIcon = document.querySelector('#remote-tab-cam i');
+            if(isLive) {
+                if(btnRemote && !remoteHasStream) {
+                    btnRemote.disabled = false;
+                    btnRemote.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btnRemote.innerHTML = '<i class="fa-solid fa-video text-white text-xs"></i> 映像を受信 (タップ)';
+                }
+                if(tabRemoteCamIcon) tabRemoteCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            } else {
+                remoteHasStream = false;
+                const videoEl = document.getElementById('remote-video');
+                if (videoEl) videoEl.srcObject = null;
+                if(btnRemote) {
+                    btnRemote.classList.remove('hidden');
+                    btnRemote.textContent = "配信はオフラインです"; 
+                    btnRemote.disabled = true;
+                    btnRemote.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                if(tabRemoteCamIcon) tabRemoteCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            }
+
+            window.remoteReceivedParticipants = participants;
+            window.remoteBannedUsers = bannedUsers;
+            renderParticipantList(document.getElementById('remote-participant-list'));
+
+            const countEl = document.getElementById('remote-queue-count');
+            if(countEl) countEl.textContent = queue.length;
+            
+            const qList = document.getElementById('remote-queue-list');
+            if(qList) {
+                qList.innerHTML = '';
+                queue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700 text-sm mb-1";
+                    const dispName = q.isAnon ? '184(匿名)' : q.requesterReal;
+                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
+                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
+                            </div>
+                        </div>
+                    `;
+                    const btn = document.createElement('button');
+                    btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
+                    btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                    btn.onclick = () => sendRemoteCommand('manage', 'cancel_req', q.id);
+                    div.appendChild(btn);
+                    qList.appendChild(div);
+                });
+            }
+
+            const hList = document.getElementById('remote-history-list');
+            if(hList && historyQueue) {
+                hList.innerHTML = '';
+                historyQueue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-900 p-2 rounded text-sm mb-1";
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden flex-1">
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                <p class="text-xs text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                            </div>
+                        </div>
+                        <button onclick="reRequestRemote('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
+                    `;
+                    hList.appendChild(div);
+                });
+            }
+        }
     </script>
 </body>
 </html>
