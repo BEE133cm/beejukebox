@@ -37,14 +37,14 @@
         // 例: const myFirebaseConfig = { apiKey: "AIza...", authDomain: "...", projectId: "..." };
         // ==========================================
         const myFirebaseConfig = {
-  apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
-  authDomain: "beejukebox-94ad8.firebaseapp.com",
-  projectId: "beejukebox-94ad8",
-  storageBucket: "beejukebox-94ad8.firebasestorage.app",
-  messagingSenderId: "902266249398",
-  appId: "1:902266249398:web:8de3ff1d14ea5eef224617",
-  measurementId: "G-H4SV4FHX3Z"
-};
+          apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
+          authDomain: "beejukebox-94ad8.firebaseapp.com",
+          projectId: "beejukebox-94ad8",
+          storageBucket: "beejukebox-94ad8.firebasestorage.app",
+          messagingSenderId: "902266249398",
+          appId: "1:902266249398:web:8de3ff1d14ea5eef224617",
+          measurementId: "G-H4SV4FHX3Z"
+        };
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'jukebox-app';
         let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
@@ -332,6 +332,34 @@
                                         <button onclick="copyURL('url-listener')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
                                     </div>
                                 </div>
+                                <div>
+                                    <label class="block text-[9px] font-bold text-yellow-600 mb-0.5">REMOTE CONTROLLER</label>
+                                    <div class="flex gap-1.5">
+                                        <input type="text" id="url-remote" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
+                                        <button onclick="copyURL('url-remote')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] font-bold text-green-600 mb-0.5">CAMERA PORTAL</label>
+                                    <div class="flex gap-1.5">
+                                        <input type="text" id="url-camera" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
+                                        <button onclick="copyURL('url-camera')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] font-bold text-blue-600 mb-0.5">OBS (CAM + JUKEBOX)</label>
+                                    <div class="flex gap-1.5">
+                                        <input type="text" id="url-obs-cam" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
+                                        <button onclick="copyURL('url-obs-cam')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] font-bold text-gray-600 mb-0.5">OBS (JUKEBOX ONLY)</label>
+                                    <div class="flex gap-1.5">
+                                        <input type="text" id="url-obs" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30">
+                                        <button onclick="copyURL('url-obs')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -514,8 +542,21 @@
         function generateURLs() {
             const base = window.location.href.split('?')[0].split('#')[0];
             const baseUrlPath = base.substring(0, base.lastIndexOf('/') + 1);
+
             const elListener = document.getElementById('url-listener');
             if(elListener) elListener.value = `${baseUrlPath}listener.html?host=${currentRoomId}`;
+
+            const elRemote = document.getElementById('url-remote');
+            if(elRemote) elRemote.value = `${baseUrlPath}controller.html?remote=${currentRoomId}`;
+
+            const elCamera = document.getElementById('url-camera');
+            if(elCamera) elCamera.value = `${baseUrlPath}camera.html?cam=${currentRoomId}`;
+
+            const elObsCam = document.getElementById('url-obs-cam');
+            if(elObsCam) elObsCam.value = `${baseUrlPath}OBS.html?obs_cam=${currentRoomId}`;
+
+            const elObs = document.getElementById('url-obs');
+            if(elObs) elObs.value = `${baseUrlPath}OBS.html?obs=${currentRoomId}`;
         }
 
         function copyURL(inputId) { document.getElementById(inputId).select(); document.execCommand("copy"); showToast("URLをコピーしました！"); }
