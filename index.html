@@ -426,6 +426,8 @@
         let hostMediaConn = null; 
         let currentStreamToListeners = null;
 
+        let isHostStateLoaded = false; // ★追加: 初期化時の誤上書きを防止するフラグ
+
         // スマホ用: DOMの動的配置変更処理
         function adjustLayoutForMobile() {
             const isMobile = window.innerWidth < 1024;
@@ -461,7 +463,40 @@
                 }
             }
         }
-        window.addEventListener('resize', adjustLayoutForMobile);
+        
+        // ★追加: 画面サイズに応じてStream音声を適切に制御（スマホ時は強制ミュート）
+        function updateStreamAudioByWindowSize() {
+            const vid = document.getElementById('host-stream-preview');
+            if(!vid) return;
+
+            if(window.innerWidth < 1024) {
+                // スマホ（縦画面）時は強制ミュート
+                vid.muted = true;
+            } else {
+                // PC時はミキサーの設定を適用
+                const icon = document.getElementById('icon-host-stream-mute');
+                const isMutedByMixer = icon ? icon.classList.contains('fa-volume-xmark') : false;
+                vid.muted = isMutedByMixer;
+                
+                const volSlider = document.getElementById('host-stream-vol');
+                if (volSlider) {
+                    vid.volume = volSlider.value / 100;
+                }
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            adjustLayoutForMobile();
+            updateStreamAudioByWindowSize();
+            if(window.innerWidth >= 1024) {
+                document.getElementById('host-col-1').classList.remove('hidden');
+                document.getElementById('host-col-1').classList.add('flex');
+                document.getElementById('host-col-2').classList.remove('hidden');
+                document.getElementById('host-col-2').classList.add('flex');
+                document.getElementById('host-col-3').classList.remove('hidden');
+                document.getElementById('host-col-3').classList.add('flex');
+            }
+        });
 
         // スマホ用ペイン切り替え
         function switchHostMobileTab(tabName) {
@@ -507,17 +542,6 @@
             }
         }
 
-        window.addEventListener('resize', () => {
-            if(window.innerWidth >= 1024) {
-                document.getElementById('host-col-1').classList.remove('hidden');
-                document.getElementById('host-col-1').classList.add('flex');
-                document.getElementById('host-col-2').classList.remove('hidden');
-                document.getElementById('host-col-2').classList.add('flex');
-                document.getElementById('host-col-3').classList.remove('hidden');
-                document.getElementById('host-col-3').classList.add('flex');
-            }
-        });
-
         // サブタブ切り替え (Col 3 下半分)
         function switchHostSettingsTab(tabName) {
             ['participants', 'bgm', 'settings'].forEach(name => {
@@ -539,58 +563,69 @@
 
         // オーディオミキサー制御
         function toggleHostJukeboxMute() {
-            if(!player || typeof player.isMuted !== 'function') return;
-            const isMuted = player.isMuted();
             const icon = document.getElementById('icon-host-jukebox-mute');
-            if(isMuted) {
-                player.unMute();
+            if(!icon) return;
+            const isCurrentlyMuted = icon.classList.contains('fa-volume-xmark');
+
+            if(isCurrentlyMuted) {
                 icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
                 icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                const vol = document.getElementById('host-jukebox-vol').value;
-                player.setVolume(vol);
+                if(player && typeof player.unMute === 'function') {
+                    player.unMute();
+                    const vol = document.getElementById('host-jukebox-vol').value;
+                    player.setVolume(vol);
+                }
             } else {
-                player.mute();
+                icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
+                icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
+                if(player && typeof player.mute === 'function') {
+                    player.mute();
+                }
+            }
+            saveHostState();
+        }
+
+        function changeHostJukeboxVol(val) {
+            if(val > 0) {
+                const icon = document.getElementById('icon-host-jukebox-mute');
+                if(icon && icon.classList.contains('fa-volume-xmark')) {
+                    icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
+                    icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
+                    if(player && typeof player.unMute === 'function') player.unMute();
+                }
+            }
+            if(player && typeof player.setVolume === 'function') {
+                player.setVolume(val);
+            }
+            saveHostState();
+        }
+
+        function toggleHostStreamMute() {
+            const icon = document.getElementById('icon-host-stream-mute');
+            if(!icon) return;
+            const isCurrentlyMuted = icon.classList.contains('fa-volume-xmark');
+            
+            if(isCurrentlyMuted) {
+                icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
+                icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
+            } else {
                 icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
                 icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
             }
+            updateStreamAudioByWindowSize();
+            saveHostState();
         }
-        function changeHostJukeboxVol(val) {
-            if(player && typeof player.setVolume === 'function') {
-                player.setVolume(val);
-                if(val > 0 && player.isMuted()) {
-                    player.unMute();
-                    const icon = document.getElementById('icon-host-jukebox-mute');
+
+        function changeHostStreamVol(val) {
+            if(val > 0) {
+                const icon = document.getElementById('icon-host-stream-mute');
+                if(icon && icon.classList.contains('fa-volume-xmark')) {
                     icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
                     icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
                 }
             }
-        }
-
-        function toggleHostStreamMute() {
-            const vid = document.getElementById('host-stream-preview');
-            if(!vid) return;
-            vid.muted = !vid.muted;
-            const icon = document.getElementById('icon-host-stream-mute');
-            if(vid.muted) {
-                icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
-                icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
-            } else {
-                icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                vid.play().catch(e=>{});
-            }
-        }
-        function changeHostStreamVol(val) {
-            const vid = document.getElementById('host-stream-preview');
-            if(!vid) return;
-            vid.volume = val / 100;
-            if(val > 0 && vid.muted) {
-                vid.muted = false;
-                const icon = document.getElementById('icon-host-stream-mute');
-                icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
-                icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                vid.play().catch(e=>{});
-            }
+            updateStreamAudioByWindowSize();
+            saveHostState();
         }
 
         window.onload = () => {
@@ -719,10 +754,10 @@
             if(elListener) elListener.value = `${baseUrlPath}listener.html?host=${currentRoomId}`;
 
             const elRemote = document.getElementById('url-remote');
-            if(elRemote) elRemote.value = `${baseUrlPath}controller.html`;
+            if(elRemote) elRemote.value = `${baseUrlPath}controller.html?remote=${currentRoomId}`;
 
             const elCamera = document.getElementById('url-camera');
-            if(elCamera) elCamera.value = `${baseUrlPath}camera.html`;
+            if(elCamera) elCamera.value = `${baseUrlPath}camera.html?cam=${currentRoomId}`;
 
             const elObsCam = document.getElementById('url-obs-cam');
             if(elObsCam) elObsCam.value = `${baseUrlPath}OBS.html?obs_cam=${currentRoomId}`;
@@ -941,8 +976,10 @@
                             previewVid.srcObject = stream;
                             previewVid.classList.remove('hidden');
                             document.getElementById('host-stream-offline').classList.add('hidden');
-                            // Use mixer state to set initial mute
-                            previewVid.muted = document.getElementById('icon-host-stream-mute').classList.contains('fa-volume-xmark');
+                            
+                            // スマホ時ミュート等の一元管理を適用
+                            updateStreamAudioByWindowSize();
+                            
                             previewVid.play().catch(e=>{});
                         }
                         
@@ -1344,17 +1381,23 @@
                 height: '100%', width: '100%',
                 playerVars: { autoplay: 1, controls: 1, rel: 0 },
                 events: { 
-                    'onReady': (event) => {
-                        const vol = document.getElementById('host-jukebox-vol').value;
-                        event.target.setVolume(vol);
-                        onPlayerReady(event);
-                    }, 
+                    'onReady': onPlayerReady, 
                     'onStateChange': onPlayerStateChange 
                 }
             });
         }
 
         function onPlayerReady(event) {
+            // ミキサーの音量を初期設定
+            const isMuted = document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-xmark');
+            if (isMuted) {
+                event.target.mute();
+            } else {
+                event.target.unMute();
+                const vol = document.getElementById('host-jukebox-vol').value;
+                event.target.setVolume(vol);
+            }
+
             if(currentSong) {
                 if (currentSong.listId) player.loadPlaylist({list: currentSong.listId, index: currentSong.playlistIndex || 0, startSeconds: currentSong.startSeconds || 0});
                 else player.loadVideoById({videoId: currentSong.videoId, startSeconds: currentSong.startSeconds || 0});
@@ -1368,12 +1411,13 @@
             if (event.data === YT.PlayerState.PLAYING) {
                 
                 // ミキサーの音量を強制反映 (PCでの自動再生時リセット対策)
-                const vol = document.getElementById('host-jukebox-vol').value;
-                player.setVolume(vol);
-                if (document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-high')) {
-                    player.unMute();
-                } else {
+                const isMuted = document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-xmark');
+                if (isMuted) {
                     player.mute();
+                } else {
+                    player.unMute();
+                    const vol = document.getElementById('host-jukebox-vol').value;
+                    player.setVolume(vol);
                 }
 
                 if (currentSong && currentSong.isBGM && currentSong.listId && !currentSong._settingsApplied) {
@@ -1644,12 +1688,23 @@
         function removeBGM(idx) { bgmQueue.splice(idx, 1); saveHostState(); updateUI(); }
 
         function saveHostState() {
+            if (!isHostStateLoaded) return; // ★追加: 初期ロード前の保存（上書き）をブロック
+            
             const bgmSettings = {
                 shuffle: document.getElementById('bgm-shuffle') ? document.getElementById('bgm-shuffle').checked : false,
                 loop: document.getElementById('bgm-loop') ? document.getElementById('bgm-loop').checked : true,
                 loopOne: document.getElementById('bgm-loop-one') ? document.getElementById('bgm-loop-one').checked : false
             };
-            const data = { queue, bgmQueue, historyQueue, chatHistory, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers, bgmSettings, approvedUsers };
+            
+            // ★追加: ミキサー状態の保存
+            const mixerSettings = {
+                jukeboxVol: document.getElementById('host-jukebox-vol') ? document.getElementById('host-jukebox-vol').value : 100,
+                jukeboxMute: document.getElementById('icon-host-jukebox-mute') ? document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-xmark') : false,
+                streamVol: document.getElementById('host-stream-vol') ? document.getElementById('host-stream-vol').value : 0,
+                streamMute: document.getElementById('icon-host-stream-mute') ? document.getElementById('icon-host-stream-mute').classList.contains('fa-volume-xmark') : false
+            };
+
+            const data = { queue, bgmQueue, historyQueue, chatHistory, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers, bgmSettings, mixerSettings, approvedUsers };
             localStorage.setItem('jukebox_state_' + currentRoomId, JSON.stringify(data));
         }
 
@@ -1681,9 +1736,34 @@
                         if(document.getElementById('bgm-loop-one')) document.getElementById('bgm-loop-one').checked = data.bgmSettings.loopOne;
                     }
 
+                    // ★追加: ミキサー状態の復元
+                    if(data.mixerSettings) {
+                        // Jukebox
+                        const jVol = document.getElementById('host-jukebox-vol');
+                        if(jVol) jVol.value = data.mixerSettings.jukeboxVol;
+                        const jIcon = document.getElementById('icon-host-jukebox-mute');
+                        if(data.mixerSettings.jukeboxMute && jIcon) {
+                            jIcon.classList.replace('fa-volume-high', 'fa-volume-xmark');
+                            jIcon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
+                        }
+                        
+                        // Stream
+                        const sVol = document.getElementById('host-stream-vol');
+                        if(sVol) sVol.value = data.mixerSettings.streamVol;
+                        const sIcon = document.getElementById('icon-host-stream-mute');
+                        if(data.mixerSettings.streamMute && sIcon) {
+                            sIcon.classList.replace('fa-volume-high', 'fa-volume-xmark');
+                            sIcon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
+                        }
+                    }
+
                     updateUI();
                 }
             } catch(e) { console.warn("Failed to load host state", e); }
+            finally {
+                isHostStateLoaded = true; // ★追加: ロード完了フラグを立てる
+                updateStreamAudioByWindowSize(); // 初期レイアウトに合わせて音声設定を適用
+            }
         }
 
         function saveToMyList() {
