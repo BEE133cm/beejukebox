@@ -324,9 +324,8 @@
         let isWatchPartyEnabled = true;
         let viewerYTPlayer = null;
         let isWpOverlayActive = true;
-        let lastHostTime = 0;
-        let lastHostStatus = -1;
-        let lastHostTimeReceivedAt = 0;
+        let hostCurrentTime = 0;
+        let hostCurrentStatus = -1;
         let remoteHasStream = false;
 
         let remoteNotifTimeout = null;
@@ -892,7 +891,6 @@
 
         function enforceSync() {
             if (!viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function' || isWpOverlayActive) return;
-            if (Date.now() - lastHostTimeReceivedAt > 5000) return;
 
             try {
                 const vData = viewerYTPlayer.getVideoData();
@@ -904,14 +902,11 @@
             const myState = viewerYTPlayer.getPlayerState();
             const myTime = viewerYTPlayer.getCurrentTime() || 0;
             
-            let expectedHostTime = lastHostTime;
-            if (lastHostStatus === 1) { 
-                expectedHostTime += (Date.now() - lastHostTimeReceivedAt) / 1000;
-            }
+            let expectedHostTime = hostCurrentTime;
 
             const diff = expectedHostTime - myTime;
 
-            if (lastHostStatus === 1) { 
+            if (hostCurrentStatus === 1) { 
                 if (myState !== 1 && myState !== 3) {
                     viewerYTPlayer.playVideo();
                 }
@@ -922,7 +917,7 @@
                 } else {
                     viewerYTPlayer.setPlaybackRate(1.0);
                 }
-            } else if (lastHostStatus === 2 || lastHostStatus === -1) { 
+            } else if (hostCurrentStatus === 2 || hostCurrentStatus === -1) { 
                 if (myState === 1 || myState === 3) {
                     viewerYTPlayer.pauseVideo();
                 }
@@ -938,6 +933,7 @@
                     viewerYTPlayer.unMute();
                     const toggle = document.getElementById('toggle-remote-wp-mute');
                     if(toggle) toggle.checked = true;
+                    
                     if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
                         viewerYTPlayer.playVideo();
                     }
@@ -991,14 +987,22 @@
                 
                 let playerOptions = {
                     height: '100%', width: '100%',
-                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
+                    playerVars: { autoplay: 1, controls: 1, rel: 0, disablekb: 0 },
                     events: { 
                         'onReady': (event) => { 
                             event.target.mute(); 
                             if (currentSong && currentSong.videoId) {
-                                event.target.loadVideoById({videoId: currentSong.videoId, startSeconds: lastHostTime || 0});
+                                event.target.loadVideoById({videoId: currentSong.videoId, startSeconds: hostCurrentTime || 0});
                             }
-                        } 
+                        },
+                        'onStateChange': (event) => {
+                            if (event.data === YT.PlayerState.PLAYING) {
+                                const wpToggle = document.getElementById('toggle-remote-wp-mute');
+                                if (wpToggle && wpToggle.checked) {
+                                    event.target.unMute();
+                                }
+                            }
+                        }
                     }
                 };
                 if (data.videoId) playerOptions.videoId = data.videoId;
@@ -1018,19 +1022,18 @@
 
             const state = viewerYTPlayer.getPlayerState();
             const currentTime = viewerYTPlayer.getCurrentTime();
-            lastHostTime = data.time || 0; 
-            lastHostStatus = data.status;
-            lastHostTimeReceivedAt = Date.now();
+            hostCurrentTime = data.time || 0; 
+            hostCurrentStatus = data.status;
 
             if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
                 currentSong = { videoId: data.videoId };
-                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: lastHostTime});
+                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: hostCurrentTime});
                 return;
             }
 
             if (data.status === 1) { 
                 if (state !== 1 && state !== 3) viewerYTPlayer.playVideo();
-                const diff = lastHostTime - currentTime;
+                const diff = hostCurrentTime - currentTime;
                 
                 if (Math.abs(diff) < 1.0) {
                     viewerYTPlayer.setPlaybackRate(1.0);
@@ -1038,12 +1041,12 @@
                     viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
                 } else {
                     viewerYTPlayer.setPlaybackRate(1.0);
-                    viewerYTPlayer.seekTo(lastHostTime, true);
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
                 }
             } else if (data.status === 2 || data.status === -1) { 
                 if (state === 1) {
                     viewerYTPlayer.pauseVideo();
-                    viewerYTPlayer.seekTo(lastHostTime, true);
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
                     viewerYTPlayer.setPlaybackRate(1.0);
                 }
             }
@@ -1213,17 +1216,20 @@
                 if(tabRemoteCamIcon) tabRemoteCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
             }
 
-            window.remoteReceivedParticipants = participants;
-            window.remoteBannedUsers = bannedUsers;
+            window.remoteReceivedParticipants = participants || [];
+            window.remoteBannedUsers = bannedUsers || {};
             renderParticipantList(document.getElementById('remote-participant-list'));
 
+            const safeQueue = queue || [];
+            const safeHistoryQueue = historyQueue || [];
+
             const countEl = document.getElementById('remote-queue-count');
-            if(countEl) countEl.textContent = queue.length;
+            if(countEl) countEl.textContent = safeQueue.length;
             
             const qList = document.getElementById('remote-queue-list');
             if(qList) {
                 qList.innerHTML = '';
-                queue.forEach((q, idx) => {
+                safeQueue.forEach((q, idx) => {
                     const div = document.createElement('div');
                     div.className = "flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700 text-sm mb-1";
                     const dispName = q.isAnon ? '184(匿名)' : q.requesterReal;
@@ -1247,9 +1253,9 @@
             }
 
             const hList = document.getElementById('remote-history-list');
-            if(hList && historyQueue) {
+            if(hList) {
                 hList.innerHTML = '';
-                historyQueue.forEach((q, idx) => {
+                safeHistoryQueue.forEach((q, idx) => {
                     const div = document.createElement('div');
                     div.className = "flex items-center justify-between bg-gray-900 p-2 rounded text-sm mb-1";
                     div.innerHTML = `
