@@ -758,7 +758,10 @@
                 if (!currentSong || currentSong.videoId !== data.currentSong.videoId) {
                     currentSong = data.currentSong;
                     if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
-                        viewerYTPlayer.loadVideoById(currentSong.videoId);
+                        viewerYTPlayer.loadVideoById({
+                            videoId: currentSong.videoId,
+                            startSeconds: lastHostTime || 0
+                        });
                     }
                 }
             } else {
@@ -831,12 +834,19 @@
 
         function enforceSync() {
             if (!viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function' || isWpOverlayActive) return;
-            if (Date.now() - lastHostTimeReceivedAt > 5000) return; // データが古ければ無視
+            if (Date.now() - lastHostTimeReceivedAt > 5000) return;
+
+            // エラー防止：動画がプレイヤーにロードされていない場合は操作しない
+            try {
+                const vData = viewerYTPlayer.getVideoData();
+                if (!vData || !vData.video_id) return;
+            } catch(e) {
+                return;
+            }
 
             const myState = viewerYTPlayer.getPlayerState();
             const myTime = viewerYTPlayer.getCurrentTime() || 0;
             
-            // ホストの現在時間を推測 (再生中なら経過時間を足す)
             let expectedHostTime = lastHostTime;
             if (lastHostStatus === 1) { 
                 expectedHostTime += (Date.now() - lastHostTimeReceivedAt) / 1000;
@@ -844,13 +854,11 @@
 
             const diff = expectedHostTime - myTime;
 
-            if (lastHostStatus === 1) { // Host is PLAYING
-                // 勝手に止められていたら再生させる
+            if (lastHostStatus === 1) { 
                 if (myState !== 1 && myState !== 3) {
                     viewerYTPlayer.playVideo();
                 }
                 
-                // ズレの補正
                 if (Math.abs(diff) > 2.0) {
                     viewerYTPlayer.seekTo(expectedHostTime, true);
                 } else if (Math.abs(diff) > 0.5) {
@@ -858,12 +866,10 @@
                 } else {
                     viewerYTPlayer.setPlaybackRate(1.0);
                 }
-            } else if (lastHostStatus === 2 || lastHostStatus === -1) { // Host is PAUSED or UNSTARTED
-                // 勝手に再生していたら止める
+            } else if (lastHostStatus === 2 || lastHostStatus === -1) { 
                 if (myState === 1 || myState === 3) {
                     viewerYTPlayer.pauseVideo();
                 }
-                // 時間を合わせる
                 if (Math.abs(diff) > 1.0) {
                     viewerYTPlayer.seekTo(expectedHostTime, true);
                 }
@@ -1184,7 +1190,16 @@
                 height: '100%', width: '100%',
                 playerVars: { autoplay: 1, controls: 1, rel: 0 },
                 events: {
-                    'onReady': (event) => { event.target.mute(); }
+                    'onReady': (event) => {
+                        event.target.mute();
+                        // ページ更新時など、すでに曲データがある場合はロードする
+                        if (currentSong && currentSong.videoId) {
+                            event.target.loadVideoById({
+                                videoId: currentSong.videoId,
+                                startSeconds: lastHostTime || 0
+                            });
+                        }
+                    }
                 }
             });
         };
