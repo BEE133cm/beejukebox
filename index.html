@@ -490,7 +490,9 @@
             if(isCurrentlyMuted) {
                 icon.classList.replace('fa-volume-xmark', 'fa-volume-high');
                 icon.parentElement.classList.replace('text-gray-500', 'text-gray-300');
-                if(player && typeof player.unMute === 'function') player.unMute();
+                if(player && typeof player.unMute === 'function') {
+                    player.unMute();
+                }
             } else {
                 icon.classList.replace('fa-volume-high', 'fa-volume-xmark');
                 icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
@@ -981,6 +983,7 @@
                     }
 
                     updateParticipantsUI();
+                    broadcastState(); // 参加者情報の更新をブロードキャスト
                 }
             }
             else if(data.type === 'request') {
@@ -1345,7 +1348,6 @@
                     player.mute();
                 } else {
                     player.unMute();
-                    // player.setVolume(vol); の呼び出しを削除してプルプルを防止
                 }
 
                 if (currentSong && currentSong.isBGM && currentSong.listId && !currentSong._settingsApplied) {
@@ -1597,7 +1599,7 @@
             }
 
             renderChatList('host-chat-list', chatHistory);
-            broadcastState();
+            broadcastState(); // ここで全員に確実に最新状態を送る
         }
 
         function reRequestHost(videoId, reqName) {
