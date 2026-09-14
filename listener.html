@@ -87,7 +87,7 @@
             }
             .chat-input-floating {
                 position: fixed !important;
-                top: 48vh !important; 
+                top: 35vh !important; 
                 left: 0 !important;
                 right: 0 !important;
                 z-index: 9999 !important;
@@ -403,6 +403,40 @@
         let streamGainNode = null;
         let streamMuteNode = null;
         let streamCompressorNode = null;
+
+        // --- 自動リカバリー用変数・処理 ---
+        let reconnectTimeout = null;
+        let reconnectAttempts = 0;
+
+        function scheduleReconnect() {
+            if (reconnectTimeout) clearTimeout(reconnectTimeout);
+            const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000); // 3秒〜最大30秒の指数バックオフ
+            reconnectTimeout = setTimeout(() => {
+                if (currentRoomId && (!listenerConn || !listenerConn.open)) {
+                     reconnectAttempts++;
+                     showToast(`自動再接続を試みています... (${reconnectAttempts}回目)`, "info");
+                     if (peer) {
+                         peer.destroy();
+                         peer = null;
+                     }
+                     startListenerConnection();
+                }
+            }, delay);
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                if (currentRoomId && (!listenerConn || !listenerConn.open)) {
+                    showToast("画面復帰を検知。再接続します...", "info");
+                    if (peer) {
+                        peer.destroy();
+                        peer = null;
+                    }
+                    startListenerConnection();
+                }
+            }
+        });
+        // ----------------------------------
 
         // YouTube Login for PWA
         function openYouTubeLoginPopup() {
@@ -896,6 +930,7 @@
         }
 
         function startListenerConnection() {
+            if (peer) peer.destroy();
             listenerId = generateId();
             peer = new Peer(`listener-${listenerId}`);
 
@@ -903,12 +938,25 @@
                 listenerConn = peer.connect(`jukebox-${currentRoomId}`);
                 
                 listenerConn.on('open', () => {
+                    reconnectAttempts = 0; // 再接続試行回数をリセット
                     const statusId = 'listener-status';
                     if(document.getElementById(statusId)) {
                         document.getElementById(statusId).textContent = "接続完了！";
                         document.getElementById(statusId).classList.replace('text-yellow-500', 'text-green-500');
+                        document.getElementById(statusId).classList.replace('text-red-500', 'text-green-500');
                     }
                     sendProfileUpdate();
+                    // 復帰後の同期リクエスト (Host側にStateとSyncの自動送信を促す)
+                    listenerConn.send({ type: 'request_sync' });
+                });
+
+                listenerConn.on('close', () => {
+                    const statusId = 'listener-status';
+                    if(document.getElementById(statusId)) {
+                        document.getElementById(statusId).textContent = "通信切断...";
+                        document.getElementById(statusId).classList.replace('text-green-500', 'text-red-500');
+                    }
+                    scheduleReconnect();
                 });
 
                 listenerConn.on('data', (data) => {
@@ -991,6 +1039,12 @@
                 call.on('close', () => { 
                     resetListenerVideo(); 
                 });
+            });
+
+            peer.on('disconnected', () => scheduleReconnect());
+            peer.on('error', (err) => {
+                console.warn("PeerJS Error:", err);
+                scheduleReconnect();
             });
 
             const url = new URL(window.location);
