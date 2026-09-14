@@ -336,12 +336,7 @@
 
                         <!-- 設定・URLタブ -->
                         <div id="tab-content-settings" class="hidden absolute inset-0 p-2.5 flex flex-col overflow-y-auto space-y-3">
-                            <!-- PWA設定 -->
-                            <div class="space-y-2 border-b border-gray-800 pb-3">
-                                <h3 class="text-[10px] font-bold text-gray-400 mb-1"><i class="fa-brands fa-youtube"></i> ACCOUNT</h3>
-                                <button onclick="openYouTubeLoginPopup()" class="w-full bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 font-bold py-1.5 rounded-sm transition-colors flex items-center justify-center gap-1.5 text-[9px]"><i class="fa-solid fa-arrow-right-to-bracket"></i> YouTubeにログイン (PWA用)</button>
-                            </div>
-
+                            
                             <!-- 基本設定 -->
                             <div class="space-y-2 border-b border-gray-800 pb-3">
                                 <h3 class="text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-gear"></i> BASIC CONFIG</h3>
@@ -433,25 +428,6 @@
         let currentStreamToListeners = null;
 
         let isHostStateLoaded = false; 
-
-        // YouTube Login for PWA
-        function openYouTubeLoginPopup() {
-            const loginUrl = 'https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F';
-            const popup = window.open(loginUrl, 'youtubeLogin', 'width=500,height=600');
-            
-            if (popup) {
-                const checkPopup = setInterval(() => {
-                    if (popup.closed) {
-                        clearInterval(checkPopup);
-                        if (confirm('ログインが完了しましたか？\n設定を反映させるため、ページを再読み込みします。')) {
-                            location.reload();
-                        }
-                    }
-                }, 1000);
-            } else {
-                showToast("ポップアップがブロックされました。設定を確認してください。", "error");
-            }
-        }
 
         // スマホ用: DOMの動的配置変更処理
         function adjustLayoutForMobile() {
