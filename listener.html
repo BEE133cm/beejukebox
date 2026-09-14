@@ -107,15 +107,19 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // ==========================================
+        // 【重要】Firebase 接続設定
+        // ホスト側と同じ設定オブジェクトを貼り付けてください。
+        // ==========================================
         const myFirebaseConfig = {
-            apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
-            authDomain: "beejukebox-94ad8.firebaseapp.com",
-            projectId: "beejukebox-94ad8",
-            storageBucket: "beejukebox-94ad8.firebasestorage.app",
-            messagingSenderId: "902266249398",
-            appId: "1:902266249398:web:8de3ff1d14ea5eef224617",
-            measurementId: "G-H4SV4FHX3Z"
-        };
+  apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
+  authDomain: "beejukebox-94ad8.firebaseapp.com",
+  projectId: "beejukebox-94ad8",
+  storageBucket: "beejukebox-94ad8.firebasestorage.app",
+  messagingSenderId: "902266249398",
+  appId: "1:902266249398:web:8de3ff1d14ea5eef224617",
+  measurementId: "G-H4SV4FHX3Z"
+};
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'jukebox-app';
         let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
@@ -127,7 +131,7 @@
 
         try {
             if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
-                throw new Error("Firebaseの設定がありません。");
+                throw new Error("Firebaseの接続設定がありません。コード内の myFirebaseConfig を設定してください。");
             }
 
             const app = initializeApp(firebaseConfig);
@@ -267,11 +271,13 @@
             </div>
         </div>
 
-        <!-- ========== 左ペイン: 映像とコントロール ========== -->
+        <!-- ========== 左ペイン: 映像とコントロール (横画面時は残り幅全占有) ========== -->
         <div class="flex flex-col w-full landscape:w-auto landscape:flex-1 landscape:h-full shrink-0 relative z-20 bg-black">
             
+            <!-- 1. 映像エリア (上部固定 / 横画面時は全画面) -->
             <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden aspect-video landscape:aspect-auto landscape:flex-1">
                 
+                <!-- NowPlaying帯 (映像上部) -->
                 <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
                     <div id="listener-eq" class="equalizer scale-75 shrink-0 origin-left"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
                     <div class="marquee-container h-4 flex-1">
@@ -295,7 +301,7 @@
                     <div id="listener-youtube-player-wrapper" class="w-full h-full">
                         <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
                     </div>
-                    <!-- 初回タップ用オーバーレイ (状態同期には介入しない) -->
+                    <!-- 初回タップ用オーバーレイ -->
                     <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
                         <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
                         <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
@@ -303,13 +309,16 @@
                 </div>
             </div>
 
+            <!-- 1.5 配信主からのコメント表示（テーマ） -->
             <div id="listener-theme-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
 
             <div id="listener-controls-bar" class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
+                <!-- 映像切り替えタブ -->
                 <div class="flex gap-2">
                     <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
                     <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
                 </div>
+                <!-- 設定モーダル呼び出しボタン -->
                 <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
                     <i class="fa-solid fa-gear"></i>
                 </button>
@@ -317,9 +326,10 @@
 
         </div> <!-- 左ペイン終了 -->
 
-        <!-- ========== 右ペイン: スクロール領域 ========== -->
+        <!-- ========== 右ペイン: スクロール領域 (リクエスト類 ＋ チャット) ========== -->
         <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0 landscape:w-[320px] lg:landscape:w-[400px] landscape:flex-none landscape:border-l landscape:border-gray-800">
             
+            <!-- リクエスト・ステータス等（アコーディオン） -->
             <details id="listener-menu-details" class="bg-[#18181b] border-b border-gray-800 shrink-0 group z-10 relative">
                 <summary class="p-3 cursor-pointer text-gray-400 font-bold text-xs flex justify-between items-center outline-none hover:text-white transition-colors">
                     <div class="flex items-center gap-2">
@@ -329,8 +339,10 @@
                     <span class="group-open:rotate-180 transition-transform"><i class="fa-solid fa-chevron-down"></i></span>
                 </summary>
                 
+                <!-- アコーディオンの中身 (チャットを隠して表示) -->
                 <div class="p-4 space-y-6 bg-[#111827] border-t border-gray-800 h-full overflow-y-auto pb-32">
                     
+                    <!-- ① リクエスト送信 -->
                     <div class="space-y-3">
                         <h3 class="text-xs font-bold text-indigo-400 flex items-center gap-1">
                             <i class="fa-solid fa-arrow-down text-indigo-400"></i> リクエストはこちらから！
@@ -342,6 +354,7 @@
                         </div>
                     </div>
 
+                    <!-- ② キューと履歴 -->
                     <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-800/60">
                         <div>
                             <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">順番待ち (<span id="listener-queue-count">0</span>)</h3>
@@ -352,18 +365,28 @@
                             <div id="listener-history-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px] text-gray-500"></div>
                         </div>
                     </div>
+
+                    <!-- 最下部余白用バージョン表記 -->
+                    <div class="pt-8 text-center text-gray-700 text-[10px]">
+                        v1.0.41 (Cloud Sync)
+                    </div>
+
                 </div>
             </details>
 
+            <!-- チャットリスト領域 (アコーディオン開閉時に隠れるラッパー) -->
             <div id="listener-chat-area-wrapper" class="flex-1 flex flex-col min-h-0 relative">
+                <!-- 接続ステータス -->
                 <div id="listener-status" class="absolute top-2 left-0 w-full text-center text-[10px] text-yellow-500 animate-pulse pointer-events-none">ルームに接続中...</div>
 
+                <!-- フローティング用のバックドロップ（チャット履歴領域のみ暗くする） -->
                 <div id="listener-chat-backdrop" class="chat-backdrop" onclick="closeChatInput()"></div>
 
                 <div id="listener-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto min-h-0 flex flex-col justify-end pb-4 pt-6 relative z-10">
                     <!-- Chat messages here -->
                 </div>
 
+                <!-- 4. チャット入力エリア -->
                 <div id="listener-chat-input-container" class="flex-shrink-0 px-3 pt-2 pb-safe bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20">
                     <input type="text" id="listener-chat-input" name="dummy-chat-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusChatInput()" onblur="blurChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest(false)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
                     <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
@@ -379,63 +402,14 @@
     </button>
 
     <script>
-        let peer = null;
         let currentRoomId = null;
-        
-        let savedPasswords = JSON.parse(localStorage.getItem('jukebox_passwords')) || {};
-
         let queue = [];
+        let historyQueue = [];
         let chatHistory = []; 
         let currentSong = null;
-
-        let listenerConn = null;
-        let listenerId = null;
-        
-        let myGuestUUID = localStorage.getItem('jukebox_uuid');
-        if (!myGuestUUID) {
-            myGuestUUID = 'user-' + generateId() + generateId();
-            localStorage.setItem('jukebox_uuid', myGuestUUID);
-        }
-
-        let isListenerVideoOpen = false;
-        let listenerHasStream = false;
-        let isWatchPartyEnabled = true;
-
         let viewerYTPlayer = null;
-        let isWpOverlayActive = true; 
-        let pendingConnection = null;
-
-        let reconnectTimeout = null;
-        let reconnectAttempts = 0;
-
-        function scheduleReconnect() {
-            if (reconnectTimeout) clearTimeout(reconnectTimeout);
-            const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000);
-            reconnectTimeout = setTimeout(() => {
-                if (currentRoomId && (!listenerConn || !listenerConn.open)) {
-                     reconnectAttempts++;
-                     showToast(`自動再接続を試みています... (${reconnectAttempts}回目)`, "info");
-                     if (peer) {
-                         peer.destroy();
-                         peer = null;
-                     }
-                     startListenerConnection();
-                }
-            }, delay);
-        }
-
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
-                if (currentRoomId && (!listenerConn || !listenerConn.open)) {
-                    showToast("画面復帰を検知。再接続します...", "info");
-                    if (peer) {
-                        peer.destroy();
-                        peer = null;
-                    }
-                    startListenerConnection();
-                }
-            }
-        });
+        let isWpOverlayActive = true;
+        let listenerName = "名無し";
 
         document.addEventListener('DOMContentLoaded', () => {
             const menuDetails = document.getElementById('listener-menu-details');
@@ -482,6 +456,7 @@
             const anonEl = document.getElementById('listener-anon');
             if (savedName && nameEl) nameEl.value = savedName;
             if (savedAnon !== null && anonEl) anonEl.checked = (savedAnon === 'true');
+            if (savedName) listenerName = savedName;
 
             const params = new URLSearchParams(window.location.search);
             try {
@@ -506,52 +481,6 @@
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
-        function generateId() { return Math.random().toString(36).substring(2, 9); }
-
-        function showBannedScreen() {
-            document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500"><i class="fa-solid fa-ban"></i> アクセスがブロックされました</h1><p class="text-gray-300">管理者の操作により、このルームへのアクセスが制限されています。</p></div>';
-        }
-
-        function saveGuestHistory(roomId, hostName) {
-            if(!roomId) return;
-            let history = JSON.parse(localStorage.getItem('jukebox_guest_history')) || [];
-            history = history.filter(h => h.roomId !== roomId);
-            history.unshift({ roomId: roomId, hostName: hostName || roomId, time: Date.now() });
-            if(history.length > 10) history = history.slice(0, 10);
-            localStorage.setItem('jukebox_guest_history', JSON.stringify(history));
-        }
-
-        function showPasswordModal() {
-            document.getElementById('password-modal').classList.remove('hidden');
-            document.getElementById('room-password-input').value = '';
-            document.getElementById('password-error').classList.add('hidden');
-        }
-
-        function hidePasswordModal() {
-            document.getElementById('password-modal').classList.add('hidden');
-        }
-
-        function closePasswordModal() {
-            hidePasswordModal();
-            showToast("接続をキャンセルしました", "info");
-            if (pendingConnection) pendingConnection.close();
-        }
-
-        function submitPassword() {
-            const pwd = document.getElementById('room-password-input').value;
-            if (!pwd) {
-                const err = document.getElementById('password-error');
-                err.textContent = "パスワードを入力してください";
-                err.classList.remove('hidden');
-                return;
-            }
-            document.getElementById('password-error').classList.add('hidden');
-
-            if (pendingConnection) {
-                pendingConnection.send({ type: 'auth_request', password: pwd });
-            }
-        }
-
         function showNameModal() {
             document.getElementById('name-modal').classList.remove('hidden');
             const savedName = localStorage.getItem('jukebox_guest_name');
@@ -570,15 +499,16 @@
             document.getElementById('name-error').classList.add('hidden');
             document.getElementById('name-modal').classList.add('hidden');
             
+            listenerName = nameInput;
             document.getElementById('listener-name').value = nameInput;
             localStorage.setItem('jukebox_guest_name', nameInput);
             
-            startListenerConnection();
+            startCloudConnection();
         }
-        
+
         function loadYouTubeAPI() {
             if (window.YT && window.YT.Player) {
-                // Ready
+                // YT Player ready
             } else if (!document.getElementById('youtube-api-script')) {
                 const tag = document.createElement('script');
                 tag.id = 'youtube-api-script';
@@ -592,171 +522,38 @@
             if (isWpOverlayActive) {
                 if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
                     viewerYTPlayer.unMute();
-                    const toggle = document.getElementById('toggle-wp-mute');
-                    if(toggle) toggle.checked = true;
-                    // Note: We don't call playVideo() here directly to avoid overriding Firestore state.
-                    // The sync logic will handle playback if the room is 'playing'.
+                    if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
+                        viewerYTPlayer.playVideo();
+                    }
                 }
-                const overlay = document.getElementById('listener-youtube-overlay');
-                if(overlay) overlay.style.display = 'none'; 
-                
+                document.getElementById('listener-youtube-overlay').style.display = 'none'; 
                 isWpOverlayActive = false;
-                showToast("音声をONにしました！", "info");
-            }
-        }
-        
-        function switchListenerLayer(layer) {
-            const camLayer = document.getElementById('listener-cam-layer');
-            const wpLayer = document.getElementById('listener-wp-layer');
-            const tabCam = document.getElementById('tab-cam');
-            const tabWp = document.getElementById('tab-wp');
-
-            if(layer === 'cam') {
-                camLayer.classList.replace('layer-hidden', 'layer-visible');
-                wpLayer.classList.replace('layer-visible', 'layer-hidden');
-                tabCam.classList.add('bg-red-600', 'text-white');
-                tabCam.classList.remove('bg-gray-700', 'text-gray-400');
-                tabWp.classList.add('bg-gray-700', 'text-gray-400');
-                tabWp.classList.remove('bg-indigo-600', 'text-white');
-            } else {
-                wpLayer.classList.replace('layer-hidden', 'layer-visible');
-                camLayer.classList.replace('layer-visible', 'layer-hidden');
-                tabWp.classList.add('bg-indigo-600', 'text-white');
-                tabWp.classList.remove('bg-gray-700', 'text-gray-400');
-                tabCam.classList.add('bg-gray-700', 'text-gray-400');
-                tabCam.classList.remove('bg-red-600', 'text-white');
-            }
-        }
-
-        function toggleListenerAudioFromSwitch(isSoundOn) {
-            const video = document.getElementById('listener-video');
-            if (video) {
-                video.muted = !isSoundOn;
-                if (!video.muted) video.play().catch(e=>{});
-            }
-        }
-
-        function toggleWatchPartyMuteFromSwitch(isSoundOn) {
-            if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
-            if (isSoundOn) {
-                viewerYTPlayer.unMute();
-            } else {
-                viewerYTPlayer.mute();
-            }
-        }
-
-        function toggleWatchPartyVideoFromSwitch(isOn) {
-            const playerWrapper = document.getElementById('listener-youtube-player-wrapper');
-            if (playerWrapper) {
-                playerWrapper.style.opacity = isOn ? '1' : '0';
-                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
+                showToast("視聴を開始しました！", "info");
             }
         }
 
         function initListener() {
             const savedName = localStorage.getItem('jukebox_guest_name');
             if (savedName) {
-                document.getElementById('listener-name').value = savedName;
-                startListenerConnection();
+                listenerName = savedName;
+                if (window.db) startCloudConnection();
+                else window.addEventListener('firebase-auth-ready', startCloudConnection, { once: true });
             } else {
                 showNameModal();
             }
         }
 
-        function startListenerConnection() {
-            listenerId = generateId();
-
-            if (window.db) startFirestoreSync();
-            else window.addEventListener('firebase-auth-ready', startFirestoreSync, { once: true });
-
-            peer = new Peer(`listener-${listenerId}`);
-
-            peer.on('open', () => {
-                listenerConn = peer.connect(`jukebox-${currentRoomId}`);
-                
-                listenerConn.on('open', () => {
-                    const statusId = 'listener-status';
-                    if(document.getElementById(statusId)) {
-                        document.getElementById(statusId).textContent = "接続完了！";
-                        document.getElementById(statusId).classList.replace('text-yellow-500', 'text-green-500');
-                    }
-                    sendProfileUpdate();
-                });
-
-                listenerConn.on('data', (data) => {
-                    if (data.type === 'ping') {
-                        listenerConn.send({ type: 'pong' });
-                        return;
-                    }
-                    if(data.type === 'banned') {
-                        showBannedScreen();
-                        if(peer) peer.destroy();
-                        return;
-                    }
-                    if(data.type === 'error') { showToast(data.msg, "error"); return; }
-                    
-                    if (data.type === 'auth_response') {
-                        if (data.success) {
-                            hidePasswordModal();
-                            showToast("認証に成功しました");
-                            const pwdInput = document.getElementById('room-password-input').value;
-                            if (pwdInput) {
-                                savedPasswords[currentRoomId] = pwdInput;
-                                localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
-                            }
-                            pendingConnection = null;
-                            sendProfileUpdate();
-                        } else {
-                            document.getElementById('password-error').classList.remove('hidden');
-                            delete savedPasswords[currentRoomId];
-                            localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
-                            showPasswordModal(); 
-                        }
-                    }
-                    
-                    if (data.type === 'auth_required') {
-                         showToast("操作にはパスワード認証が必要です", "error");
-                         pendingConnection = listenerConn;
-                         showPasswordModal();
-                    }
-                });
-            });
-
-            peer.on('call', (call) => {
-                call.answer(); 
-                call.on('stream', (stream) => {
-                    listenerHasStream = true;
-                    const video = document.getElementById('listener-video');
-                    const camMuteToggle = document.getElementById('toggle-cam-mute');
-                    
-                    video.srcObject = stream;
-                    
-                    if(camMuteToggle) camMuteToggle.checked = true;
-                    video.muted = false;
-                    
-                    video.play().catch(e => {
-                        video.muted = true;
-                        if(camMuteToggle) camMuteToggle.checked = false;
-                        video.play().catch(er=>{});
-                    });
-                    isListenerVideoOpen = true;
-                    updateCamButtonState(true);
-                });
-                call.on('close', () => { 
-                    resetListenerVideo(); 
-                });
-            });
-
-            const url = new URL(window.location);
-            url.searchParams.set('host', currentRoomId);
-            history.replaceState(null, '', url);
-        }
-
-        function startFirestoreSync() {
+        function startCloudConnection() {
+            document.getElementById('listener-status').textContent = "クラウド同期中...";
+            document.getElementById('listener-status').classList.replace('text-yellow-500', 'text-green-500');
+            
             // Listen to Room State from Firestore
             window.onSnapshot(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), (docSnap) => {
                 if (docSnap.exists()) {
                     handleRoomSync(docSnap.data());
+                } else {
+                    document.getElementById('listener-status').textContent = "ホストが見つかりません";
+                    document.getElementById('listener-status').classList.replace('text-green-500', 'text-red-500');
                 }
             }, (err) => console.error(err));
 
@@ -787,175 +584,63 @@
             loadYouTubeAPI();
         }
 
-        // Unified Room Sync Logic (Timestamps & Status from Firestore)
         function handleRoomSync(data) {
-            saveGuestHistory(currentRoomId, data.hostName);
-            
-            // 1. Theme
             const tDiv = document.getElementById('listener-theme-container');
-            if(tDiv) {
-                if(data.theme) { 
-                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${data.theme}`; 
-                    tDiv.classList.remove('hidden'); 
-                } else {
-                    tDiv.classList.add('hidden');
-                }
-            }
+            if(data.theme) { tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${data.theme}`; tDiv.classList.remove('hidden'); }
+            else tDiv.classList.add('hidden');
 
-            // 2. Camera Button State
-            updateCamButtonState(data.isLive, data.cameraApprovalMode, data.participants);
-
-            // 3. History
-            if(data.historyQueue) {
-                const listenerHist = document.getElementById('listener-history-list');
-                if (listenerHist) {
-                    listenerHist.innerHTML = '';
-                    data.historyQueue.forEach((q, idx) => {
-                        const div = document.createElement('div');
-                        div.className = "flex items-center justify-between bg-gray-800/50 border border-gray-700/50 p-2 rounded text-sm mb-1";
-                        div.innerHTML = `
-                            <div class="flex items-center gap-2 overflow-hidden flex-1">
-                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                                <div class="truncate">
-                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                    <p class="text-[10px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
-                                </div>
-                            </div>
-                            <button onclick="reRequestListener('${q.videoId}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
-                        `;
-                        listenerHist.appendChild(div);
-                    });
-                }
-            }
-
-            // 4. Now Playing Info
             const playingEl = document.getElementById('listener-now-playing');
             const reqEl = document.getElementById('listener-now-requester');
             const eq = document.getElementById('listener-eq');
 
             if (data.currentSong) {
-                if(playingEl) playingEl.textContent = data.currentSong.title;
-                if(reqEl) {
-                    const reqName = data.currentSong.isAnon ? '184(匿名)' : (data.currentSong.requester || "");
-                    reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
-                }
-                if(eq) data.status === 'playing' ? eq.classList.add('active') : eq.classList.remove('active');
-            } else {
-                if(playingEl) playingEl.textContent = "BGM停止中";
-                if(reqEl) reqEl.textContent = "";
-                if(eq) eq.classList.remove('active');
-                if (viewerYTPlayer && typeof viewerYTPlayer.stopVideo === 'function') viewerYTPlayer.stopVideo();
-                currentSong = null;
-                return; // Nothing more to sync for YouTube
-            }
-
-            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
-
-            // 5. YouTube Playback Sync (Timestamp based)
-            if (!viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function') return;
-
-            // Wait for user interaction if overlay is active
-            if (isWpOverlayActive) return;
-
-            const state = viewerYTPlayer.getPlayerState();
-            
-            if (!currentSong || currentSong.videoId !== data.currentSong.videoId) {
-                currentSong = data.currentSong;
-                const startAt = data.status === 'playing' 
-                    ? Math.max(0, (Date.now() - currentSong.startedAt) / 1000)
-                    : (currentSong.pausePosition || 0);
+                playingEl.textContent = data.currentSong.title;
+                reqEl.innerHTML = data.currentSong.requester ? `- <i class="fa-solid fa-user"></i> ${data.currentSong.requester}` : "";
+                if(data.status === 'playing') eq.classList.add('active'); else eq.classList.remove('active');
                 
-                viewerYTPlayer.loadVideoById({videoId: currentSong.videoId, startSeconds: startAt});
-                if (data.status === 'paused') {
-                    // Small delay to allow load to initialize before pausing
-                    setTimeout(() => { if (typeof viewerYTPlayer.pauseVideo === 'function') viewerYTPlayer.pauseVideo(); }, 500);
-                }
-                return;
-            }
-
-            // It's the same song, check synchronization
-            if (data.status === 'playing') {
-                const expectedTime = (Date.now() - data.currentSong.startedAt) / 1000;
-                
-                if (state !== 1 && state !== 3) {
-                    viewerYTPlayer.playVideo();
-                }
-                
-                const currentTime = viewerYTPlayer.getCurrentTime();
-                const diff = expectedTime - currentTime;
-                
-                // Adjust if out of sync by more than 2 seconds
-                if (Math.abs(diff) > 2.0) {
-                    viewerYTPlayer.seekTo(expectedTime, true);
-                }
-            } else if (data.status === 'paused') {
-                if (state === 1) {
-                    viewerYTPlayer.pauseVideo();
-                    viewerYTPlayer.seekTo(data.currentSong.pausePosition || 0, true);
-                }
-            }
-        }
-
-        function updateCamButtonState(isLive, cameraApprovalMode = false, participants = []) {
-            const btn = document.getElementById('btn-toggle-camera');
-            const tabCamIcon = document.querySelector('#tab-cam i');
-            
-            if(isLive) {
-                if(btn) {
-                    btn.disabled = false;
-                    btn.classList.remove('hidden', 'opacity-50', 'cursor-not-allowed');
-                    if(cameraApprovalMode && !listenerHasStream) {
-                        const myData = participants ? participants.find(p => p.id === listenerId) : null;
-                        if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
-                        else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
-                    } else if (!listenerHasStream) {
-                        btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
+                if (!currentSong || currentSong.videoId !== data.currentSong.videoId) {
+                    currentSong = data.currentSong;
+                    if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
+                        viewerYTPlayer.loadVideoById(currentSong.videoId);
                     }
                 }
-                if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
-            } else { 
-                resetListenerVideo(); 
-                if(btn) {
-                    btn.classList.remove('hidden');
-                    btn.textContent = "配信はオフラインです"; 
-                    btn.disabled = true;
-                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+                if (viewerYTPlayer && typeof viewerYTPlayer.getPlayerState === 'function') {
+                    const state = viewerYTPlayer.getPlayerState();
+                    if (data.status === 'playing') {
+                        const expectedTime = (Date.now() - currentSong.startedAt) / 1000;
+                        if (state !== 1 && state !== 3) {
+                            viewerYTPlayer.seekTo(expectedTime, true);
+                            viewerYTPlayer.playVideo();
+                        } else {
+                            const diff = expectedTime - viewerYTPlayer.getCurrentTime();
+                            if (Math.abs(diff) > 2.0) viewerYTPlayer.seekTo(expectedTime, true);
+                        }
+                    } else if (data.status === 'paused') {
+                        if (state === 1) {
+                            viewerYTPlayer.pauseVideo();
+                            viewerYTPlayer.seekTo(currentSong.pausePosition || 0, true);
+                        }
+                    }
                 }
-                if(tabCamIcon) tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            } else {
+                currentSong = null;
+                playingEl.textContent = "BGM停止中";
+                reqEl.textContent = "";
+                eq.classList.remove('active');
+                if (viewerYTPlayer && typeof viewerYTPlayer.stopVideo === 'function') viewerYTPlayer.stopVideo();
             }
         }
 
-        function resetListenerVideo() {
-            listenerHasStream = false;
-            isListenerVideoOpen = false;
-            const videoEl = document.getElementById('listener-video');
-            if (videoEl) videoEl.srcObject = null;
-        }
-
-        function sendProfileUpdate() {
-            if(!listenerConn || !listenerConn.open) return;
-            let name = document.getElementById('listener-name').value.trim() || "名無し";
-            const isAnon = document.getElementById('listener-anon').checked;
-            localStorage.setItem('jukebox_guest_name', name);
-            localStorage.setItem('jukebox_guest_anon', isAnon);
-            
-            listenerConn.send({ type: 'update_profile', name: name, isRemote: false, isObs: false, uuid: myGuestUUID });
-        }
-
-        const nameInput = document.getElementById('listener-name');
-        if(nameInput) nameInput.addEventListener('change', () => sendProfileUpdate());
-        const anonInput = document.getElementById('listener-anon');
-        if(anonInput) anonInput.addEventListener('change', () => sendProfileUpdate());
-
-        function requestListenerCamera() {
-            const btn = document.getElementById('btn-toggle-camera');
-            if (btn && btn.disabled) return; 
-
-            if (listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'request_camera' });
-                if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
-            }
-        }
+        window.onYouTubeIframeAPIReady = function() {
+            viewerYTPlayer = new YT.Player('listener-youtube-player', {
+                height: '100%', width: '100%',
+                playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
+                events: {
+                    'onReady': (event) => { event.target.mute(); }
+                }
+            });
+        };
 
         function extractVideoId(url) {
             const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/);
@@ -1003,37 +688,7 @@
             }
         }
 
-        function cancelRequest(id) {
-            if (window.db) {
-                window.deleteDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'queues', id));
-                showToast("キャンセルしました");
-            }
-        }
-
-        function reRequestListener(videoId) {
-            const name = document.getElementById('listener-name').value.trim();
-            const isAnon = document.getElementById('listener-anon').checked;
-            if(!name) return showToast("名前を入力してください", "error");
-            
-            localStorage.setItem('jukebox_guest_name', name);
-            localStorage.setItem('jukebox_guest_anon', isAnon);
-            
-            fetchYouTubeTitle(videoId).then(title => {
-                window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
-                    roomId: currentRoomId,
-                    videoId: videoId,
-                    title: title,
-                    requester: isAnon ? '184(匿名)' : name,
-                    requesterReal: name,
-                    isAnon: isAnon,
-                    isRemote: false,
-                    createdAt: Date.now()
-                });
-                showToast("再リクエストを送信しました");
-            });
-        }
-
-        function sendChatRequest(isDummyMode = false) {
+        function sendChatRequest() {
             const inputId = 'listener-chat-input';
             const text = document.getElementById(inputId).value.trim();
             if(!text) return;
@@ -1065,13 +720,10 @@
             const qList = document.getElementById('listener-queue-list');
             if(qList) {
                 qList.innerHTML = '';
-                const myName = document.getElementById('listener-name').value.trim();
                 queue.forEach((q, idx) => {
                     const div = document.createElement('div');
                     div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
-                    
                     const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
-                    
                     div.innerHTML = `
                         <div class="flex items-center gap-2 overflow-hidden">
                             <span class="text-gray-500 font-bold w-4">${idx+1}</span>
@@ -1081,14 +733,6 @@
                             </div>
                         </div>
                     `;
-                    
-                    if(myName && q.requesterReal === myName && !q.isRemote) {
-                        const btn = document.createElement('button');
-                        btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
-                        btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-                        btn.onclick = () => cancelRequest(q.id);
-                        div.appendChild(btn);
-                    }
                     qList.appendChild(div);
                 });
             }
@@ -1112,6 +756,55 @@
                 container.appendChild(div);
             });
             container.scrollTop = container.scrollHeight;
+        }
+
+        function switchListenerLayer(layer) {
+            const camLayer = document.getElementById('listener-cam-layer');
+            const wpLayer = document.getElementById('listener-wp-layer');
+            const tabCam = document.getElementById('tab-cam');
+            const tabWp = document.getElementById('tab-wp');
+
+            if(layer === 'cam') {
+                camLayer.classList.replace('layer-hidden', 'layer-visible');
+                wpLayer.classList.replace('layer-visible', 'layer-hidden');
+                tabCam.classList.add('bg-red-600', 'text-white');
+                tabCam.classList.remove('bg-gray-700', 'text-gray-400');
+                tabWp.classList.add('bg-gray-700', 'text-gray-400');
+                tabWp.classList.remove('bg-indigo-600', 'text-white');
+            } else {
+                wpLayer.classList.replace('layer-hidden', 'layer-visible');
+                camLayer.classList.replace('layer-visible', 'layer-hidden');
+                tabWp.classList.add('bg-indigo-600', 'text-white');
+                tabWp.classList.remove('bg-gray-700', 'text-gray-400');
+                tabCam.classList.add('bg-gray-700', 'text-gray-400');
+                tabCam.classList.remove('bg-red-600', 'text-white');
+            }
+        }
+
+        function toggleListenerAudioFromSwitch(isSoundOn) {
+            const video = document.getElementById('listener-video');
+            if (video) {
+                video.muted = !isSoundOn;
+                if (!video.muted) video.play().catch(e=>{});
+            }
+        }
+
+        function toggleWatchPartyMuteFromSwitch(isSoundOn) {
+            if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
+            if (isSoundOn) viewerYTPlayer.unMute();
+            else viewerYTPlayer.mute();
+        }
+
+        function toggleWatchPartyVideoFromSwitch(isOn) {
+            const playerWrapper = document.getElementById('listener-youtube-player-wrapper');
+            if (playerWrapper) {
+                playerWrapper.style.opacity = isOn ? '1' : '0';
+                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
+            }
+        }
+
+        function requestListenerCamera() {
+            showToast("現在のバージョンではカメラ中継はホストのメイン画面から受け付けています。");
         }
     </script>
 </body>
