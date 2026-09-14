@@ -30,11 +30,6 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ==========================================
-        // 【重要】Firebase 接続設定
-        // クラウド同期を利用するには、ご自身でFirebaseプロジェクトを作成し、
-        // 以下の myFirebaseConfig に設定オブジェクトを貼り付けてください。
-        // ==========================================
         const myFirebaseConfig = {
           apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
           authDomain: "beejukebox-94ad8.firebaseapp.com",
@@ -62,7 +57,6 @@
             const auth = getAuth(app);
             const db = getFirestore(app);
 
-            // Make Firebase instances globally available for the rest of the script
             window.db = db;
             window.auth = auth;
             window.appId = appId;
@@ -286,7 +280,6 @@
                 <div class="flex-1 lg:h-1/2 flex flex-col">
                     <div class="flex bg-[#18181b] border-b border-gray-700 shrink-0 shadow-sm">
                         <button onclick="switchHostSettingsTab('participants')" id="tab-btn-participants" class="hidden lg:block flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-indigo-500 text-indigo-400 transition-colors">PARTICIPANTS</button>
-                        <button onclick="switchHostSettingsTab('bgm')" id="tab-btn-bgm" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-transparent text-gray-500 hover:text-gray-300 transition-colors">BGM</button>
                         <button onclick="switchHostSettingsTab('settings')" id="tab-btn-settings" class="flex-1 py-2 text-[9px] font-black tracking-widest border-b-2 border-transparent text-gray-500 hover:text-gray-300 transition-colors">SETTING/URL</button>
                     </div>
 
@@ -295,28 +288,8 @@
                             <div id="participant-container" class="flex flex-col h-full bg-[#111827] rounded-sm p-2 shadow-sm min-h-0">
                                 <div class="flex justify-between items-center mb-2 border-b border-gray-800 pb-1.5 shrink-0">
                                     <h3 class="text-[10px] font-bold text-gray-400"><i class="fa-solid fa-users"></i> 参加者 <span id="host-participant-count" class="font-normal ml-1"></span></h3>
-                                    <label class="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 cursor-pointer hover:text-gray-200">
-                                        <input type="checkbox" id="setting-cam-approval" onchange="toggleCamApproval()" class="rounded-sm bg-[#0e0e10] border-gray-700 text-red-500 focus:ring-transparent">
-                                        視聴承認制
-                                    </label>
                                 </div>
                                 <div id="host-participant-list" class="flex-1 space-y-1 pr-1 overflow-y-auto min-h-0"></div>
-                            </div>
-                        </div>
-
-                        <div id="tab-content-bgm" class="hidden absolute inset-0 p-2.5 flex flex-col overflow-y-auto space-y-3">
-                            <div>
-                                <div class="flex gap-1.5 mb-2">
-                                    <input type="text" id="input-bgm-url" placeholder="YouTube URL" class="min-w-0 flex-1 p-2 text-[10px]">
-                                    <button onclick="addBGM()" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-3 rounded-sm text-[10px] font-bold transition-colors">追加</button>
-                                </div>
-                                <div class="flex flex-wrap gap-x-3 gap-y-1.5 mb-2 text-[9px] text-gray-400 border-b border-gray-800 pb-2 font-bold uppercase">
-                                    <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="bgm-shuffle" class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500"> <i class="fa-solid fa-shuffle"></i> SHUF</label>
-                                    <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="bgm-loop" checked class="rounded-sm bg-[#0e0e10] border-gray-700 text-indigo-500"> <i class="fa-solid fa-repeat"></i> LOOP</label>
-                                </div>
-                            </div>
-                            <div class="flex-1 border-t border-gray-800 pt-2 min-h-0">
-                                <div id="host-bgm-list" class="space-y-1 max-h-full overflow-y-auto pr-1"></div>
                             </div>
                         </div>
 
@@ -324,7 +297,6 @@
                             <div class="space-y-2 border-b border-gray-800 pb-3">
                                 <h3 class="text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-gear"></i> BASIC CONFIG</h3>
                                 <div><label class="block text-[9px] text-gray-500 mb-0.5">HOST NAME</label><input type="text" id="setting-host-name" class="w-full p-1.5 text-xs" onchange="updateHostSettings()"></div>
-                                <div><label class="block text-[9px] text-gray-500 mb-0.5">MAX DURATION (MIN)</label><input type="number" id="setting-duration" value="10" class="w-full p-1.5 text-xs" onchange="updateHostSettings()"></div>
                             </div>
                             <div class="space-y-2.5">
                                 <h3 class="text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-link"></i> SHARED URLs</h3>
@@ -381,7 +353,6 @@
         
         let hostPassword = ''; 
         let queue = [];
-        let bgmQueue = [];
         let historyQueue = [];
         let chatHistory = []; 
         let currentSong = null;
@@ -389,12 +360,10 @@
         let isLightMode = false;
         let hostName = "配信太郎";
         let hostTheme = "";
-        let durationLimit = 10 * 60;
-        let isHostStateLoaded = false; 
 
         let connectedListeners = {}; 
         let bannedUsers = {};
-        let cameraApprovalMode = false;
+        
         let hostMediaConn = null;
         let currentStreamToListeners = null;
 
@@ -453,14 +422,14 @@
                 });
                 if (tabName === 'col3') {
                     const partContent = document.getElementById('tab-content-participants');
-                    if(partContent && !partContent.classList.contains('hidden')) switchHostSettingsTab('bgm');
-                    else if (document.getElementById('tab-btn-bgm').classList.contains('border-transparent') && document.getElementById('tab-btn-settings').classList.contains('border-transparent')) switchHostSettingsTab('bgm');
+                    if(partContent && !partContent.classList.contains('hidden')) switchHostSettingsTab('settings');
+                    else if (document.getElementById('tab-btn-settings').classList.contains('border-transparent')) switchHostSettingsTab('settings');
                 }
             }
         }
 
         function switchHostSettingsTab(tabName) {
-            ['participants', 'bgm', 'settings'].forEach(name => {
+            ['participants', 'settings'].forEach(name => {
                 const btn = document.getElementById('tab-btn-' + name);
                 const content = document.getElementById('tab-content-' + name);
                 if(btn) {
@@ -631,24 +600,22 @@
             url.searchParams.set('setup_host', currentRoomId);
             history.replaceState(null, '', url);
 
-            // Initialize Room in Firestore with full state sync fields
+            // 1. Firebaseに部屋情報をセット (司令塔となるドキュメント)
             window.setDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), {
                 hostName: hostName,
                 theme: hostTheme,
                 status: 'paused',
                 currentSong: null,
                 isLive: !!currentStreamToListeners,
-                cameraApprovalMode: cameraApprovalMode,
                 historyQueue: historyQueue,
                 participants: [],
-                bannedUsers: bannedUsers,
                 requirePassword: !!hostPassword
             }, { merge: true }).then(() => {
                 document.getElementById('status-dot').classList.replace('bg-yellow-500', 'bg-green-500');
                 document.getElementById('status-text').textContent = "CLOUD SYNC ACTIVE";
             });
 
-            // Listen to Queues from Firestore
+            // 2. キューの監視
             window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), (snapshot) => {
                 let allQ = [];
                 snapshot.forEach(doc => {
@@ -659,12 +626,13 @@
                 queue = allQ;
                 updateUI();
                 
+                // キューが追加されたとき、曲が停止中なら自動再生
                 if(!currentSong && queue.length > 0 && player && typeof player.getPlayerState === 'function') {
                      playNext();
                 }
             });
 
-            // Listen to Chats from Firestore
+            // 3. チャットの監視
             window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), (snapshot) => {
                 let allC = [];
                 snapshot.forEach(doc => {
@@ -679,18 +647,38 @@
                         triggerTTS(newestChat);
                     }
                 }
-                
                 chatHistory = allC.slice(-100);
                 renderChatList('host-chat-list', chatHistory);
             });
 
-            // Load saved local state & YouTube API immediately (safe from PeerJS crash)
-            loadHostState();
             loadYouTubeAPI(); 
             
-            // Setup P2P safely with try-catch
+            // 4. P2P接続の設定 (毎秒の高頻度同期とカメラ映像配信のため)
             try {
                 peer = new Peer(`jukebox-${currentRoomId}`);
+                
+                // --- 毎秒同期（P2P） ---
+                setInterval(() => {
+                    if (player && typeof player.getCurrentTime === 'function' && typeof player.getPlayerState === 'function') {
+                        let actualVideoId = currentSong ? currentSong.videoId : null;
+                        try {
+                            const vData = player.getVideoData();
+                            if(vData && vData.video_id) actualVideoId = vData.video_id;
+                        } catch(e) {}
+
+                        const syncData = {
+                            type: 'sync_playback',
+                            videoId: actualVideoId,
+                            time: player.getCurrentTime(),
+                            status: player.getPlayerState()
+                        };
+                        // 繋がっているすべてのクライアントへ直接送信（高速・高頻度）
+                        Object.values(connectedListeners).forEach(p => {
+                            if(p.conn.open) p.conn.send(syncData);
+                        });
+                    }
+                }, 1000);
+
                 peer.on('connection', (conn) => {
                     if (bannedUsers[conn.peer]) {
                         conn.on('open', () => { conn.send({type: 'banned'}); conn.close(); });
@@ -699,7 +687,7 @@
                     
                     conn.isAuthenticated = false;
                     connectedListeners[conn.peer] = {
-                        id: conn.peer, conn: conn, name: "リスナー", isMuted: false, cameraStatus: 'none', isRemote: false, isObs: false, isCam: conn.peer.startsWith('cam-'), lastPongReceived: Date.now()
+                        id: conn.peer, conn: conn, name: "リスナー", isMuted: false, isRemote: false, isObs: false, isCam: conn.peer.startsWith('cam-'), lastPongReceived: Date.now()
                     };
                     updateParticipantsUI();
                     broadcastStateToFirestore();
@@ -711,8 +699,7 @@
                             videoId: currentSong ? currentSong.videoId : null,
                             hostName: hostName,
                             requirePassword: !!hostPassword,
-                            isLive: !!currentStreamToListeners,
-                            cameraApprovalMode: cameraApprovalMode
+                            isLive: !!currentStreamToListeners
                         });
                     });
                     
@@ -787,7 +774,7 @@
                     document.getElementById('status-text').textContent = "P2P通信エラー(DB同期は継続)";
                 });
 
-                // Periodically check P2P listener connection health
+                // ヘルスチェック
                 setInterval(() => {
                     const now = Date.now();
                     let needsUpdate = false;
@@ -812,7 +799,7 @@
                 }, 10000);
 
             } catch (e) {
-                console.warn("PeerJS Init Error, continuing with Firebase only:", e);
+                console.warn("PeerJS Init Error:", e);
                 document.getElementById('status-dot').classList.replace('bg-green-500', 'bg-red-500');
                 document.getElementById('status-text').textContent = "P2P通信無効(DB同期は継続)";
             }
@@ -842,24 +829,19 @@
                     listener.isRemote = data.isRemote || false;
                     listener.isObs = data.isObs || false;
                     listener.uuid = data.uuid;
-                    // Auto approve for OBS or Remotes
-                    if (listener.isObs || listener.isRemote || (listener.uuid && approvedUsers[listener.uuid])) {
-                        listener.cameraStatus = 'approved';
-                        if (currentStreamToListeners && !listener.call) sendStreamToPeer(listener.id);
-                    }
                     updateParticipantsUI();
                     broadcastStateToFirestore();
                 }
             } else if (data.type === 'remote_cmd') {
-                if (data.cmd === 'toggle') togglePlayHost();
-                else if (data.cmd === 'skip') playNext(true);
+                // リモコンからのコマンドを処理
+                if (data.cmd === 'toggle') {
+                    togglePlayHost(); // 確実にトグルさせる
+                }
+                else if (data.cmd === 'skip') {
+                    playNext(true);
+                }
                 else if (data.cmd === 'manage') {
                     if (data.action === 'cancel_req') removeQueue(data.targetId);
-                    else if (data.action === 'toggle_cam_approval') {
-                        const el = document.getElementById('setting-cam-approval');
-                        if (el) el.checked = data.targetId;
-                        toggleCamApproval();
-                    } else manageUser(data.targetId, data.action);
                 }
             } else if (data.type === 'update_theme') {
                 hostTheme = data.theme;
@@ -867,25 +849,6 @@
                 if (themeInput) themeInput.value = hostTheme;
                 broadcastStateToFirestore();
                 showToast("テーマを更新しました");
-            } else if (data.type === 'request_camera') {
-                if (listener) {
-                    if (cameraApprovalMode && !listener.isRemote && !listener.isObs) {
-                        listener.cameraStatus = 'requested';
-                        updateParticipantsUI();
-                        broadcastStateToFirestore();
-                        // Optional: Notify remote controllers via P2P
-                        Object.values(connectedListeners).forEach(p => {
-                            if(p.isRemote && p.conn.open) p.conn.send({type: 'camera_request_alert', id: listener.id, name: listener.name});
-                        });
-                    } else {
-                        listener.cameraStatus = 'approved';
-                        broadcastStateToFirestore();
-                        if (currentStreamToListeners && !listener.call) sendStreamToPeer(peerId);
-                    }
-                }
-            } else if (data.type === 'camera_stop') {
-                if (hostMediaConn) hostMediaConn.close();
-                stopBroadcastStream();
             } else if (data.type === 'request_sync') {
                 broadcastStateToFirestore();
                 if(listener && listener.conn.open) {
@@ -895,18 +858,17 @@
                         videoId: currentSong ? currentSong.videoId : null,
                         hostName: hostName,
                         requirePassword: !!hostPassword,
-                        isLive: !!currentStreamToListeners,
-                        cameraApprovalMode: cameraApprovalMode
+                        isLive: !!currentStreamToListeners
                     });
                 }
             }
         }
 
-        // Writes all critical state to Firestore to serve as the single source of truth
+        // Firebase Firestoreへの状態書き出し (すべての画面の情報を揃える)
         function broadcastStateToFirestore() {
             if (!currentRoomId || !window.db) return;
             const safeParticipants = Object.values(connectedListeners).map(p => ({
-                id: p.id, name: p.name, isMuted: p.isMuted, cameraStatus: p.cameraStatus, isRemote: p.isRemote, isObs: p.isObs, isCam: p.isCam
+                id: p.id, name: p.name, isMuted: p.isMuted, isRemote: p.isRemote, isObs: p.isObs, isCam: p.isCam
             }));
 
             let stateCurrentSong = currentSong ? { ...currentSong } : null;
@@ -923,10 +885,8 @@
                 status: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1 ? 'playing' : 'paused') : 'paused',
                 currentSong: stateCurrentSong,
                 isLive: !!currentStreamToListeners,
-                cameraApprovalMode: cameraApprovalMode,
                 participants: safeParticipants,
-                historyQueue: historyQueue,
-                bannedUsers: bannedUsers
+                historyQueue: historyQueue
             }).catch(e => console.warn("Firestore broadcast error:", e));
         }
 
@@ -1020,7 +980,7 @@
                         }
                     } catch(e) {}
                     
-                    // Firebaseに絶対タイムスタンプを記録して、全画面での同期を担保
+                    // Firebaseに絶対タイムスタンプを記録（途中参加者の同期用）
                     const startedAt = Date.now() - (player.getCurrentTime() * 1000);
                     currentSong.startedAt = startedAt;
                     currentSong.pausePosition = player.getCurrentTime();
@@ -1028,6 +988,7 @@
                 }
             } else if (event.data === YT.PlayerState.PAUSED) {
                 if (currentSong) {
+                    // 一時停止した位置を保存
                     currentSong.pausePosition = player.getCurrentTime();
                     broadcastStateToFirestore();
                 }
@@ -1037,12 +998,18 @@
         }
 
         function togglePlayHost() {
-            if(!player || !currentSong || typeof player.getPlayerState !== 'function') return;
-            if(player.getPlayerState() === 1) {
+            if(!player || typeof player.getPlayerState !== 'function') return;
+            const state = player.getPlayerState();
+            // -1:未開始, 1:再生中, 2:一時停止, 3:バッファリング中, 5:頭出し済み
+            if(state === 1) {
                 player.pauseVideo();
             } else {
                 player.playVideo();
             }
+            // リモコンからの指示の直後にクラウドとP2Pへ状態を強制送信する
+            setTimeout(() => {
+                broadcastStateToFirestore();
+            }, 300);
         }
 
         function playNext(forceSkip = false) {
@@ -1065,7 +1032,6 @@
                 currentSong = null;
                 player.stopVideo();
             }
-            saveHostState();
             broadcastStateToFirestore();
             updateUI();
         }
@@ -1073,9 +1039,6 @@
         function updateHostSettings() {
             hostName = document.getElementById('setting-host-name').value || "配信太郎";
             hostTheme = document.getElementById('setting-theme').value;
-            durationLimit = parseInt(document.getElementById('setting-duration').value) * 60;
-            if(isNaN(durationLimit)) durationLimit = 0;
-            saveHostState();
             broadcastStateToFirestore();
             showToast("設定を更新しました");
         }
@@ -1192,68 +1155,6 @@
                 btn.innerHTML = '<i class="fa-solid fa-video"></i> 映像ON';
             }
         }
-        
-        function toggleCamApproval() {
-            cameraApprovalMode = document.getElementById('setting-cam-approval').checked;
-            if(!cameraApprovalMode) {
-                Object.values(connectedListeners).forEach(p => {
-                    if(!p.isRemote && !p.isObs) {
-                        p.cameraStatus = 'approved';
-                        if(currentStreamToListeners && !p.call) sendStreamToPeer(p.id);
-                    }
-                });
-            } else {
-                Object.values(connectedListeners).forEach(p => {
-                    if(!p.isObs && !p.isRemote && p.cameraStatus !== 'approved') {
-                        p.cameraStatus = 'none';
-                    }
-                });
-            }
-            broadcastStateToFirestore();
-            updateParticipantsUI();
-        }
-
-        function manageUser(peerId, action) {
-            const p = connectedListeners[peerId];
-            if(action === 'unban') {
-                delete bannedUsers[peerId];
-                saveHostState();
-                updateParticipantsUI();
-                broadcastStateToFirestore();
-                showToast("BANを解除しました");
-                return;
-            }
-            if(!p) return;
-            if(action === 'approve_cam') {
-                p.cameraStatus = 'approved';
-                if(p.uuid) {
-                    approvedUsers[p.uuid] = true;
-                    saveHostState();
-                }
-                if(currentStreamToListeners && !p.call) sendStreamToPeer(peerId);
-                showToast(`${p.name}の視聴を許可しました`);
-            } else if(action === 'reject_cam') {
-                p.cameraStatus = 'none';
-                if(p.uuid) {
-                    delete approvedUsers[p.uuid];
-                    saveHostState();
-                }
-                showToast(`${p.name}の視聴を拒否しました`);
-            } else if(action === 'mute') {
-                p.isMuted = !p.isMuted;
-                showToast(`${p.name}を${p.isMuted ? '投稿禁止' : '解除'}しました`);
-            } else if(action === 'ban') {
-                bannedUsers[peerId] = { name: p.name, time: Date.now(), uuid: p.uuid }; 
-                saveHostState();
-                if(p.call) p.call.close();
-                p.conn.send({type: 'banned'});
-                p.conn.close();
-                delete connectedListeners[peerId];
-                showToast(`ユーザーをBANしました`, 'error');
-            }
-            updateParticipantsUI();
-            broadcastStateToFirestore();
-        }
 
         function reRequestHost(videoId, reqName) {
             window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
@@ -1268,39 +1169,29 @@
                 createdAt: Date.now()
             });
             showToast("再リクエストしました");
-            fetchYouTubeTitle(videoId).then(title => {});
             if(!currentSong) playNext();
         }
 
-        function saveHostState() {
-            if (!isHostStateLoaded) return;
-            const data = { 
-                historyQueue, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers, approvedUsers
-            };
-            localStorage.setItem('jukebox_state_' + currentRoomId, JSON.stringify(data));
-        }
-
-        function loadHostState() {
-            try {
-                const saved = localStorage.getItem('jukebox_state_' + currentRoomId);
-                if(saved) {
-                    const data = JSON.parse(saved);
-                    historyQueue = Array.isArray(data.historyQueue) ? data.historyQueue : [];
-                    cameraApprovalMode = !!data.cameraApprovalMode;
-                    bannedUsers = data.bannedUsers || {};
-                    approvedUsers = data.approvedUsers || {};
+        function updateParticipantsUI() {
+            const hList = document.getElementById('host-participant-list');
+            if(hList) {
+                hList.innerHTML = '';
+                const list = Object.values(connectedListeners);
+                let count = 0;
+                list.forEach(p => {
+                    if(p.isObs || p.isCam) return; 
+                    count++;
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-[#18181b] border border-gray-800 p-2 rounded-sm text-[10px] mb-1";
                     
-                    const camAppEl = document.getElementById('setting-cam-approval');
-                    if(camAppEl) camAppEl.checked = cameraApprovalMode;
+                    let nameLabel = p.name;
+                    if(p.isRemote) nameLabel += ' <span class="text-[9px] text-yellow-500 ml-1 font-bold">ADMIN</span>';
                     
-                    if(data.hostName) { hostName = data.hostName; document.getElementById('setting-host-name').value = hostName; }
-                    if(data.hostTheme) { hostTheme = data.hostTheme; document.getElementById('setting-theme').value = hostTheme; }
-                    if(data.durationLimit !== undefined) { durationLimit = data.durationLimit; document.getElementById('setting-duration').value = durationLimit / 60; }
-                }
-            } catch(e) { console.warn("Failed to load host state", e); }
-            finally {
-                isHostStateLoaded = true;
-                updateUI();
+                    div.innerHTML = `<div class="truncate flex-1 font-bold text-gray-300">${nameLabel}</div>`;
+                    hList.appendChild(div);
+                });
+                const countEl = document.getElementById('host-participant-count');
+                if (countEl) countEl.textContent = `(${count})`;
             }
         }
 
@@ -1329,9 +1220,7 @@
         function broadcastStreamToListeners(stream) {
             currentStreamToListeners = stream;
             Object.values(connectedListeners).forEach(listener => {
-                if(!cameraApprovalMode || listener.cameraStatus === 'approved' || listener.isObs || listener.isRemote) {
-                    sendStreamToPeer(listener.id);
-                }
+                sendStreamToPeer(listener.id);
             });
             showToast("カメラ中継を開始しました", "info");
             broadcastStateToFirestore();
