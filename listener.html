@@ -104,39 +104,6 @@
         }
     </style>
 
-    <!-- 【プレビュー環境対策】Canvas等でWebSocketが制限されている場合、PeerJSのクラッシュを防ぐパッチ -->
-    <script>
-        (function() {
-            const OriginalWebSocket = window.WebSocket;
-            if (!OriginalWebSocket) return;
-            window.WebSocket = function(url, protocols) {
-                try {
-                    return protocols ? new OriginalWebSocket(url, protocols) : new OriginalWebSocket(url);
-                } catch (e) {
-                    if (e.name === 'SecurityError' || (e.message && e.message.includes('not allowed in Canvas'))) {
-                        console.warn("Canvasプレビュー環境を検知しました。WebSocketが制限されているため、P2P機能を安全に無効化します。");
-                        const dummyWs = {
-                            readyState: 3, close: function() {}, send: function() {},
-                            addEventListener: function() {}, removeEventListener: function() {},
-                            onerror: null, onclose: null, onopen: null, onmessage: null
-                        };
-                        setTimeout(() => { 
-                            if (dummyWs.onerror) dummyWs.onerror(new Event('error')); 
-                            if (dummyWs.onclose) dummyWs.onclose({code: 1006, reason: 'SecurityError', wasClean: false}); 
-                        }, 0);
-                        return dummyWs;
-                    }
-                    throw e;
-                }
-            };
-            window.WebSocket.prototype = OriginalWebSocket.prototype;
-            window.WebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
-            window.WebSocket.OPEN = OriginalWebSocket.OPEN;
-            window.WebSocket.CLOSING = OriginalWebSocket.CLOSING;
-            window.WebSocket.CLOSED = OriginalWebSocket.CLOSED;
-        })();
-    </script>
-
     <!-- Firebase Initialization -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -334,11 +301,12 @@
                     
                     <!-- Jukebox映像レイヤー -->
                     <div id="listener-wp-layer" class="absolute inset-0 layer-visible bg-black">
-                        <div id="listener-youtube-player-wrapper" class="w-full h-full">
+                        <!-- ここをポインターイベントなしに設定 -->
+                        <div id="listener-youtube-player-wrapper" class="w-full h-full pointer-events-none">
                             <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
                         </div>
                         <!-- 初回タップ用オーバーレイ -->
-                        <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
+                        <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300 pointer-events-auto" onclick="handleOverlayClick()">
                             <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
                             <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
                         </div>
@@ -629,7 +597,9 @@
                     if(toggle) toggle.checked = true;
                     
                     if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
-                        viewerYTPlayer.playVideo();
+                        if (hostCurrentStatus === 1) {
+                            viewerYTPlayer.playVideo();
+                        }
                     }
                 }
                 
@@ -688,7 +658,7 @@
             const playerWrapper = document.getElementById('listener-youtube-player-wrapper');
             if (playerWrapper) {
                 playerWrapper.style.opacity = isOn ? '1' : '0';
-                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
+                // wrapper自体の pointerEvents は常に 'none' なので触らない
             }
         }
 
@@ -710,7 +680,7 @@
                 
                 let playerOptions = {
                     height: '100%', width: '100%',
-                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
+                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 1 }, // キーボード操作無効化
                     events: {
                         'onReady': (event) => {
                             event.target.mute(); 
@@ -738,18 +708,30 @@
             }
 
             const state = viewerYTPlayer.getPlayerState();
-            const currentTime = viewerYTPlayer.getCurrentTime();
-            hostCurrentTime = data.time; 
+            const currentTime = viewerYTPlayer.getCurrentTime() || 0;
+            hostCurrentTime = data.time || 0; 
             hostCurrentStatus = data.status;
 
             if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
                 currentSong = { videoId: data.videoId };
-                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
+                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: hostCurrentTime});
                 return;
             }
 
+            // 初回タップ待ちの場合は時間だけ合わせる（自動再生はしない）
+            if (isWpOverlayActive) {
+                 if (data.status === 2 || data.status === -1) {
+                     if (Math.abs(hostCurrentTime - currentTime) > 2.0) {
+                         viewerYTPlayer.seekTo(hostCurrentTime, true);
+                     }
+                 }
+                 return;
+            }
+
             if (data.status === 1) { 
-                if (state !== 1 && state !== 3) viewerYTPlayer.playVideo();
+                if (state !== 1 && state !== 3) {
+                    viewerYTPlayer.playVideo();
+                }
                 
                 const diff = hostCurrentTime - currentTime;
                 
@@ -766,8 +748,10 @@
                     viewerYTPlayer.seekTo(hostCurrentTime, true);
                 }
             } else if (data.status === 2 || data.status === -1) { 
-                if (state === 1) {
+                if (state === 1 || state === 3) {
                     viewerYTPlayer.pauseVideo();
+                }
+                if (Math.abs(hostCurrentTime - currentTime) > 1.0) {
                     viewerYTPlayer.seekTo(hostCurrentTime, true);
                     viewerYTPlayer.setPlaybackRate(1.0);
                 }
@@ -1054,6 +1038,44 @@
                 if(eq) eq.classList.remove('active');
             }
 
+            // Firestoreから「絶対時間」での同期（大枠の同期のみ、細かいシークはP2Pに任せる）
+            if (currentSongData) {
+                if (!currentSong || currentSong.videoId !== currentSongData.videoId) {
+                    currentSong = currentSongData;
+                    if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
+                        const startAt = state.status === 'playing' 
+                            ? Math.max(0, (Date.now() - (currentSong.startedAt || Date.now())) / 1000)
+                            : (currentSong.pausePosition || 0);
+                        viewerYTPlayer.loadVideoById({videoId: currentSong.videoId, startSeconds: startAt});
+                        
+                        if (state.status === 'paused') {
+                            setTimeout(() => { 
+                                if(viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function') {
+                                    viewerYTPlayer.pauseVideo(); 
+                                    viewerYTPlayer.seekTo(startAt, true);
+                                }
+                            }, 500);
+                        }
+                    }
+                } else {
+                    if (viewerYTPlayer && typeof viewerYTPlayer.getPlayerState === 'function') {
+                        const ytState = viewerYTPlayer.getPlayerState();
+                        if (state.status === 'playing') {
+                            if (ytState !== 1 && ytState !== 3 && !isWpOverlayActive) {
+                                viewerYTPlayer.playVideo();
+                            }
+                        } else if (state.status === 'paused') {
+                            if (ytState === 1 || ytState === 3) {
+                                viewerYTPlayer.pauseVideo();
+                            }
+                        }
+                    }
+                }
+            } else {
+                currentSong = null;
+                if (viewerYTPlayer && typeof viewerYTPlayer.stopVideo === 'function') viewerYTPlayer.stopVideo();
+            }
+
             document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
 
             const tDiv = document.getElementById('listener-theme-container');
@@ -1101,7 +1123,7 @@
                     const div = document.createElement('div');
                     div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
                     
-                    const dispName = q.isAnon ? '184(匿名)' : q.requester;
+                    const dispName = q.isAnon ? '184(匿名)' : q.requesterReal;
                     const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
                     
                     div.innerHTML = `
