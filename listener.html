@@ -423,7 +423,6 @@
         let currentRoomId = null;
         let savedPasswords = JSON.parse(localStorage.getItem('jukebox_passwords')) || {};
         let queue = [];
-        let historyQueue = [];
         let chatHistory = []; 
         let currentSong = null;
 
@@ -772,7 +771,7 @@
             }
 
             // 参加者リストの更新
-            window.remoteReceivedParticipants = participants;
+            window.remoteReceivedParticipants = participants || [];
             renderParticipantList(document.getElementById('listener-participant-list'));
 
             // UIとYouTubeの同期
@@ -944,6 +943,8 @@
                             return;
                         }
                         if(data.type === 'error') { showToast(data.msg, "error"); return; }
+                        
+                        // P2Pからの微調整用の同期信号
                         if(data.type === 'sync_playback') {
                             handleSyncPlayback(data);
                         }
