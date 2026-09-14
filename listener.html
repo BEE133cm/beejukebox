@@ -104,6 +104,39 @@
         }
     </style>
 
+    <!-- 【プレビュー環境対策】Canvas等でWebSocketが制限されている場合、PeerJSのクラッシュを防ぐパッチ -->
+    <script>
+        (function() {
+            const OriginalWebSocket = window.WebSocket;
+            if (!OriginalWebSocket) return;
+            window.WebSocket = function(url, protocols) {
+                try {
+                    return protocols ? new OriginalWebSocket(url, protocols) : new OriginalWebSocket(url);
+                } catch (e) {
+                    if (e.name === 'SecurityError' || (e.message && e.message.includes('not allowed in Canvas'))) {
+                        console.warn("Canvasプレビュー環境を検知しました。WebSocketが制限されているため、P2P機能を安全に無効化します。");
+                        const dummyWs = {
+                            readyState: 3, close: function() {}, send: function() {},
+                            addEventListener: function() {}, removeEventListener: function() {},
+                            onerror: null, onclose: null, onopen: null, onmessage: null
+                        };
+                        setTimeout(() => { 
+                            if (dummyWs.onerror) dummyWs.onerror(new Event('error')); 
+                            if (dummyWs.onclose) dummyWs.onclose({code: 1006, reason: 'SecurityError', wasClean: false}); 
+                        }, 0);
+                        return dummyWs;
+                    }
+                    throw e;
+                }
+            };
+            window.WebSocket.prototype = OriginalWebSocket.prototype;
+            window.WebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
+            window.WebSocket.OPEN = OriginalWebSocket.OPEN;
+            window.WebSocket.CLOSING = OriginalWebSocket.CLOSING;
+            window.WebSocket.CLOSED = OriginalWebSocket.CLOSED;
+        })();
+    </script>
+
     <!-- Firebase Initialization -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -170,6 +203,7 @@
 </head>
 <body class="p-0 overflow-hidden relative">
 
+    <!-- トースト通知 -->
     <div id="toast" class="toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3">
         <span id="toast-msg"></span>
     </div>
@@ -272,133 +306,131 @@
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- ========== 左ペイン: 映像とコントロール (横画面時は残り幅全占有) ========== -->
-        <div class="flex flex-col w-full landscape:w-auto landscape:flex-1 landscape:h-full shrink-0 relative z-20 bg-black">
-            
-            <!-- 1. 映像エリア (上部固定 / 横画面時は全画面) -->
-            <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden aspect-video landscape:aspect-auto landscape:flex-1">
+            <!-- ========== 左ペイン: 映像とコントロール (横画面時は残り幅全占有) ========== -->
+            <div class="flex flex-col w-full landscape:w-auto landscape:flex-1 landscape:h-full shrink-0 relative z-20 bg-black">
                 
-                <!-- NowPlaying帯 (映像上部) -->
-                <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
-                    <div id="listener-eq" class="equalizer scale-75 shrink-0 origin-left"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
-                    <div class="marquee-container h-4 flex-1">
-                        <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
-                            <span id="listener-now-playing">接続待ち...</span>
-                            <span id="listener-now-requester" class="text-indigo-300 font-normal"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Stream映像レイヤー -->
-                <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
-                    <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
-                        <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
-                    </button>
-                    <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
-                </div>
-                
-                <!-- Jukebox映像レイヤー -->
-                <div id="listener-wp-layer" class="absolute inset-0 layer-visible bg-black">
-                    <!-- 変更点: pointer-events-none を追加して手動操作をブロック -->
-                    <div id="listener-youtube-player-wrapper" class="w-full h-full pointer-events-none">
-                        <div id="listener-youtube-player" class="w-full h-full"></div>
-                    </div>
-                    <!-- 初回タップ用オーバーレイ -->
-                    <!-- 変更点: pointer-events-auto を明示してこのボタンだけは押せるようにする -->
-                    <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300 pointer-events-auto" onclick="handleOverlayClick()">
-                        <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
-                        <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 1.5 配信主からのコメント表示（テーマ） -->
-            <div id="listener-theme-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
-
-            <div id="listener-controls-bar" class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
-                <!-- 映像切り替えタブ -->
-                <div class="flex gap-2">
-                    <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
-                    <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
-                </div>
-                <!-- 設定モーダル呼び出しボタン -->
-                <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
-                    <i class="fa-solid fa-gear"></i>
-                </button>
-            </div>
-
-        </div> <!-- 左ペイン終了 -->
-
-        <!-- ========== 右ペイン: スクロール領域 (リクエスト類 ＋ チャット) ========== -->
-        <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0 landscape:w-[320px] lg:landscape:w-[400px] landscape:flex-none landscape:border-l landscape:border-gray-800">
-            
-            <!-- リクエスト・ステータス等（アコーディオン） -->
-            <details id="listener-menu-details" class="bg-[#18181b] border-b border-gray-800 shrink-0 group z-10 relative">
-                <summary class="p-3 cursor-pointer text-gray-400 font-bold text-xs flex justify-between items-center outline-none hover:text-white transition-colors">
-                    <div class="flex items-center gap-2">
-                        <i class="fa-solid fa-music text-indigo-400 text-sm"></i> 
-                        <span>リクエスト等 (タップで開閉)</span>
-                    </div>
-                    <span class="group-open:rotate-180 transition-transform"><i class="fa-solid fa-chevron-down"></i></span>
-                </summary>
-                
-                <!-- アコーディオンの中身 (チャットを隠して表示) -->
-                <div class="p-4 space-y-6 bg-[#111827] border-t border-gray-800 h-full overflow-y-auto pb-32">
+                <!-- 1. 映像エリア (上部固定 / 横画面時は全画面) -->
+                <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden aspect-video landscape:aspect-auto landscape:flex-1">
                     
-                    <!-- ① リクエスト送信 -->
-                    <div class="space-y-3">
-                        <h3 class="text-xs font-bold text-indigo-400 flex items-center gap-1">
-                            <i class="fa-solid fa-arrow-down text-indigo-400"></i> リクエストはこちらから！
-                            <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="bg-gray-700 text-gray-300 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-2"><i class="fa-solid fa-question"></i></button>
-                        </h3>
-                        <div class="flex gap-2">
-                            <input type="text" id="listener-url" placeholder="https://youtu.be/..." class="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs outline-none focus:border-indigo-500">
-                            <button onclick="sendRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded text-xs font-bold transition-colors">送信</button>
+                    <!-- NowPlaying帯 (映像上部) -->
+                    <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
+                        <div id="listener-eq" class="equalizer scale-75 shrink-0 origin-left"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
+                        <div class="marquee-container h-4 flex-1">
+                            <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
+                                <span id="listener-now-playing">接続待ち...</span>
+                                <span id="listener-now-requester" class="text-indigo-300 font-normal"></span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- ② キューと履歴 -->
-                    <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-800/60">
-                        <div>
-                            <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">順番待ち (<span id="listener-queue-count">0</span>)</h3>
-                            <div id="listener-queue-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px]"></div>
+                    <!-- Stream映像レイヤー -->
+                    <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
+                        <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
+                            <i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)
+                        </button>
+                        <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
+                    </div>
+                    
+                    <!-- Jukebox映像レイヤー -->
+                    <div id="listener-wp-layer" class="absolute inset-0 layer-visible bg-black">
+                        <div id="listener-youtube-player-wrapper" class="w-full h-full">
+                            <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
                         </div>
-                        <div>
-                            <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">再生履歴</h3>
-                            <div id="listener-history-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px] text-gray-500"></div>
+                        <!-- 初回タップ用オーバーレイ -->
+                        <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
+                            <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
+                            <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
                         </div>
                     </div>
+                </div>
 
-                    <!-- 最下部余白用バージョン表記 -->
-                    <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.42 (Sync Fixed)
+                <!-- 1.5 配信主からのコメント表示（テーマ） -->
+                <div id="listener-theme-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
+
+                <div id="listener-controls-bar" class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
+                    <!-- 映像切り替えタブ -->
+                    <div class="flex gap-2">
+                        <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
+                        <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
+                    </div>
+                    <!-- 設定モーダル呼び出しボタン -->
+                    <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                </div>
+
+            </div> <!-- 左ペイン終了 -->
+
+            <!-- ========== 右ペイン: スクロール領域 (リクエスト類 ＋ チャット) ========== -->
+            <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0 landscape:w-[320px] lg:landscape:w-[400px] landscape:flex-none landscape:border-l landscape:border-gray-800">
+                
+                <!-- リクエスト・ステータス等（アコーディオン） -->
+                <details id="listener-menu-details" class="bg-[#18181b] border-b border-gray-800 shrink-0 group z-10 relative">
+                    <summary class="p-3 cursor-pointer text-gray-400 font-bold text-xs flex justify-between items-center outline-none hover:text-white transition-colors">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-music text-indigo-400 text-sm"></i> 
+                            <span>リクエスト等 (タップで開閉)</span>
+                        </div>
+                        <span class="group-open:rotate-180 transition-transform"><i class="fa-solid fa-chevron-down"></i></span>
+                    </summary>
+                    
+                    <!-- アコーディオンの中身 (チャットを隠して表示) -->
+                    <div class="p-4 space-y-6 bg-[#111827] border-t border-gray-800 h-full overflow-y-auto pb-32">
+                        
+                        <!-- ① リクエスト送信 -->
+                        <div class="space-y-3">
+                            <h3 class="text-xs font-bold text-indigo-400 flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-down text-indigo-400"></i> リクエストはこちらから！
+                                <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="bg-gray-700 text-gray-300 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-2"><i class="fa-solid fa-question"></i></button>
+                            </h3>
+                            <div class="flex gap-2">
+                                <input type="text" id="listener-url" placeholder="https://youtu.be/..." class="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs outline-none focus:border-indigo-500">
+                                <button onclick="sendRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded text-xs font-bold transition-colors">送信</button>
+                            </div>
+                        </div>
+
+                        <!-- ② キューと履歴 -->
+                        <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-800/60">
+                            <div>
+                                <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">順番待ち (<span id="listener-queue-count">0</span>)</h3>
+                                <div id="listener-queue-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px]"></div>
+                            </div>
+                            <div>
+                                <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">再生履歴</h3>
+                                <div id="listener-history-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px] text-gray-500"></div>
+                            </div>
+                        </div>
+
+                        <!-- 最下部余白用バージョン表記 -->
+                        <div class="pt-8 text-center text-gray-700 text-[10px]">
+                            v1.0.42 (Canvas Security Fix)
+                        </div>
+
+                    </div>
+                </details>
+
+                <!-- チャットリスト領域 (アコーディオン開閉時に隠れるラッパー) -->
+                <div id="listener-chat-area-wrapper" class="flex-1 flex flex-col min-h-0 relative">
+                    <!-- 接続ステータス -->
+                    <div id="listener-status" class="absolute top-2 left-0 w-full text-center text-[10px] text-yellow-500 animate-pulse pointer-events-none">ルームに接続中...</div>
+
+                    <!-- フローティング用のバックドロップ（チャット履歴領域のみ暗くする） -->
+                    <div id="listener-chat-backdrop" class="chat-backdrop" onclick="closeChatInput()"></div>
+
+                    <div id="listener-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto min-h-0 flex flex-col justify-end pb-4 pt-6 relative z-10">
+                        <!-- Chat messages here -->
                     </div>
 
-                </div>
-            </details>
-
-            <!-- チャットリスト領域 (アコーディオン開閉時に隠れるラッパー) -->
-            <div id="listener-chat-area-wrapper" class="flex-1 flex flex-col min-h-0 relative">
-                <!-- 接続ステータス -->
-                <div id="listener-status" class="absolute top-2 left-0 w-full text-center text-[10px] text-yellow-500 animate-pulse pointer-events-none">ルームに接続中...</div>
-
-                <!-- フローティング用のバックドロップ（チャット履歴領域のみ暗くする） -->
-                <div id="listener-chat-backdrop" class="chat-backdrop" onclick="closeChatInput()"></div>
-
-                <div id="listener-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto min-h-0 flex flex-col justify-end pb-4 pt-6 relative z-10">
-                    <!-- Chat messages here -->
+                    <!-- 4. チャット入力エリア -->
+                    <div id="listener-chat-input-container" class="flex-shrink-0 px-3 pt-2 pb-safe bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20">
+                        <input type="text" id="listener-chat-input" name="dummy-chat-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusChatInput()" onblur="blurChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest(false)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
+                        <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
+                    </div>
                 </div>
 
-                <!-- 4. チャット入力エリア -->
-                <div id="listener-chat-input-container" class="flex-shrink-0 px-3 pt-2 pb-safe bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20">
-                    <input type="text" id="listener-chat-input" name="dummy-chat-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusChatInput()" onblur="blurChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest(false)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
-                    <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
-                </div>
-            </div>
-
-        </div> <!-- 右ペイン終了 -->
+            </div> <!-- 右ペイン終了 -->
+        </div>
     </div>
 
     <!-- 全画面共通リロードボタン (アイコン化) -->
@@ -407,22 +439,31 @@
     </button>
 
     <script>
+        let peer = null;
         let currentRoomId = null;
+        
+        let savedPasswords = JSON.parse(localStorage.getItem('jukebox_passwords')) || {};
+
         let queue = [];
         let historyQueue = [];
         let chatHistory = []; 
         let currentSong = null;
-        let viewerYTPlayer = null;
-        let isWpOverlayActive = true;
-        let listenerName = "名無し";
 
-        let peer = null;
         let listenerConn = null;
         let listenerId = null;
+        
+        let myGuestUUID = localStorage.getItem('jukebox_uuid');
+        if (!myGuestUUID) {
+            myGuestUUID = 'user-' + generateId() + generateId();
+            localStorage.setItem('jukebox_uuid', myGuestUUID);
+        }
+
         let isListenerVideoOpen = false;
         let listenerHasStream = false;
         let isWatchPartyEnabled = true;
 
+        let viewerYTPlayer = null;
+        let isWpOverlayActive = true;
         let hostCurrentTime = 0;
         let hostCurrentStatus = -1;
         let pendingConnection = null;
@@ -443,6 +484,7 @@
             }
         });
 
+        // チャット入力欄フローティング機能のJS関数 (リスナー用)
         function focusChatInput() {
             document.getElementById('listener-chat-input-container').classList.add('chat-input-floating');
             document.getElementById('listener-chat-backdrop').classList.add('active');
@@ -472,7 +514,6 @@
             const anonEl = document.getElementById('listener-anon');
             if (savedName && nameEl) nameEl.value = savedName;
             if (savedAnon !== null && anonEl) anonEl.checked = (savedAnon === 'true');
-            if (savedName) listenerName = savedName;
 
             const params = new URLSearchParams(window.location.search);
             try {
@@ -490,11 +531,57 @@
         function showToast(msg, type="info") {
             const toast = document.getElementById('toast');
             document.getElementById('toast-msg').innerHTML = msg;
-            toast.className = `toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3`;
+            toast.className = `toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3 text-sm`;
             if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
             else toast.classList.replace('border-red-500', 'border-indigo-500');
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function generateId() { return Math.random().toString(36).substring(2, 9); }
+
+        function showBannedScreen() {
+            document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500"><i class="fa-solid fa-ban"></i> アクセスがブロックされました</h1><p class="text-gray-300">管理者の操作により、このルームへのアクセスが制限されています。</p></div>';
+        }
+
+        function saveGuestHistory(roomId, hostName) {
+            if(!roomId) return;
+            let history = JSON.parse(localStorage.getItem('jukebox_guest_history')) || [];
+            history = history.filter(h => h.roomId !== roomId);
+            history.unshift({ roomId: roomId, hostName: hostName || roomId, time: Date.now() });
+            if(history.length > 10) history = history.slice(0, 10);
+            localStorage.setItem('jukebox_guest_history', JSON.stringify(history));
+        }
+
+        function showPasswordModal() {
+            document.getElementById('password-modal').classList.remove('hidden');
+            document.getElementById('room-password-input').value = '';
+            document.getElementById('password-error').classList.add('hidden');
+        }
+
+        function hidePasswordModal() {
+            document.getElementById('password-modal').classList.add('hidden');
+        }
+
+        function closePasswordModal() {
+            hidePasswordModal();
+            showToast("接続をキャンセルしました", "info");
+            if (pendingConnection) pendingConnection.close();
+        }
+
+        function submitPassword() {
+            const pwd = document.getElementById('room-password-input').value;
+            if (!pwd) {
+                const err = document.getElementById('password-error');
+                err.textContent = "パスワードを入力してください";
+                err.classList.remove('hidden');
+                return;
+            }
+            document.getElementById('password-error').classList.add('hidden');
+
+            if (pendingConnection) {
+                pendingConnection.send({ type: 'auth_request', password: pwd });
+            }
         }
 
         function showNameModal() {
@@ -515,16 +602,15 @@
             document.getElementById('name-error').classList.add('hidden');
             document.getElementById('name-modal').classList.add('hidden');
             
-            listenerName = nameInput;
             document.getElementById('listener-name').value = nameInput;
             localStorage.setItem('jukebox_guest_name', nameInput);
             
-            startCloudConnection();
+            startListenerConnection();
         }
-
+        
         function loadYouTubeAPI() {
             if (window.YT && window.YT.Player) {
-                // YT Player ready
+                // Ignore for listener if not ready to play
             } else if (!document.getElementById('youtube-api-script')) {
                 const tag = document.createElement('script');
                 tag.id = 'youtube-api-script';
@@ -538,326 +624,26 @@
             if (isWpOverlayActive) {
                 if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
                     viewerYTPlayer.unMute();
-                    // 強制再生はせず、同期ロジックに任せる
+                    
+                    const toggle = document.getElementById('toggle-wp-mute');
+                    if(toggle) toggle.checked = true;
+                    
                     if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
-                        // もしホストが再生中なら再生する
-                        if (hostCurrentStatus === 1) {
-                            viewerYTPlayer.playVideo();
-                        }
+                        viewerYTPlayer.playVideo();
                     }
                 }
-                document.getElementById('listener-youtube-overlay').style.display = 'none'; 
-                isWpOverlayActive = false;
-                showToast("視聴を開始しました！", "info");
-            }
-        }
-
-        function initListener() {
-            const savedName = localStorage.getItem('jukebox_guest_name');
-            if (savedName) {
-                listenerName = savedName;
-                if (window.db) startCloudConnection();
-                else window.addEventListener('firebase-auth-ready', startCloudConnection, { once: true });
-            } else {
-                showNameModal();
-            }
-        }
-
-        function startCloudConnection() {
-            document.getElementById('listener-status').textContent = "クラウド同期中...";
-            document.getElementById('listener-status').classList.replace('text-yellow-500', 'text-green-500');
-            
-            // Listen to Room State from Firestore
-            window.onSnapshot(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), (docSnap) => {
-                if (docSnap.exists()) {
-                    handleRoomSync(docSnap.data());
-                } else {
-                    document.getElementById('listener-status').textContent = "ホストが見つかりません";
-                    document.getElementById('listener-status').classList.replace('text-green-500', 'text-red-500');
-                }
-            }, (err) => console.error(err));
-
-            // Listen to Queues from Firestore
-            window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), (snapshot) => {
-                let allQ = [];
-                snapshot.forEach(doc => {
-                    const d = doc.data();
-                    if (d.roomId === currentRoomId) allQ.push({ id: doc.id, ...d });
-                });
-                allQ.sort((a, b) => a.createdAt - b.createdAt);
-                queue = allQ;
-                renderQueue();
-            }, (err) => console.error(err));
-
-            // Listen to Chats from Firestore
-            window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), (snapshot) => {
-                let allC = [];
-                snapshot.forEach(doc => {
-                    const d = doc.data();
-                    if (d.roomId === currentRoomId) allC.push({ id: doc.id, ...d });
-                });
-                allC.sort((a, b) => a.createdAt - b.createdAt);
-                chatHistory = allC.slice(-100);
-                renderChatList('listener-chat-list', chatHistory);
-            }, (err) => console.error(err));
-
-            loadYouTubeAPI();
-        }
-
-        function handleRoomSync(data) {
-            const tDiv = document.getElementById('listener-theme-container');
-            if(data.theme) { tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${data.theme}`; tDiv.classList.remove('hidden'); }
-            else tDiv.classList.add('hidden');
-
-            const playingEl = document.getElementById('listener-now-playing');
-            const reqEl = document.getElementById('listener-now-requester');
-            const eq = document.getElementById('listener-eq');
-
-            if (data.currentSong) {
-                playingEl.textContent = data.currentSong.title;
-                const reqName = data.currentSong.isAnon ? '184(匿名)' : (data.currentSong.requesterReal || data.currentSong.requester || "");
-                reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
-                if(data.status === 'playing') eq.classList.add('active'); else eq.classList.remove('active');
                 
-                // Firestoreからの絶対時間（startedAt/pausePosition）での同期
-                if (!currentSong || currentSong.videoId !== data.currentSong.videoId) {
-                    currentSong = data.currentSong;
-                    if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
-                        const startAt = data.status === 'playing' 
-                            ? Math.max(0, (Date.now() - (currentSong.startedAt || Date.now())) / 1000)
-                            : (currentSong.pausePosition || 0);
-                        viewerYTPlayer.loadVideoById({videoId: currentSong.videoId, startSeconds: startAt});
-                        
-                        // 初期ロード時の強制一時停止処理（再生されないように）
-                        if (data.status === 'paused') {
-                            setTimeout(() => { 
-                                if(viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function') {
-                                    viewerYTPlayer.pauseVideo(); 
-                                    viewerYTPlayer.seekTo(startAt, true);
-                                }
-                            }, 500);
-                        }
-                    }
-                } else {
-                    if (viewerYTPlayer && typeof viewerYTPlayer.getPlayerState === 'function') {
-                        const state = viewerYTPlayer.getPlayerState();
-                        if (data.status === 'playing') {
-                            const expectedTime = (Date.now() - (currentSong.startedAt || Date.now())) / 1000;
-                            // オーバーレイが消えていれば再生を許可
-                            if (state !== 1 && state !== 3 && !isWpOverlayActive) {
-                                viewerYTPlayer.playVideo();
-                            }
-                            const diff = expectedTime - viewerYTPlayer.getCurrentTime();
-                            if (Math.abs(diff) > 2.0) viewerYTPlayer.seekTo(expectedTime, true);
-                        } else if (data.status === 'paused') {
-                            if (state === 1 || state === 3) {
-                                viewerYTPlayer.pauseVideo();
-                            }
-                            const expectedPauseTime = currentSong.pausePosition || 0;
-                            if (Math.abs(expectedPauseTime - viewerYTPlayer.getCurrentTime()) > 1.0) {
-                                viewerYTPlayer.seekTo(expectedPauseTime, true);
-                            }
-                        }
-                    }
+                const overlayId = 'listener-youtube-overlay';
+                const overlay = document.getElementById(overlayId);
+                if(overlay) {
+                    overlay.style.display = 'none'; 
                 }
-            } else {
-                currentSong = null;
-                playingEl.textContent = "BGM停止中";
-                reqEl.textContent = "";
-                eq.classList.remove('active');
-                if (viewerYTPlayer && typeof viewerYTPlayer.stopVideo === 'function') viewerYTPlayer.stopVideo();
-            }
-
-            // Sync History
-            if(data.historyQueue) {
-                const hList = document.getElementById('listener-history-list');
-                if (hList) {
-                    hList.innerHTML = '';
-                    data.historyQueue.forEach((q, idx) => {
-                        const div = document.createElement('div');
-                        div.className = "flex items-center justify-between bg-gray-800/50 border border-gray-700/50 p-2 rounded text-sm mb-1";
-                        div.innerHTML = `
-                            <div class="flex items-center gap-2 overflow-hidden flex-1">
-                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                                <div class="truncate">
-                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                    <p class="text-[10px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : (q.requesterReal || q.requester)}</p>
-                                </div>
-                            </div>
-                            <button onclick="reRequestListener('${q.videoId}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
-                        `;
-                        hList.appendChild(div);
-                    });
-                }
+                
+                isWpOverlayActive = false;
+                showToast("音声をONにして視聴を開始しました！", "info");
             }
         }
-
-        window.onYouTubeIframeAPIReady = function() {
-            viewerYTPlayer = new YT.Player('listener-youtube-player', {
-                height: '100%', width: '100%',
-                playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 1 }, // キーボード操作も無効化
-                events: {
-                    'onReady': (event) => { event.target.mute(); }
-                }
-            });
-        };
-
-        function extractVideoId(url) {
-            const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/);
-            return match ? match[1] : null;
-        }
-
-        async function fetchYouTubeTitle(videoId) {
-            try {
-                const res = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
-                if(res.ok) { const data = await res.json(); return data.title || "不明なタイトル"; }
-            } catch(e) {}
-            return "不明なタイトル";
-        }
-
-        function sendRequest() {
-            const url = document.getElementById('listener-url').value;
-            const name = document.getElementById('listener-name').value.trim();
-            const isAnon = document.getElementById('listener-anon').checked;
-            if(!name) return showToast("あなたの名前を入力してください！", "error");
-            if(!url) return showToast("URLを入力してください！", "error");
-
-            localStorage.setItem('jukebox_guest_name', name);
-            localStorage.setItem('jukebox_guest_anon', isAnon);
-
-            const vid = extractVideoId(url);
-            if(vid) {
-                document.getElementById('listener-url').value = '';
-                showToast("リクエストを送信中...");
-                fetchYouTubeTitle(vid).then(title => {
-                    const reqDisplayName = isAnon ? '184(匿名)' : name;
-                    window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
-                        roomId: currentRoomId,
-                        videoId: vid,
-                        title: title,
-                        requester: reqDisplayName,
-                        requesterReal: name,
-                        isAnon: isAnon,
-                        isRemote: false,
-                        createdAt: Date.now()
-                    });
-                    showToast("リクエストを送信しました！");
-                });
-            } else {
-                showToast("無効なYouTube URLです", "error");
-            }
-        }
-
-        function cancelRequest(id) {
-            window.deleteDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'queues', id));
-            showToast("キャンセルしました");
-        }
-
-        function reRequestListener(videoId) {
-            const name = document.getElementById('listener-name').value.trim();
-            const isAnon = document.getElementById('listener-anon').checked;
-            if(!name) return showToast("名前を入力してください", "error");
-            
-            localStorage.setItem('jukebox_guest_name', name);
-            localStorage.setItem('jukebox_guest_anon', isAnon);
-            
-            fetchYouTubeTitle(videoId).then(title => {
-                window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
-                    roomId: currentRoomId,
-                    videoId: videoId,
-                    title: title,
-                    requester: isAnon ? '184(匿名)' : name,
-                    requesterReal: name,
-                    isAnon: isAnon,
-                    isRemote: false,
-                    createdAt: Date.now()
-                });
-                showToast("再リクエストを送信しました");
-            });
-        }
-
-        function sendChatRequest(isDummyMode = false) {
-            const inputId = 'listener-chat-input';
-            const text = document.getElementById(inputId).value.trim();
-            if(!text) return;
-            document.getElementById(inputId).value = '';
-            closeChatInput();
-
-            const senderReal = document.getElementById('listener-name').value.trim() || "名無し";
-            const isAnon = document.getElementById('listener-anon').checked;
-            const sender = isAnon ? '184(匿名)' : senderReal;
-
-            localStorage.setItem('jukebox_guest_name', senderReal);
-            localStorage.setItem('jukebox_guest_anon', isAnon);
-
-            window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), {
-                roomId: currentRoomId,
-                text: text,
-                sender: sender,
-                senderReal: senderReal,
-                isAnon: isAnon,
-                isRemote: false,
-                createdAt: Date.now()
-            });
-        }
-
-        function renderQueue() {
-            const countEl = document.getElementById('listener-queue-count');
-            if(countEl) countEl.textContent = queue.length;
-            
-            const qList = document.getElementById('listener-queue-list');
-            if(qList) {
-                qList.innerHTML = '';
-                const myName = document.getElementById('listener-name').value.trim();
-                queue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
-                    
-                    const dispName = q.isAnon ? '184(匿名)' : (q.requesterReal || q.requester);
-                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
-                    
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
-                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
-                            </div>
-                        </div>
-                    `;
-                    
-                    if(myName && q.requesterReal === myName && !q.isRemote) {
-                        const btn = document.createElement('button');
-                        btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
-                        btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-                        btn.onclick = () => cancelRequest(q.id);
-                        div.appendChild(btn);
-                    }
-                    qList.appendChild(div);
-                });
-            }
-        }
-
-        function renderChatList(containerId, chats) {
-            const container = document.getElementById(containerId);
-            if(!container) return;
-            container.innerHTML = '';
-            chats.forEach(c => {
-                const div = document.createElement('div');
-                div.className = "text-[13px] leading-relaxed flex group";
-                const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400"></i> ' : '';
-                const nameColor = c.isRemote ? 'text-yellow-400' : 'text-indigo-400';
-                div.innerHTML = `
-                    <div class="flex-1 break-words">
-                        <span class="font-bold ${nameColor} mr-1">${badge}${c.senderReal}:</span>
-                        <span class="text-gray-100">${c.text}</span>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-            container.scrollTop = container.scrollHeight;
-        }
-
+        
         function switchListenerLayer(layer) {
             const camLayer = document.getElementById('listener-cam-layer');
             const wpLayer = document.getElementById('listener-wp-layer');
@@ -902,20 +688,464 @@
             const playerWrapper = document.getElementById('listener-youtube-player-wrapper');
             if (playerWrapper) {
                 playerWrapper.style.opacity = isOn ? '1' : '0';
-                // wrapper自体はpointer-events-noneのままでOK
+                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
             }
         }
 
-        function requestListenerCamera() {
-            showToast("現在のバージョンではカメラ中継はホストのメイン画面から受け付けています。");
+        function handleSyncPlayback(data) {
+            const wpPlayerId = 'listener-youtube-player';
+
+            if (!isWatchPartyEnabled) {
+                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
+                    viewerYTPlayer.pauseVideo();
+                }
+                return;
+            }
+
+            if (!viewerYTPlayer) {
+                if (typeof YT === 'undefined' || !YT.Player) {
+                    loadYouTubeAPI(); 
+                    return;
+                }
+                
+                let playerOptions = {
+                    height: '100%', width: '100%',
+                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
+                    events: {
+                        'onReady': (event) => {
+                            event.target.mute(); 
+                        }
+                    }
+                };
+                if (data.videoId) {
+                    playerOptions.videoId = data.videoId;
+                }
+                
+                if (document.getElementById(wpPlayerId)) {
+                    viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
+                }
+                return;
+            }
+
+            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
+            
+            if (!data.videoId) {
+                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
+                    viewerYTPlayer.stopVideo();
+                }
+                currentSong = null;
+                return;
+            }
+
+            const state = viewerYTPlayer.getPlayerState();
+            const currentTime = viewerYTPlayer.getCurrentTime();
+            hostCurrentTime = data.time; 
+            hostCurrentStatus = data.status;
+
+            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
+                currentSong = { videoId: data.videoId };
+                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
+                return;
+            }
+
+            if (data.status === 1) { 
+                if (state !== 1 && state !== 3) viewerYTPlayer.playVideo();
+                
+                const diff = hostCurrentTime - currentTime;
+                
+                if (Math.abs(diff) < 1.0) {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
+                    if (diff > 0) {
+                        viewerYTPlayer.setPlaybackRate(1.05); 
+                    } else {
+                        viewerYTPlayer.setPlaybackRate(0.95); 
+                    }
+                } else {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                }
+            } else if (data.status === 2 || data.status === -1) { 
+                if (state === 1) {
+                    viewerYTPlayer.pauseVideo();
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                }
+            }
         }
-        
+
+        function initListener() {
+            const savedName = localStorage.getItem('jukebox_guest_name');
+            if (savedName) {
+                document.getElementById('listener-name').value = savedName;
+                startListenerConnection();
+            } else {
+                showNameModal();
+            }
+        }
+
+        function startListenerConnection() {
+            try {
+                listenerId = generateId();
+                peer = new Peer(`listener-${listenerId}`);
+
+                peer.on('open', () => {
+                    listenerConn = peer.connect(`jukebox-${currentRoomId}`);
+                    
+                    listenerConn.on('open', () => {
+                        const statusId = 'listener-status';
+                        if(document.getElementById(statusId)) {
+                            document.getElementById(statusId).textContent = "接続完了！";
+                            document.getElementById(statusId).classList.replace('text-yellow-500', 'text-green-500');
+                        }
+                        sendProfileUpdate();
+                    });
+
+                    listenerConn.on('data', (data) => {
+                        if (data.type === 'ping') {
+                            listenerConn.send({ type: 'pong' });
+                            return;
+                        }
+                        if(data.type === 'banned') {
+                            showBannedScreen();
+                            if(peer) peer.destroy();
+                            return;
+                        }
+                        if(data.type === 'error') { showToast(data.msg, "error"); return; }
+                        
+                        if(data.type === 'sync_playback') {
+                            handleSyncPlayback(data);
+                        }
+                        
+                        if(data.type === 'state') {
+                            saveGuestHistory(currentRoomId, data.hostName);
+                            renderListenerState(data);
+                        }
+                        
+                        if (data.type === 'auth_response') {
+                            if (data.success) {
+                                hidePasswordModal();
+                                showToast("認証に成功しました");
+                                const pwdInput = document.getElementById('room-password-input').value;
+                                if (pwdInput) {
+                                    savedPasswords[currentRoomId] = pwdInput;
+                                    localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                                }
+                                pendingConnection = null;
+                                sendProfileUpdate();
+                            } else {
+                                document.getElementById('password-error').classList.remove('hidden');
+                                delete savedPasswords[currentRoomId];
+                                localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                                showPasswordModal(); 
+                            }
+                        }
+                        
+                        if (data.type === 'auth_required') {
+                             showToast("操作にはパスワード認証が必要です", "error");
+                             pendingConnection = listenerConn;
+                             showPasswordModal();
+                        }
+                        
+                        if(data.type === 'new_chat') {
+                            if(!chatHistory.some(c => c.id === data.chat.id)) {
+                                chatHistory.push(data.chat);
+                                if(chatHistory.length > 100) chatHistory.shift();
+                                
+                                renderChatList('listener-chat-list', chatHistory, false);
+                            }
+                        }
+                    });
+                });
+
+                peer.on('call', (call) => {
+                    call.answer(); 
+                    call.on('stream', (stream) => {
+                        listenerHasStream = true;
+                        const video = document.getElementById('listener-video');
+                        const btn = document.getElementById('btn-toggle-camera');
+                        const camMuteToggle = document.getElementById('toggle-cam-mute');
+                        
+                        if(btn) btn.classList.add('hidden'); 
+                        video.srcObject = stream;
+                        
+                        if(camMuteToggle) camMuteToggle.checked = true;
+                        video.muted = false;
+                        
+                        video.play().catch(e => {
+                            video.muted = true;
+                            if(camMuteToggle) camMuteToggle.checked = false;
+                            video.play().catch(er=>{});
+                        });
+                        isListenerVideoOpen = true;
+                    });
+                    call.on('close', () => { 
+                        resetListenerVideo(); 
+                    });
+                });
+
+                peer.on('error', (err) => {
+                    console.warn("PeerJS Error:", err);
+                    if (err.type === 'network' || err.type === 'browser-incompatible') {
+                        const statusEl = document.getElementById('listener-status');
+                        if (statusEl) {
+                            statusEl.textContent = "プレビュー制限: 別タブで開いてください";
+                            statusEl.classList.replace('text-yellow-500', 'text-red-500');
+                        }
+                    }
+                });
+
+            } catch (e) {
+                console.warn("PeerJS initialization failed/blocked:", e);
+                const statusEl = document.getElementById('listener-status');
+                if (statusEl) {
+                    statusEl.textContent = "通信制限: 別タブで開いてください";
+                    statusEl.classList.replace('text-yellow-500', 'text-red-500');
+                }
+            }
+
+            const url = new URL(window.location);
+            url.searchParams.set('host', currentRoomId);
+            history.replaceState(null, '', url);
+        }
+
         function resetListenerVideo() {
             listenerHasStream = false;
+            isListenerVideoOpen = false;
             const videoEl = document.getElementById('listener-video');
             if (videoEl) videoEl.srcObject = null;
             const btn = document.getElementById('btn-toggle-camera');
-            if(btn) btn.classList.remove('hidden'); 
+            if(btn) { 
+                btn.classList.remove('hidden'); 
+            }
+        }
+
+        function sendProfileUpdate() {
+            if(!listenerConn || !listenerConn.open) return;
+            let name = document.getElementById('listener-name').value.trim() || "名無し";
+            const isAnon = document.getElementById('listener-anon').checked;
+            localStorage.setItem('jukebox_guest_name', name);
+            localStorage.setItem('jukebox_guest_anon', isAnon);
+            
+            listenerConn.send({ type: 'update_profile', name: name, isRemote: false, isObs: false, uuid: myGuestUUID });
+        }
+
+        const nameInput = document.getElementById('listener-name');
+        if(nameInput) nameInput.addEventListener('change', () => sendProfileUpdate());
+        const anonInput = document.getElementById('listener-anon');
+        if(anonInput) anonInput.addEventListener('change', () => sendProfileUpdate());
+
+        function requestListenerCamera() {
+            const btn = document.getElementById('btn-toggle-camera');
+            if (btn && btn.disabled) return; 
+
+            if (listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'request_camera' });
+                if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+            }
+        }
+
+        function extractVideoId(url) {
+            const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/);
+            return match ? match[1] : null;
+        }
+
+        function sendRequest() {
+            const url = document.getElementById('listener-url').value;
+            const name = document.getElementById('listener-name').value.trim();
+            const isAnon = document.getElementById('listener-anon').checked;
+            if(!name) return showToast("あなたの名前を入力してください！", "error");
+            if(!url) return showToast("URLを入力してください！", "error");
+
+            localStorage.setItem('jukebox_guest_name', name);
+            localStorage.setItem('jukebox_guest_anon', isAnon);
+
+            const vid = extractVideoId(url);
+            if(vid) {
+                listenerConn.send({ type: 'request', videoId: vid, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
+                document.getElementById('listener-url').value = '';
+                showToast("リクエストを送信しました！");
+            } else showToast("無効なYouTube URLです", "error");
+        }
+
+        function cancelRequest(id) {
+            listenerConn.send({ type: 'cancel', id: id });
+            showToast("キャンセルしました");
+        }
+
+        function reRequestListener(videoId) {
+            const name = document.getElementById('listener-name').value.trim();
+            const isAnon = document.getElementById('listener-anon').checked;
+            if(!name) return showToast("名前を入力してください", "error");
+            
+            localStorage.setItem('jukebox_guest_name', name);
+            localStorage.setItem('jukebox_guest_anon', isAnon);
+            
+            listenerConn.send({ type: 'request', videoId: videoId, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
+            showToast("再リクエストを送信しました");
+        }
+
+        function sendChatRequest(isDummyMode = false) {
+            const inputId = 'listener-chat-input';
+            const text = document.getElementById(inputId).value.trim();
+            if(!text) return;
+
+            const senderReal = document.getElementById('listener-name').value.trim() || "名無し";
+            const isAnon = document.getElementById('listener-anon').checked;
+            const sender = isAnon ? '184(匿名)' : senderReal;
+            
+            localStorage.setItem('jukebox_guest_name', senderReal);
+            localStorage.setItem('jukebox_guest_anon', isAnon);
+
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'chat', text, sender, senderReal, isAnon, isRemote: false });
+                document.getElementById(inputId).value = '';
+                closeChatInput();
+            }
+        }
+
+        function renderChatList(containerId, chats, isPrivileged) {
+            const container = document.getElementById(containerId);
+            if(!container) return;
+            
+            container.innerHTML = '';
+            chats.forEach(c => {
+                const div = document.createElement('div');
+                div.className = "text-[13px] leading-relaxed flex group";
+                
+                const dispName = (c.isAnon && !isPrivileged) ? '184(匿名)' : c.senderReal;
+                const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400"></i> ' : '';
+                const nameColor = c.isRemote ? 'text-yellow-400' : 'text-indigo-400';
+                
+                div.innerHTML = `
+                    <div class="flex-1 break-words">
+                        <span class="font-bold ${nameColor} mr-1">${badge}${dispName}:</span>
+                        <span class="text-gray-100">${c.text}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function renderListenerState(state) {
+            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, hostTheme, isLive, cameraApprovalMode, participants } = state;
+
+            if(serverChatHistory) {
+                chatHistory = serverChatHistory;
+                renderChatList('listener-chat-list', chatHistory, false);
+            }
+
+            const playingEl = document.getElementById('listener-now-playing');
+            
+            if(currentSongData && playingEl) {
+                playingEl.textContent = currentSongData.title;
+                const reqName = currentSongData.isAnon ? '184(匿名)' : (currentSongData.requester || "");
+                const reqEl = document.getElementById('listener-now-requester');
+                if(reqEl) reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
+                
+                const eq = document.getElementById('listener-eq');
+                if(eq) isPlaying ? eq.classList.add('active') : eq.classList.remove('active');
+            } else if (playingEl) {
+                playingEl.textContent = "BGM停止中";
+                const reqEl = document.getElementById('listener-now-requester');
+                if(reqEl) reqEl.textContent = "";
+                const eq = document.getElementById('listener-eq');
+                if(eq) eq.classList.remove('active');
+            }
+
+            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
+
+            const tDiv = document.getElementById('listener-theme-container');
+            if(tDiv) {
+                if(hostTheme) { 
+                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
+                    tDiv.classList.remove('hidden'); 
+                } else {
+                    tDiv.classList.add('hidden');
+                }
+            }
+
+            const btn = document.getElementById('btn-toggle-camera');
+            const tabCamIcon = document.querySelector('#tab-cam i');
+            
+            if(isLive) {
+                if(btn && !listenerHasStream) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    if(cameraApprovalMode) {
+                        const myData = participants ? participants.find(p => p.id === listenerId) : null;
+                        if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+                        else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
+                    } else btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
+                }
+                if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            } else { 
+                resetListenerVideo(); 
+                if(btn) {
+                    btn.textContent = "配信はオフラインです"; 
+                    btn.disabled = true;
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                if(tabCamIcon) tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            }
+
+            const countEl = document.getElementById('listener-queue-count');
+            if(countEl) countEl.textContent = serverQueue ? serverQueue.length : 0;
+            
+            const qList = document.getElementById('listener-queue-list');
+            if(qList && serverQueue) {
+                qList.innerHTML = '';
+                const myName = document.getElementById('listener-name').value.trim();
+                serverQueue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
+                    
+                    const dispName = q.isAnon ? '184(匿名)' : q.requester;
+                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
+                    
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
+                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    if(myName && q.requesterReal === myName && !q.isRemote) {
+                        const btn = document.createElement('button');
+                        btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
+                        btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                        btn.onclick = () => cancelRequest(q.id);
+                        div.appendChild(btn);
+                    }
+                    qList.appendChild(div);
+                });
+            }
+
+            if(serverHistQueue) {
+                const listenerHist = document.getElementById('listener-history-list');
+                if (listenerHist) {
+                    listenerHist.innerHTML = '';
+                    serverHistQueue.forEach((q, idx) => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center justify-between bg-gray-800/50 border border-gray-700/50 p-2 rounded text-sm mb-1";
+                        div.innerHTML = `
+                            <div class="flex items-center gap-2 overflow-hidden flex-1">
+                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                                <div class="truncate">
+                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                    <p class="text-[10px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                                </div>
+                            </div>
+                            <button onclick="reRequestListener('${q.videoId}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
+                        `;
+                        listenerHist.appendChild(div);
+                    });
+                }
+            }
         }
     </script>
 </body>
