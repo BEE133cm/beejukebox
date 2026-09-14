@@ -220,10 +220,22 @@
 
                     <hr class="border-gray-800 my-4">
 
-                    <!-- 詳細設定 -->
+                    <!-- PWA設定 -->
                     <div>
                         <h4 class="text-xs font-bold text-gray-500 mb-3 uppercase">PWA (ホーム画面追加) 用</h4>
-                        <button onclick="openYouTubeLoginPopup()" class="w-full bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 font-bold py-2.5 rounded transition-colors flex items-center justify-center gap-2 text-xs"><i class="fa-brands fa-youtube"></i> YouTubeにログインして広告を消す</button>
+                        <div class="bg-gray-800/50 border border-gray-700 p-3 rounded text-[10px] text-gray-300 mb-3 space-y-1">
+                            <p class="font-bold text-red-400"><i class="fa-solid fa-triangle-exclamation"></i> 広告を消すための必須設定</p>
+                            <p>iOSの場合、以下の設定を行わないとPremiumが反映されません。</p>
+                            <ol class="list-decimal pl-4 space-y-0.5 text-gray-400">
+                                <li>iPhoneの「設定」アプリを開く</li>
+                                <li>「Safari」を選択</li>
+                                <li>「サイト越えトラッキングを防ぐ」を <span class="text-white font-bold">OFF</span> にする</li>
+                            </ol>
+                        </div>
+                        <a href="https://m.youtube.com" target="_blank" class="w-full bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 font-bold py-2.5 rounded transition-colors flex items-center justify-center gap-2 text-xs block text-center">
+                            <i class="fa-brands fa-youtube"></i> YouTubeにログインして広告を消す
+                        </a>
+                        <p class="text-[10px] text-gray-500 mt-2 text-center">※ログイン完了後、左上の「完了」で戻り、画面を更新してください。</p>
                     </div>
 
                 </div>
@@ -437,25 +449,6 @@
             }
         });
         // ----------------------------------
-
-        // YouTube Login for PWA
-        function openYouTubeLoginPopup() {
-            const loginUrl = 'https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F';
-            const popup = window.open(loginUrl, 'youtubeLogin', 'width=500,height=600');
-            
-            if (popup) {
-                const checkPopup = setInterval(() => {
-                    if (popup.closed) {
-                        clearInterval(checkPopup);
-                        if (confirm('ログインが完了しましたか？\n設定を反映させるため、ページを再読み込みします。')) {
-                            location.reload();
-                        }
-                    }
-                }, 1000);
-            } else {
-                showToast("ポップアップがブロックされました。ブラウザの設定を確認してください。", "error");
-            }
-        }
 
         document.addEventListener('DOMContentLoaded', () => {
             const menuDetails = document.getElementById('listener-menu-details');
