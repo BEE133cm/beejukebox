@@ -110,19 +110,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ==========================================
-        // 【重要】Firebase 接続設定
-        // ホスト側と同じ設定オブジェクトを貼り付けてください。
-        // ==========================================
-        const myFirebaseConfig = {
-          apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
-          authDomain: "beejukebox-94ad8.firebaseapp.com",
-          projectId: "beejukebox-94ad8",
-          storageBucket: "beejukebox-94ad8.firebasestorage.app",
-          messagingSenderId: "902266249398",
-          appId: "1:902266249398:web:8de3ff1d14ea5eef224617",
-          measurementId: "G-H4SV4FHX3Z"
-        };
+        const myFirebaseConfig = null; // ← ホスト側の設定に合わせる場合は書き換えてください
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'jukebox-app';
         let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
@@ -945,10 +933,7 @@
         }
 
         function startListenerConnection() {
-            // クラウドへの接続を優先して開始
-            if (window.db) startCloudConnection();
-            else window.addEventListener('firebase-auth-ready', startCloudConnection, { once: true });
-
+            // クラウドへの接続を行っていた古いコードを削除し、P2P接続のみで完結させる
             try {
                 if(peer) peer.destroy();
                 listenerId = generateId();
@@ -956,15 +941,28 @@
 
                 peer.on('open', () => {
                     listenerConn = peer.connect(`jukebox-${currentRoomId}`);
-                    
+                    pendingConnection = listenerConn;
+
                     listenerConn.on('open', () => {
                         reconnectAttempts = 0; 
                         const statusId = 'listener-status';
                         if(document.getElementById(statusId)) {
                             document.getElementById(statusId).textContent = "接続完了！";
                             document.getElementById(statusId).classList.replace('text-yellow-500', 'text-green-500');
+                            document.getElementById(statusId).classList.replace('text-red-500', 'text-green-500');
                         }
                         sendProfileUpdate();
+                        // 復帰後の同期リクエスト (Host側にStateとSyncの自動送信を促す)
+                        listenerConn.send({ type: 'request_sync' });
+                    });
+
+                    listenerConn.on('close', () => {
+                        const statusId = 'listener-status';
+                        if(document.getElementById(statusId)) {
+                            document.getElementById(statusId).textContent = "通信切断...";
+                            document.getElementById(statusId).classList.replace('text-green-500', 'text-red-500');
+                        }
+                        scheduleReconnect();
                     });
 
                     listenerConn.on('data', (data) => {
@@ -972,6 +970,12 @@
                             listenerConn.send({ type: 'pong' });
                             return;
                         }
+                        if(data.type === 'banned') {
+                            showBannedScreen();
+                            if(peer) peer.destroy();
+                            return;
+                        }
+                        if(data.type === 'error') { showToast(data.msg, "error"); return; }
                         
                         if(data.type === 'sync_playback') {
                             if (!isWatchPartyEnabled || !viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function') return;
@@ -983,6 +987,56 @@
                             if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
                                 currentSong = { videoId: data.videoId };
                                 viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: lastHostTime});
+                            }
+                        }
+                        
+                        if(data.type === 'state') {
+                            saveGuestHistory(currentRoomId, data.hostName);
+                            
+                            if (data.requirePassword) {
+                                const savedPwd = savedPasswords[currentRoomId];
+                                if (savedPwd) {
+                                    listenerConn.send({ type: 'auth_request', password: savedPwd });
+                                } else {
+                                    showPasswordModal();
+                                }
+                            } else {
+                                pendingConnection = null;
+                            }
+                            
+                            renderListenerState(data);
+                        }
+                        
+                        if (data.type === 'auth_response') {
+                            if (data.success) {
+                                hidePasswordModal();
+                                showToast("認証に成功しました");
+                                const pwdInput = document.getElementById('room-password-input').value;
+                                if (pwdInput) {
+                                    savedPasswords[currentRoomId] = pwdInput;
+                                    localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                                }
+                                pendingConnection = null;
+                                sendProfileUpdate();
+                            } else {
+                                document.getElementById('password-error').classList.remove('hidden');
+                                delete savedPasswords[currentRoomId];
+                                localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
+                                showPasswordModal(); 
+                            }
+                        }
+                        
+                        if (data.type === 'auth_required') {
+                             showToast("操作にはパスワード認証が必要です", "error");
+                             pendingConnection = listenerConn;
+                             showPasswordModal();
+                        }
+                        
+                        if(data.type === 'new_chat') {
+                            if(!chatHistory.some(c => c.id === data.chat.id)) {
+                                chatHistory.push(data.chat);
+                                if(chatHistory.length > 100) chatHistory.shift();
+                                renderChatList('listener-chat-list', chatHistory, false);
                             }
                         }
                     });
@@ -1012,6 +1066,12 @@
                         resetListenerVideo(); 
                     });
                 });
+                
+                peer.on('disconnected', () => scheduleReconnect());
+                peer.on('error', (err) => {
+                    console.warn("PeerJS Error:", err);
+                    scheduleReconnect();
+                });
             } catch(e) {
                 console.warn("PeerJS Init Skipped", e);
             }
@@ -1019,138 +1079,6 @@
             const url = new URL(window.location);
             url.searchParams.set('host', currentRoomId);
             history.replaceState(null, '', url);
-        }
-
-        // ================= Firestore Integration =================
-        function startCloudConnection() {
-            // Listen to Room State from Firestore
-            window.onSnapshot(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), (docSnap) => {
-                if (docSnap.exists()) {
-                    handleRoomSync(docSnap.data());
-                } else {
-                    document.getElementById('listener-status').textContent = "ホストが見つかりません";
-                    document.getElementById('listener-status').classList.replace('text-green-500', 'text-red-500');
-                }
-            }, (err) => console.error(err));
-
-            // Listen to Queues from Firestore
-            window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), (snapshot) => {
-                let allQ = [];
-                snapshot.forEach(doc => {
-                    const d = doc.data();
-                    if (d.roomId === currentRoomId) allQ.push({ id: doc.id, ...d });
-                });
-                allQ.sort((a, b) => a.createdAt - b.createdAt);
-                queue = allQ;
-                renderQueue();
-            }, (err) => console.error(err));
-
-            // Listen to Chats from Firestore
-            window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), (snapshot) => {
-                let allC = [];
-                snapshot.forEach(doc => {
-                    const d = doc.data();
-                    if (d.roomId === currentRoomId) allC.push({ id: doc.id, ...d });
-                });
-                allC.sort((a, b) => a.createdAt - b.createdAt);
-                chatHistory = allC.slice(-100);
-                renderChatList('listener-chat-list', chatHistory, false);
-            }, (err) => console.error(err));
-
-            loadYouTubeAPI();
-        }
-
-        function handleRoomSync(data) {
-            saveGuestHistory(currentRoomId, data.hostName);
-
-            const tDiv = document.getElementById('listener-theme-container');
-            if(data.theme) { tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${data.theme}`; tDiv.classList.remove('hidden'); }
-            else tDiv.classList.add('hidden');
-
-            const playingEl = document.getElementById('listener-now-playing');
-            const reqEl = document.getElementById('listener-now-requester');
-            const eq = document.getElementById('listener-eq');
-
-            if (data.currentSong) {
-                playingEl.textContent = data.currentSong.title;
-                const reqName = data.currentSong.isAnon ? '184(匿名)' : (data.currentSong.requester || "");
-                reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
-                
-                if(data.status === 'playing') {
-                    if (eq) eq.classList.add('active');
-                    if (data.currentSong.startedAt) {
-                        lastHostTime = (Date.now() - data.currentSong.startedAt) / 1000;
-                        lastHostStatus = 1;
-                        lastHostTimeReceivedAt = Date.now();
-                    }
-                } else {
-                    if (eq) eq.classList.remove('active');
-                    lastHostTime = data.currentSong.pausePosition || 0;
-                    lastHostStatus = 2;
-                    lastHostTimeReceivedAt = Date.now();
-                }
-                
-                if (!currentSong || currentSong.videoId !== data.currentSong.videoId) {
-                    currentSong = data.currentSong;
-                    if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
-                        viewerYTPlayer.loadVideoById({
-                            videoId: currentSong.videoId,
-                            startSeconds: lastHostTime || 0
-                        });
-                    }
-                }
-
-            } else {
-                currentSong = null;
-                playingEl.textContent = "BGM停止中";
-                reqEl.textContent = "";
-                if (eq) eq.classList.remove('active');
-                if (viewerYTPlayer && typeof viewerYTPlayer.stopVideo === 'function') viewerYTPlayer.stopVideo();
-            }
-
-            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
-
-            const btn = document.getElementById('btn-toggle-camera');
-            const tabCamIcon = document.querySelector('#tab-cam i');
-            
-            if(data.isLive) {
-                if(btn && !listenerHasStream) {
-                    btn.disabled = false;
-                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
-                }
-                if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
-            } else { 
-                resetListenerVideo(); 
-                if(btn) {
-                    btn.textContent = "配信はオフラインです"; 
-                    btn.disabled = true;
-                    btn.classList.add('opacity-50', 'cursor-not-allowed');
-                }
-                if(tabCamIcon) tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
-            }
-
-            if(data.historyQueue) {
-                const listenerHist = document.getElementById('listener-history-list');
-                if (listenerHist) {
-                    listenerHist.innerHTML = '';
-                    data.historyQueue.forEach((q, idx) => {
-                        const div = document.createElement('div');
-                        div.className = "flex items-center justify-between bg-gray-800/50 border border-gray-700/50 p-2 rounded text-sm mb-1";
-                        div.innerHTML = `
-                            <div class="flex items-center gap-2 overflow-hidden flex-1">
-                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                                <div class="truncate">
-                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                    <p class="text-[10px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
-                                </div>
-                            </div>
-                            <button onclick="reRequestListener('${q.videoId}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
-                        `;
-                        listenerHist.appendChild(div);
-                    });
-                }
-            }
         }
 
         function resetListenerVideo() {
@@ -1206,39 +1134,23 @@
 
             const vid = extractVideoId(url);
             if(vid) {
-                document.getElementById('listener-url').value = '';
-                showToast("リクエストを送信中...");
-                
-                fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${vid}`)
-                .then(res => res.json())
-                .then(data => {
-                    const reqDisplayName = isAnon ? '184(匿名)' : name;
-                    window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
-                        roomId: currentRoomId,
-                        videoId: vid,
-                        title: data.title || "不明なタイトル",
-                        requester: reqDisplayName,
-                        requesterReal: name,
-                        isAnon: isAnon,
-                        isRemote: false,
-                        createdAt: Date.now()
-                    });
+                if(listenerConn && listenerConn.open) {
+                    listenerConn.send({ type: 'request', videoId: vid, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon, isRemote: false });
+                    document.getElementById('listener-url').value = '';
                     showToast("リクエストを送信しました！");
-                }).catch(() => {
-                    const reqDisplayName = isAnon ? '184(匿名)' : name;
-                    window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
-                        roomId: currentRoomId, videoId: vid, title: "不明なタイトル", requester: reqDisplayName, requesterReal: name, isAnon: isAnon, isRemote: false, createdAt: Date.now()
-                    });
-                    showToast("リクエストを送信しました！");
-                });
+                } else {
+                    showToast("ホストに接続されていません", "error");
+                }
             } else {
                 showToast("無効なYouTube URLです", "error");
             }
         }
 
         function cancelRequest(id) {
-            window.deleteDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'queues', id));
-            showToast("キャンセルしました");
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'cancel', id: id });
+                showToast("キャンセルしました");
+            }
         }
 
         function reRequestListener(videoId) {
@@ -1249,29 +1161,10 @@
             localStorage.setItem('jukebox_guest_name', name);
             localStorage.setItem('jukebox_guest_anon', isAnon);
             
-            showToast("再リクエストを送信中...");
-            fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`)
-            .then(res => res.json())
-            .then(data => {
-                const reqDisplayName = isAnon ? '184(匿名)' : name;
-                window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
-                    roomId: currentRoomId,
-                    videoId: videoId,
-                    title: data.title || "不明なタイトル",
-                    requester: reqDisplayName,
-                    requesterReal: name,
-                    isAnon: isAnon,
-                    isRemote: false,
-                    createdAt: Date.now()
-                });
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'request', videoId: videoId, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon, isRemote: false });
                 showToast("再リクエストを送信しました");
-            }).catch(() => {
-                const reqDisplayName = isAnon ? '184(匿名)' : name;
-                window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
-                    roomId: currentRoomId, videoId: videoId, title: "不明なタイトル", requester: reqDisplayName, requesterReal: name, isAnon: isAnon, isRemote: false, createdAt: Date.now()
-                });
-                showToast("再リクエストを送信しました");
-            });
+            }
         }
 
         function sendChatRequest(isDummyMode = false) {
@@ -1286,54 +1179,16 @@
             localStorage.setItem('jukebox_guest_name', senderReal);
             localStorage.setItem('jukebox_guest_anon', isAnon);
 
-            document.getElementById(inputId).value = '';
-            closeChatInput();
-
-            window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), {
-                roomId: currentRoomId,
-                text: text,
-                sender: sender,
-                senderReal: senderReal,
-                isAnon: isAnon,
-                isRemote: false,
-                createdAt: Date.now()
-            });
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'chat', text: text, sender: sender, senderReal: senderReal, isAnon: isAnon, isRemote: false });
+                document.getElementById(inputId).value = '';
+                closeChatInput();
+            }
         }
 
-        function renderQueue() {
-            const countEl = document.getElementById('listener-queue-count');
-            if(countEl) countEl.textContent = queue.length;
-            
-            const qList = document.getElementById('listener-queue-list');
-            if(qList) {
-                qList.innerHTML = '';
-                const myName = document.getElementById('listener-name').value.trim();
-                queue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
-                    
-                    const dispName = q.isAnon ? '184(匿名)' : q.requester;
-                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
-                    
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
-                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
-                            </div>
-                        </div>
-                    `;
-                    
-                    if(myName && q.requesterReal === myName && !q.isRemote) {
-                        const btn = document.createElement('button');
-                        btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
-                        btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-                        btn.onclick = () => cancelRequest(q.id);
-                        div.appendChild(btn);
-                    }
-                    qList.appendChild(div);
-                });
+        function deleteChat(id) {
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'delete_chat', id: id });
             }
         }
 
@@ -1361,6 +1216,125 @@
             container.scrollTop = container.scrollHeight;
         }
 
+        function renderListenerState(state) {
+            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, hostTheme, isLive, cameraApprovalMode, participants } = state;
+
+            if(serverChatHistory) {
+                chatHistory = serverChatHistory;
+                renderChatList('listener-chat-list', chatHistory, false);
+            }
+
+            const playingEl = document.getElementById('listener-now-playing');
+            
+            if(currentSongData && playingEl) {
+                playingEl.textContent = currentSongData.title;
+                const reqName = currentSongData.isAnon ? '184(匿名)' : (currentSongData.requester || "");
+                const reqEl = document.getElementById('listener-now-requester');
+                if(reqEl) reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
+                
+                const eq = document.getElementById('listener-eq');
+                if(eq) isPlaying ? eq.classList.add('active') : eq.classList.remove('active');
+            } else if (playingEl) {
+                playingEl.textContent = "BGM停止中";
+                const reqEl = document.getElementById('listener-now-requester');
+                if(reqEl) reqEl.textContent = "";
+                const eq = document.getElementById('listener-eq');
+                if(eq) eq.classList.remove('active');
+            }
+
+            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
+
+            const tDiv = document.getElementById('listener-theme-container');
+            if(tDiv) {
+                if(hostTheme) { 
+                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
+                    tDiv.classList.remove('hidden'); 
+                } else {
+                    tDiv.classList.add('hidden');
+                }
+            }
+
+            const btn = document.getElementById('btn-toggle-camera');
+            const tabCamIcon = document.querySelector('#tab-cam i');
+            
+            if(isLive) {
+                if(btn && !listenerHasStream) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    if(cameraApprovalMode) {
+                        const myData = participants ? participants.find(p => p.id === listenerId) : null;
+                        if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+                        else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
+                    } else btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
+                }
+                if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            } else { 
+                resetListenerVideo(); 
+                if(btn) {
+                    btn.textContent = "配信はオフラインです"; 
+                    btn.disabled = true;
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                if(tabCamIcon) tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
+            }
+
+            const countEl = document.getElementById('listener-queue-count');
+            if(countEl) countEl.textContent = serverQueue ? serverQueue.length : 0;
+            
+            const qList = document.getElementById('listener-queue-list');
+            if(qList && serverQueue) {
+                qList.innerHTML = '';
+                const myName = document.getElementById('listener-name').value.trim();
+                serverQueue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
+                    
+                    const dispName = q.isAnon ? '184(匿名)' : q.requester;
+                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
+                    
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
+                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    if(myName && q.requesterReal === myName && !q.isRemote) {
+                        const btn = document.createElement('button');
+                        btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
+                        btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                        btn.onclick = () => cancelRequest(q.id);
+                        div.appendChild(btn);
+                    }
+                    qList.appendChild(div);
+                });
+            }
+
+            if(serverHistQueue) {
+                const listenerHist = document.getElementById('listener-history-list');
+                if (listenerHist) {
+                    listenerHist.innerHTML = '';
+                    serverHistQueue.forEach((q, idx) => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center justify-between bg-gray-800/50 border border-gray-700/50 p-2 rounded text-sm mb-1";
+                        div.innerHTML = `
+                            <div class="flex items-center gap-2 overflow-hidden flex-1">
+                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                                <div class="truncate">
+                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
+                                    <p class="text-[10px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                                </div>
+                            </div>
+                            <button onclick="reRequestListener('${q.videoId}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
+                        `;
+                        listenerHist.appendChild(div);
+                    });
+                }
+            }
+        }
     </script>
 </body>
 </html>
