@@ -324,8 +324,9 @@
         let isWatchPartyEnabled = true;
         let viewerYTPlayer = null;
         let isWpOverlayActive = true;
-        let hostCurrentTime = 0;
-        let hostCurrentStatus = -1;
+        let lastHostTime = 0;
+        let lastHostStatus = -1;
+        let lastHostTimeReceivedAt = 0;
         let remoteHasStream = false;
 
         let remoteNotifTimeout = null;
@@ -336,7 +337,7 @@
 
         function scheduleReconnect() {
             if (reconnectTimeout) clearTimeout(reconnectTimeout);
-            const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000); 
+            const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000); // 3秒〜最大30秒の指数バックオフ
             reconnectTimeout = setTimeout(() => {
                 if (currentRoomId && (!listenerConn || !listenerConn.open)) {
                      reconnectAttempts++;
@@ -558,7 +559,6 @@
         }
 
         function initRemoteConnection() {
-            // クラウドへの接続を行っていた古いコードを削除し、P2P接続のみで完結させる
             if (peer) peer.destroy();
             listenerId = generateId();
             peer = new Peer(`remote-${listenerId}`);
@@ -617,16 +617,7 @@
                     }
                     
                     if(data.type === 'sync_playback') {
-                        if (!isWatchPartyEnabled || !viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function') return;
-                        
-                        lastHostTime = data.time || 0;
-                        lastHostStatus = data.status;
-                        lastHostTimeReceivedAt = Date.now();
-
-                        if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
-                            currentSong = { videoId: data.videoId };
-                            viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: lastHostTime});
-                        }
+                        handleSyncPlayback(data);
                     }
                     
                     if(data.type === 'state') {
@@ -795,16 +786,14 @@
             if(!text) return;
 
             if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'chat', text: text, sender: "👑 配信管理者", senderReal: "配信管理者", isAnon: false, isRemote: true });
+                listenerConn.send({ type: 'chat', text, sender: "👑 配信管理者", senderReal: "配信管理者", isAnon: false, isRemote: true });
                 document.getElementById(inputId).value = '';
                 closeRemoteChatInput();
             }
         }
 
         function deleteChat(id) {
-            if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'delete_chat', id: id });
-            }
+            if(listenerConn && listenerConn.open) listenerConn.send({ type: 'delete_chat', id });
         }
 
         function sendRemoteCommand(cmd, action = null, targetId = null) {
@@ -860,23 +849,17 @@
             if(!url) return;
             const vid = extractVideoId(url);
             if(vid) {
-                if(listenerConn && listenerConn.open) {
-                    listenerConn.send({ type: 'request', videoId: vid, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
-                    document.getElementById('remote-url').value = '';
-                    showToast("追加しました！");
-                } else {
-                    showToast("ホストに接続されていません", "error");
-                }
+                listenerConn.send({ type: 'request', videoId: vid, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
+                document.getElementById('remote-url').value = '';
+                showToast("追加しました！");
             } else {
                 showToast("無効なYouTube URLです", "error");
             }
         }
 
         function reRequestRemote(videoId) {
-            if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'request', videoId: videoId, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
-                showToast("再リクエストを追加しました");
-            }
+            listenerConn.send({ type: 'request', videoId: videoId, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
+            showToast("再リクエストを追加しました");
         }
 
         function requestRemoteCamera() {
@@ -911,7 +894,6 @@
             if (!viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function' || isWpOverlayActive) return;
             if (Date.now() - lastHostTimeReceivedAt > 5000) return;
 
-            // エラー防止：動画がプレイヤーにロードされていない場合は操作しない
             try {
                 const vData = viewerYTPlayer.getVideoData();
                 if (!vData || !vData.video_id) return;
@@ -933,7 +915,6 @@
                 if (myState !== 1 && myState !== 3) {
                     viewerYTPlayer.playVideo();
                 }
-                
                 if (Math.abs(diff) > 2.0) {
                     viewerYTPlayer.seekTo(expectedHostTime, true);
                 } else if (Math.abs(diff) > 0.5) {
@@ -978,8 +959,11 @@
 
         function toggleWatchPartyMuteFromSwitch(isSoundOn) {
             if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
-            if (isSoundOn) viewerYTPlayer.unMute();
-            else viewerYTPlayer.mute();
+            if (isSoundOn) {
+                viewerYTPlayer.unMute();
+            } else {
+                viewerYTPlayer.mute();
+            }
         }
 
         function toggleRemoteWatchPartyVideoFromSwitch(isOn) {
@@ -990,24 +974,80 @@
             }
         }
 
-        window.onYouTubeIframeAPIReady = function() {
-            viewerYTPlayer = new YT.Player('remote-youtube-player', {
-                height: '100%', width: '100%',
-                playerVars: { autoplay: 1, controls: 1, rel: 0 },
-                events: {
-                    'onReady': (event) => {
-                        event.target.mute();
-                        // ページ更新時など、すでに曲データがある場合はロードする
-                        if (currentSong && currentSong.videoId) {
-                            event.target.loadVideoById({
-                                videoId: currentSong.videoId,
-                                startSeconds: lastHostTime || 0
-                            });
-                        }
-                    }
+        function handleSyncPlayback(data) {
+            const wpPlayerId = 'remote-youtube-player';
+
+            if (!isWatchPartyEnabled) {
+                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
+                    viewerYTPlayer.pauseVideo();
                 }
-            });
-        };
+                return;
+            }
+
+            if (!viewerYTPlayer) {
+                if (typeof YT === 'undefined' || !YT.Player) {
+                    loadYouTubeAPI(); return;
+                }
+                
+                let playerOptions = {
+                    height: '100%', width: '100%',
+                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
+                    events: { 
+                        'onReady': (event) => { 
+                            event.target.mute(); 
+                            if (currentSong && currentSong.videoId) {
+                                event.target.loadVideoById({videoId: currentSong.videoId, startSeconds: lastHostTime || 0});
+                            }
+                        } 
+                    }
+                };
+                if (data.videoId) playerOptions.videoId = data.videoId;
+                if (document.getElementById(wpPlayerId)) viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
+                return;
+            }
+
+            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
+            
+            if (!data.videoId) {
+                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
+                    viewerYTPlayer.stopVideo();
+                }
+                currentSong = null;
+                return;
+            }
+
+            const state = viewerYTPlayer.getPlayerState();
+            const currentTime = viewerYTPlayer.getCurrentTime();
+            lastHostTime = data.time || 0; 
+            lastHostStatus = data.status;
+            lastHostTimeReceivedAt = Date.now();
+
+            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
+                currentSong = { videoId: data.videoId };
+                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: lastHostTime});
+                return;
+            }
+
+            if (data.status === 1) { 
+                if (state !== 1 && state !== 3) viewerYTPlayer.playVideo();
+                const diff = lastHostTime - currentTime;
+                
+                if (Math.abs(diff) < 1.0) {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
+                    viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
+                } else {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                    viewerYTPlayer.seekTo(lastHostTime, true);
+                }
+            } else if (data.status === 2 || data.status === -1) { 
+                if (state === 1) {
+                    viewerYTPlayer.pauseVideo();
+                    viewerYTPlayer.seekTo(lastHostTime, true);
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                }
+            }
+        }
 
         function triggerTTS(chatObj) {
             let ttsOn = false;
