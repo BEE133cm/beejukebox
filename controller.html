@@ -52,6 +52,68 @@
             box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important;
         }
     </style>
+
+    <!-- Firebase Initialization -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ==========================================
+        // 【重要】Firebase 接続設定
+        // ==========================================
+        const myFirebaseConfig = {
+  apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
+  authDomain: "beejukebox-94ad8.firebaseapp.com",
+  projectId: "beejukebox-94ad8",
+  storageBucket: "beejukebox-94ad8.firebasestorage.app",
+  messagingSenderId: "902266249398",
+  appId: "1:902266249398:web:8de3ff1d14ea5eef224617",
+  measurementId: "G-H4SV4FHX3Z"
+};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'jukebox-app';
+        let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        if (!firebaseConfig && myFirebaseConfig) {
+            firebaseConfig = myFirebaseConfig;
+        }
+
+        try {
+            if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+                throw new Error("Firebaseの接続設定がありません。コード内の myFirebaseConfig を設定してください。");
+            }
+
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+
+            window.db = db;
+            window.auth = auth;
+            window.appId = appId;
+            window.collection = collection;
+            window.doc = doc;
+            window.setDoc = setDoc;
+            window.updateDoc = updateDoc;
+            window.addDoc = addDoc;
+            window.deleteDoc = deleteDoc;
+            window.onSnapshot = onSnapshot;
+
+            async function initFirebase() {
+                try {
+                    if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
+                    else await signInAnonymously(auth);
+                    window.dispatchEvent(new Event('firebase-auth-ready'));
+                } catch (e) {
+                    console.error("Firebase Auth Error:", e);
+                }
+            }
+            initFirebase();
+        } catch (e) {
+            console.error("Firebase Setup Error:", e);
+            window.firebaseInitError = e.message;
+        }
+    </script>
 </head>
 <body class="p-0 overflow-hidden relative">
 
@@ -319,13 +381,12 @@
         }
 
         let pendingConnection = null;
+        let queue = [];
         let chatHistory = []; 
         let currentSong = null;
         let isWatchPartyEnabled = true;
         let viewerYTPlayer = null;
         let isWpOverlayActive = true;
-        let hostCurrentTime = 0;
-        let hostCurrentStatus = -1;
         let remoteHasStream = false;
 
         let remoteNotifTimeout = null;
@@ -336,7 +397,7 @@
 
         function scheduleReconnect() {
             if (reconnectTimeout) clearTimeout(reconnectTimeout);
-            const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000); // 3秒〜最大30秒の指数バックオフ
+            const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000); 
             reconnectTimeout = setTimeout(() => {
                 if (currentRoomId && (!listenerConn || !listenerConn.open)) {
                      reconnectAttempts++;
@@ -481,11 +542,53 @@
             showView('remote-view');
             document.body.classList.remove('bg-[#111827]');
             document.body.classList.add('p-0', 'overflow-hidden');
+            
+            // クラウド接続とP2P接続を両方開始する
+            if (window.db) startCloudConnection();
+            else window.addEventListener('firebase-auth-ready', startCloudConnection, { once: true });
+            
             initRemoteConnection();
             
             const url = new URL(window.location);
             url.searchParams.set('remote', currentRoomId);
             history.replaceState(null, '', url);
+        }
+        
+        function startCloudConnection() {
+            // Listen to Room State from Firestore
+            window.onSnapshot(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), (docSnap) => {
+                if (docSnap.exists()) {
+                    handleRoomSync(docSnap.data());
+                } else {
+                    document.getElementById('remote-now-playing').textContent = "ホストが見つかりません";
+                }
+            }, (err) => console.error(err));
+
+            // Listen to Queues from Firestore
+            window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), (snapshot) => {
+                let allQ = [];
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+                    if (d.roomId === currentRoomId) allQ.push({ id: doc.id, ...d });
+                });
+                allQ.sort((a, b) => a.createdAt - b.createdAt);
+                queue = allQ;
+                renderQueue();
+            }, (err) => console.error(err));
+
+            // Listen to Chats from Firestore
+            window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), (snapshot) => {
+                let allC = [];
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+                    if (d.roomId === currentRoomId) allC.push({ id: doc.id, ...d });
+                });
+                allC.sort((a, b) => a.createdAt - b.createdAt);
+                chatHistory = allC.slice(-100);
+                renderChatList('remote-chat-list', chatHistory, true);
+            }, (err) => console.error(err));
+            
+            loadYouTubeAPI();
         }
 
         function disconnectAndGoToPortal() {
@@ -568,23 +671,12 @@
 
                 listenerConn.on('open', () => {
                     reconnectAttempts = 0; // 再接続試行回数をリセット
-                    const statusId = 'remote-now-playing';
-                    if(document.getElementById(statusId)) {
-                        document.getElementById(statusId).textContent = "ホストと同期中...";
-                        document.getElementById(statusId).classList.replace('text-yellow-500', 'text-green-500');
-                        document.getElementById(statusId).classList.replace('text-red-500', 'text-green-500');
-                    }
                     sendProfileUpdate();
-                    // 復帰後の同期リクエスト (Host側にStateとSyncの自動送信を促す)
+                    // 復帰後の同期リクエスト (Host側にStateの自動送信を促す)
                     listenerConn.send({ type: 'request_sync' });
                 });
 
                 listenerConn.on('close', () => {
-                    const statusId = 'remote-now-playing';
-                    if(document.getElementById(statusId)) {
-                        document.getElementById(statusId).textContent = "通信切断...";
-                        document.getElementById(statusId).classList.replace('text-green-500', 'text-red-500');
-                    }
                     scheduleReconnect();
                 });
 
@@ -613,10 +705,6 @@
                         `;
                         showRemoteTopNotification(`<i class="fa-solid fa-bell text-yellow-400"></i> <span class="text-yellow-400 text-base">${data.name}</span> が視聴承認待ちです`, actionBtns);
                         return;
-                    }
-                    
-                    if(data.type === 'sync_playback') {
-                        handleSyncPlayback(data);
                     }
                     
                     if(data.type === 'state') {
@@ -659,18 +747,6 @@
                          showToast("操作にはパスワード認証が必要です", "error");
                          pendingConnection = listenerConn;
                          showPasswordModal();
-                    }
-                    
-                    if(data.type === 'new_chat') {
-                        if(!chatHistory.some(c => c.id === data.chat.id)) {
-                            chatHistory.push(data.chat);
-                            if(chatHistory.length > 100) chatHistory.shift();
-                            renderChatList('remote-chat-list', chatHistory, true);
-                            if(data.chat.senderReal !== "配信管理者") {
-                                showRemoteTopNotification(`<i class="fa-solid fa-comment-dots text-gray-400"></i> <span class="text-gray-300 text-xs">${data.chat.senderReal}</span><br>${data.chat.text}`);
-                            }
-                        }
-                        triggerTTS(data.chat);
                     }
                 });
             });
@@ -783,16 +859,22 @@
             const inputId = 'remote-chat-input';
             const text = document.getElementById(inputId).value.trim();
             if(!text) return;
+            document.getElementById(inputId).value = '';
+            closeRemoteChatInput();
 
-            if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'chat', text, sender: "👑 配信管理者", senderReal: "配信管理者", isAnon: false, isRemote: true });
-                document.getElementById(inputId).value = '';
-                closeRemoteChatInput();
-            }
+            window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), {
+                roomId: currentRoomId,
+                text: text,
+                sender: "👑 配信管理者",
+                senderReal: "配信管理者",
+                isAnon: false,
+                isRemote: true,
+                createdAt: Date.now()
+            });
         }
 
         function deleteChat(id) {
-            if(listenerConn && listenerConn.open) listenerConn.send({ type: 'delete_chat', id });
+            window.deleteDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'chats', id));
         }
 
         function sendRemoteCommand(cmd, action = null, targetId = null) {
@@ -842,23 +924,52 @@
             const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/);
             return match ? match[1] : null;
         }
+        
+        function fetchYouTubeTitle(videoId) {
+            return fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`)
+                .then(res => res.json())
+                .then(data => data.title || "不明なタイトル")
+                .catch(() => "不明なタイトル");
+        }
 
         function sendRemoteRequest() {
             const url = document.getElementById('remote-url').value;
             if(!url) return;
             const vid = extractVideoId(url);
             if(vid) {
-                listenerConn.send({ type: 'request', videoId: vid, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
                 document.getElementById('remote-url').value = '';
                 showToast("追加しました！");
+                fetchYouTubeTitle(vid).then(title => {
+                    window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
+                        roomId: currentRoomId,
+                        videoId: vid,
+                        title: title,
+                        requester: `👑 配信管理者`,
+                        requesterReal: '配信管理者',
+                        isAnon: false,
+                        isRemote: true,
+                        createdAt: Date.now()
+                    });
+                });
             } else {
                 showToast("無効なYouTube URLです", "error");
             }
         }
 
         function reRequestRemote(videoId) {
-            listenerConn.send({ type: 'request', videoId: videoId, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
             showToast("再リクエストを追加しました");
+            fetchYouTubeTitle(videoId).then(title => {
+                window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
+                    roomId: currentRoomId,
+                    videoId: videoId,
+                    title: title,
+                    requester: `👑 配信管理者`,
+                    requesterReal: '配信管理者',
+                    isAnon: false,
+                    isRemote: true,
+                    createdAt: Date.now()
+                });
+            });
         }
 
         function requestRemoteCamera() {
@@ -921,84 +1032,100 @@
             }
         }
 
-        function handleSyncPlayback(data) {
-            const wpPlayerId = 'remote-youtube-player';
+        function handleRoomSync(data) {
+            const tDiv = document.getElementById('remote-theme-display-container');
+            if(data.theme) { tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${data.theme}`; tDiv.classList.remove('hidden'); }
+            else tDiv.classList.add('hidden');
 
-            if (!isWatchPartyEnabled) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
-                    viewerYTPlayer.pauseVideo();
-                }
-                return;
-            }
+            const playingEl = document.getElementById('remote-now-playing');
+            const reqEl = document.getElementById('remote-now-requester');
 
-            if (!viewerYTPlayer) {
-                if (typeof YT === 'undefined' || !YT.Player) {
-                    loadYouTubeAPI(); return;
-                }
+            if (data.currentSong) {
+                playingEl.textContent = data.currentSong.title;
+                const reqName = data.currentSong.isAnon ? '184(匿名)' : (data.currentSong.requesterReal || data.currentSong.requester || "");
+                reqEl.innerHTML = reqName ? `<i class="fa-solid fa-user"></i> ${reqName}` : "";
                 
-                let playerOptions = {
-                    height: '100%', width: '100%',
-                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
-                    events: { 'onReady': (event) => { event.target.mute(); } }
-                };
-                if (data.videoId) playerOptions.videoId = data.videoId;
-                if (document.getElementById(wpPlayerId)) viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
-                return;
-            }
-
-            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
-            
-            if (!data.videoId) {
-                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
-                    viewerYTPlayer.stopVideo();
+                const remotePlayBtn = document.getElementById('btn-remote-play');
+                if(remotePlayBtn) {
+                    remotePlayBtn.innerHTML = data.status === 'playing'
+                        ? `<i class="fa-solid fa-pause text-lg"></i>`
+                        : `<i class="fa-solid fa-play text-lg"></i>`;
                 }
+
+                if (!currentSong || currentSong.videoId !== data.currentSong.videoId) {
+                    currentSong = data.currentSong;
+                    if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
+                        viewerYTPlayer.loadVideoById(currentSong.videoId);
+                    }
+                }
+
+                if (viewerYTPlayer && typeof viewerYTPlayer.getPlayerState === 'function') {
+                    const state = viewerYTPlayer.getPlayerState();
+                    if (data.status === 'playing') {
+                        const expectedTime = (Date.now() - currentSong.startedAt) / 1000;
+                        if (state !== 1 && state !== 3) {
+                            viewerYTPlayer.seekTo(expectedTime, true);
+                            viewerYTPlayer.playVideo();
+                        } else {
+                            const diff = expectedTime - viewerYTPlayer.getCurrentTime();
+                            if (Math.abs(diff) > 2.0) viewerYTPlayer.seekTo(expectedTime, true);
+                        }
+                    } else if (data.status === 'paused') {
+                        if (state === 1) {
+                            viewerYTPlayer.pauseVideo();
+                            viewerYTPlayer.seekTo(currentSong.pausePosition || 0, true);
+                        }
+                    }
+                }
+            } else {
                 currentSong = null;
-                return;
-            }
-
-            const state = viewerYTPlayer.getPlayerState();
-            const currentTime = viewerYTPlayer.getCurrentTime();
-            hostCurrentTime = data.time; 
-            hostCurrentStatus = data.status;
-
-            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
-                currentSong = { videoId: data.videoId };
-                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
-                return;
-            }
-
-            if (data.status === 1) { 
-                if (state !== 1 && state !== 3) viewerYTPlayer.playVideo();
-                const diff = hostCurrentTime - currentTime;
-                
-                if (Math.abs(diff) < 1.0) {
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
-                    viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
-                } else {
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
-                }
-            } else if (data.status === 2 || data.status === -1) { 
-                if (state === 1) {
-                    viewerYTPlayer.pauseVideo();
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                }
+                playingEl.textContent = "BGM停止中";
+                reqEl.textContent = "";
+                const remotePlayBtn = document.getElementById('btn-remote-play');
+                if(remotePlayBtn) remotePlayBtn.innerHTML = `<i class="fa-solid fa-play text-lg"></i>`;
+                if (viewerYTPlayer && typeof viewerYTPlayer.stopVideo === 'function') viewerYTPlayer.stopVideo();
             }
         }
+        
+        window.onYouTubeIframeAPIReady = function() {
+            viewerYTPlayer = new YT.Player('remote-youtube-player', {
+                height: '100%', width: '100%',
+                playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
+                events: {
+                    'onReady': (event) => { event.target.mute(); }
+                }
+            });
+        };
 
-        function triggerTTS(chatObj) {
-            let ttsOn = false;
-            const toggle = document.getElementById('remote-tts-toggle');
-            if(toggle) ttsOn = toggle.checked;
-            if(!ttsOn) return;
+        function renderQueue() {
+            const countEl = document.getElementById('remote-queue-count');
+            if(countEl) countEl.textContent = queue.length;
             
-            let name = chatObj.isAnon ? '184(匿名)' : chatObj.senderReal;
-            const text = `${name}さんから、${chatObj.text}`;
-            const ut = new SpeechSynthesisUtterance(text);
-            ut.lang = 'ja-JP';
-            window.speechSynthesis.speak(ut);
+            const qList = document.getElementById('remote-queue-list');
+            if(qList) {
+                qList.innerHTML = '';
+                queue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700 text-sm mb-1";
+                    const dispName = q.isAnon ? '184(匿名)' : (q.requesterReal || q.requester);
+                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
+                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
+                            </div>
+                        </div>
+                    `;
+                    const btn = document.createElement('button');
+                    btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
+                    btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                    btn.onclick = () => sendRemoteCommand('manage', 'cancel_req', q.id);
+                    div.appendChild(btn);
+                    qList.appendChild(div);
+                });
+            }
         }
 
         function renderChatList(containerId, chats, isPrivileged) {
@@ -1087,48 +1214,10 @@
         }
 
         function renderRemoteState(state) {
-            const { queue, historyQueue, chatHistory: serverChatHistory, currentSong, isPlaying, hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
+            const { historyQueue: serverHistQueue, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
             
             const toggleEl = document.getElementById('remote-cam-approval-toggle');
             if (toggleEl) toggleEl.checked = serverCamAppMode;
-
-            if(serverChatHistory) {
-                chatHistory = serverChatHistory;
-                renderChatList('remote-chat-list', chatHistory, true);
-            }
-
-            const playingEl = document.getElementById('remote-now-playing');
-            if(currentSong && playingEl) {
-                playingEl.textContent = currentSong.title;
-                const remoteReqEl = document.getElementById('remote-now-requester');
-                if(remoteReqEl) {
-                    const reqName = currentSong.isAnon ? '184(匿名)' : (currentSong.requesterReal || "");
-                    remoteReqEl.innerHTML = reqName ? `<i class="fa-solid fa-user"></i> ${reqName}` : "---";
-                }
-            } else if (playingEl) {
-                playingEl.textContent = "BGM停止中";
-                const remoteReqEl = document.getElementById('remote-now-requester');
-                if(remoteReqEl) remoteReqEl.textContent = "---";
-            }
-
-            const remotePlayBtn = document.getElementById('btn-remote-play');
-            if(remotePlayBtn) {
-                remotePlayBtn.innerHTML = isPlaying
-                    ? `<i class="fa-solid fa-pause text-lg"></i>`
-                    : `<i class="fa-solid fa-play text-lg"></i>`;
-            }
-
-            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
-
-            const tDiv = document.getElementById('remote-theme-display-container');
-            if(tDiv) {
-                if(hostTheme) { 
-                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
-                    tDiv.classList.remove('hidden'); 
-                } else {
-                    tDiv.classList.add('hidden');
-                }
-            }
 
             const btnRemote = document.getElementById('btn-remote-toggle-camera');
             const tabRemoteCamIcon = document.querySelector('#remote-tab-cam i');
@@ -1156,39 +1245,10 @@
             window.remoteBannedUsers = bannedUsers;
             renderParticipantList(document.getElementById('remote-participant-list'));
 
-            const countEl = document.getElementById('remote-queue-count');
-            if(countEl) countEl.textContent = queue.length;
-            
-            const qList = document.getElementById('remote-queue-list');
-            if(qList) {
-                qList.innerHTML = '';
-                queue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700 text-sm mb-1";
-                    const dispName = q.isAnon ? '184(匿名)' : q.requesterReal;
-                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
-                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
-                            </div>
-                        </div>
-                    `;
-                    const btn = document.createElement('button');
-                    btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
-                    btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-                    btn.onclick = () => sendRemoteCommand('manage', 'cancel_req', q.id);
-                    div.appendChild(btn);
-                    qList.appendChild(div);
-                });
-            }
-
             const hList = document.getElementById('remote-history-list');
-            if(hList && historyQueue) {
+            if(hList && serverHistQueue) {
                 hList.innerHTML = '';
-                historyQueue.forEach((q, idx) => {
+                serverHistQueue.forEach((q, idx) => {
                     const div = document.createElement('div');
                     div.className = "flex items-center justify-between bg-gray-900 p-2 rounded text-sm mb-1";
                     div.innerHTML = `
@@ -1196,7 +1256,7 @@
                             <span class="text-gray-500 font-bold w-4">${idx+1}</span>
                             <div class="truncate">
                                 <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                <p class="text-xs text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
+                                <p class="text-xs text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : (q.requesterReal || q.requester)}</p>
                             </div>
                         </div>
                         <button onclick="reRequestRemote('${q.videoId}')" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
