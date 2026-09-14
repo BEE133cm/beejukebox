@@ -30,36 +30,59 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // ==========================================
+        // 【重要】Firebase 接続設定
+        // クラウド同期を利用するには、ご自身でFirebaseプロジェクトを作成し、
+        // 以下の myFirebaseConfig に設定オブジェクトを貼り付けてください。
+        // 例: const myFirebaseConfig = { apiKey: "AIza...", authDomain: "...", projectId: "..." };
+        // ==========================================
+        const myFirebaseConfig = null; // ← ここを書き換える
+
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'jukebox-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        // Make Firebase instances globally available for the rest of the script
-        window.db = db;
-        window.auth = auth;
-        window.appId = appId;
-        window.collection = collection;
-        window.doc = doc;
-        window.setDoc = setDoc;
-        window.updateDoc = updateDoc;
-        window.addDoc = addDoc;
-        window.deleteDoc = deleteDoc;
-        window.onSnapshot = onSnapshot;
-
-        async function initFirebase() {
-            try {
-                if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
-                else await signInAnonymously(auth);
-                window.dispatchEvent(new Event('firebase-auth-ready'));
-            } catch (e) {
-                console.error("Firebase Auth Error:", e);
-            }
+        if (!firebaseConfig && myFirebaseConfig) {
+            firebaseConfig = myFirebaseConfig;
         }
-        initFirebase();
+
+        try {
+            if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+                throw new Error("Firebaseの接続設定がありません。コード内の myFirebaseConfig を設定してください。");
+            }
+
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+
+            // Make Firebase instances globally available for the rest of the script
+            window.db = db;
+            window.auth = auth;
+            window.appId = appId;
+            window.collection = collection;
+            window.doc = doc;
+            window.setDoc = setDoc;
+            window.updateDoc = updateDoc;
+            window.addDoc = addDoc;
+            window.deleteDoc = deleteDoc;
+            window.onSnapshot = onSnapshot;
+
+            async function initFirebase() {
+                try {
+                    if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
+                    else await signInAnonymously(auth);
+                    window.dispatchEvent(new Event('firebase-auth-ready'));
+                } catch (e) {
+                    console.error("Firebase Auth Error:", e);
+                    window.firebaseInitError = "Firebase認証に失敗しました: " + e.message;
+                }
+            }
+            initFirebase();
+
+        } catch (e) {
+            console.error("Firebase Setup Error:", e);
+            window.firebaseInitError = e.message;
+        }
     </script>
 </head>
 <body class="h-[100dvh] w-full flex flex-col p-0 m-0 overflow-hidden text-sm">
@@ -456,6 +479,11 @@
             
             let baseId = idInput.replace(/[^a-zA-Z0-9-]/g, '');
             if(!baseId) return showToast("ルームIDは半角英数字で入力してください", "error");
+
+            if (window.firebaseInitError) {
+                alert("【DB接続エラー】\n" + window.firebaseInitError + "\n\nクラウド同期を利用するには、ご自身でFirebaseを作成しコードに設定キーを貼り付ける必要があります。");
+                return;
+            }
             
             hostName = nameInput || "配信太郎";
             hostPassword = passInput; 
