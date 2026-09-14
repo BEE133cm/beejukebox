@@ -34,71 +34,6 @@
 
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
     </style>
-
-    <!-- Firebase Initialization -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // ==========================================
-        // 【重要】Firebase 接続設定
-        // クラウド同期を利用するには、ご自身でFirebaseプロジェクトを作成し、
-        // 以下の myFirebaseConfig に設定オブジェクトを貼り付けてください。
-        // ==========================================
-        const firebaseConfig = {
-  apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
-  authDomain: "beejukebox-94ad8.firebaseapp.com",
-  projectId: "beejukebox-94ad8",
-  storageBucket: "beejukebox-94ad8.firebasestorage.app",
-  messagingSenderId: "902266249398",
-  appId: "1:902266249398:web:8de3ff1d14ea5eef224617",
-  measurementId: "G-H4SV4FHX3Z"
-};
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'jukebox-app';
-        let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        if (!firebaseConfig && myFirebaseConfig) {
-            firebaseConfig = myFirebaseConfig;
-        }
-
-        try {
-            if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
-                throw new Error("Firebaseの接続設定がありません。コード内の myFirebaseConfig を設定してください。");
-            }
-
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-
-            window.db = db;
-            window.auth = auth;
-            window.appId = appId;
-            window.collection = collection;
-            window.doc = doc;
-            window.setDoc = setDoc;
-            window.updateDoc = updateDoc;
-            window.addDoc = addDoc;
-            window.deleteDoc = deleteDoc;
-            window.onSnapshot = onSnapshot;
-
-            async function initFirebase() {
-                try {
-                    if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
-                    else await signInAnonymously(auth);
-                    window.dispatchEvent(new Event('firebase-auth-ready'));
-                } catch (e) {
-                    console.error("Firebase Auth Error:", e);
-                }
-            }
-            initFirebase();
-        } catch (e) {
-            console.error("Firebase Setup Error:", e);
-            window.firebaseInitError = e.message;
-        }
-    </script>
 </head>
 <body class="overflow-hidden relative h-[100dvh] flex flex-col bg-[#0e0e10]">
 
@@ -198,7 +133,7 @@
                 
                 <!-- ステータス ＆ NowPlaying 帯 (上部固定) -->
                 <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
-                    <span id="camera-status" class="text-[11px] text-yellow-500 font-bold animate-pulse drop-shadow-md shrink-0">クラウド同期中...</span>
+                    <span id="camera-status" class="text-[11px] text-yellow-500 font-bold animate-pulse drop-shadow-md shrink-0">配信設定・待機中...</span>
                     <div class="marquee-container h-4 flex-1">
                         <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
                             <span id="camera-now-playing">待機中...</span>
@@ -435,59 +370,10 @@
             
             initCamera();
             
-            // Firestore接続 (Cloud Sync)
-            if (window.db) startCloudConnection();
-            else window.addEventListener('firebase-auth-ready', startCloudConnection, { once: true });
-            
             const url = new URL(window.location);
             url.searchParams.set('cam', currentRoomId);
             history.replaceState(null, '', url);
         }
-
-        // ================= Firestore Integration =================
-        function startCloudConnection() {
-            // Listen to Room State from Firestore
-            window.onSnapshot(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), (docSnap) => {
-                if (docSnap.exists()) {
-                    handleRoomSync(docSnap.data());
-                } else {
-                    document.getElementById('camera-now-playing').textContent = "ホストが見つかりません";
-                }
-            }, (err) => console.error(err));
-
-            // Listen to Chats from Firestore
-            window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), (snapshot) => {
-                let allC = [];
-                snapshot.forEach(doc => {
-                    const d = doc.data();
-                    if (d.roomId === currentRoomId) allC.push({ id: doc.id, ...d });
-                });
-                allC.sort((a, b) => a.createdAt - b.createdAt);
-                chatHistory = allC.slice(-100);
-                renderChatList('camera-chat-list', chatHistory, true);
-            }, (err) => console.error(err));
-        }
-
-        function handleRoomSync(data) {
-            saveCamHistory(currentRoomId, data.hostName);
-
-            const playingEl = document.getElementById('camera-now-playing');
-            if(data.currentSong && playingEl) {
-                playingEl.textContent = data.currentSong.title;
-                const reqName = data.currentSong.isAnon ? '184(匿名)' : (data.currentSong.requesterReal || data.currentSong.requester || "");
-                document.getElementById('camera-now-requester').innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
-            } else if (playingEl) {
-                playingEl.textContent = "BGM停止中";
-                document.getElementById('camera-now-requester').textContent = "";
-            }
-
-            document.querySelectorAll('.marquee-content').forEach(el => { 
-                el.style.animation = 'none'; 
-                el.offsetHeight; 
-                el.style.animation = null; 
-            });
-        }
-
 
         // タブ切り替え
         function switchCameraMenuTab(tabId) {
@@ -538,7 +424,15 @@
             }
         }
 
-        // PeerJS初期化と接続処理 (映像配信用)
+        // ホストへのカメラコマンド送信用
+        function sendCameraCommand(cmd, action = null, targetId = null) {
+            if(dataConn && dataConn.open) {
+                dataConn.send({ type: 'remote_cmd', cmd: cmd, action: action, targetId: targetId });
+                showToast("コマンドを送信しました");
+            }
+        }
+
+        // PeerJS初期化と接続処理
         function initCamera() {
             document.getElementById('camera-status').textContent = "ホストに接続・認証中...";
             document.getElementById('camera-status').classList.replace('text-green-500', 'text-yellow-500');
@@ -579,14 +473,21 @@
             
             pendingConnection = dataConn;
 
+            dataConn.on('open', () => {
+                // ホスト側との安定接続のためにプロフィールを送る
+                dataConn.send({ type: 'update_profile', name: "配信カメラ", isRemote: false, isObs: false, uuid: 'cam-uuid-' + myId });
+            });
+
             dataConn.on('data', (data) => {
                 if (data.type === 'ping') {
                     dataConn.send({ type: 'pong' });
                     return;
                 }
                 
-                // P2Pからの情報受け取りは、パスワード認証と参加者リストのみ残す
+                // Firestore接続の代わりに、P2Pから送られてくる全状態（state）を受信して描画する
                 if (data.type === 'state') {
+                    saveCamHistory(currentRoomId, data.hostName);
+                    
                     if (data.requirePassword) {
                         const savedPwd = savedPasswords[currentRoomId];
                         if (savedPwd) {
@@ -596,6 +497,29 @@
                         }
                     } else {
                         cameraReadyToStart();
+                    }
+
+                    currentSong = data.currentSong || null;
+                    const playingEl = document.getElementById('camera-now-playing');
+                    if(currentSong && playingEl) {
+                        playingEl.textContent = currentSong.title;
+                        const reqName = currentSong.isAnon ? '184(匿名)' : (currentSong.requesterReal || currentSong.requester || "");
+                        document.getElementById('camera-now-requester').innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
+                    } else if (playingEl) {
+                        playingEl.textContent = "BGM停止中";
+                        document.getElementById('camera-now-requester').textContent = "";
+                    }
+
+                    // マーキーリセット
+                    document.querySelectorAll('.marquee-content').forEach(el => { 
+                        el.style.animation = 'none'; 
+                        el.offsetHeight; 
+                        el.style.animation = null; 
+                    });
+
+                    if (data.chatHistory) {
+                        chatHistory = data.chatHistory;
+                        renderChatList('camera-chat-list', chatHistory, true);
                     }
 
                     if (data.participants) {
@@ -618,6 +542,13 @@
                         delete savedPasswords[currentRoomId];
                         localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
                         showPasswordModal();
+                    }
+
+                } else if (data.type === 'new_chat') {
+                    if(!chatHistory.some(c => c.id === data.chat.id)) {
+                        chatHistory.push(data.chat);
+                        if(chatHistory.length > 100) chatHistory.shift();
+                        renderChatList('camera-chat-list', chatHistory, true);
                     }
                 }
             });
@@ -1029,7 +960,17 @@
                 if(p.isRemote) nameLabel += ' <span class="text-xs text-yellow-400">(<i class="fa-solid fa-crown text-yellow-400"></i>)</span>';
                 if(p.isMuted) nameLabel += ' <span class="text-xs text-red-400"><i class="fa-solid fa-volume-xmark"></i>ミュート</span>';
 
-                div.innerHTML = `<div class="truncate flex-1"><span class="text-gray-200">${nameLabel}</span></div>`;
+                let controls = '';
+                if(!p.isRemote) {
+                    if(p.cameraStatus === 'requested') {
+                        controls += `<button onclick="sendCameraCommand('manage', 'approve_cam', '${p.id}')" class="text-xs bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded mr-1"><i class="fa-solid fa-check"></i></button>`;
+                        controls += `<button onclick="sendCameraCommand('manage', 'reject_cam', '${p.id}')" class="text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded"><i class="fa-solid fa-xmark"></i></button>`;
+                    } else if(p.cameraStatus === 'approved') {
+                        controls += `<span class="text-xs text-green-400"><i class="fa-solid fa-video"></i> 許可済</span>`;
+                    }
+                }
+
+                div.innerHTML = `<div class="truncate flex-1"><span class="text-gray-200">${nameLabel}</span></div><div class="flex-shrink-0 flex items-center">${controls}</div>`;
                 container.appendChild(div);
             });
 
