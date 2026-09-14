@@ -111,7 +111,15 @@
         // 【重要】Firebase 接続設定
         // ホスト側と同じ設定オブジェクトを貼り付けてください。
         // ==========================================
-        const myFirebaseConfig = null; // ← 必要に応じてホスト側と同じ設定を記述
+        const myFirebaseConfig = {
+  apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
+  authDomain: "beejukebox-94ad8.firebaseapp.com",
+  projectId: "beejukebox-94ad8",
+  storageBucket: "beejukebox-94ad8.firebasestorage.app",
+  messagingSenderId: "902266249398",
+  appId: "1:902266249398:web:8de3ff1d14ea5eef224617",
+  measurementId: "G-H4SV4FHX3Z"
+};
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'jukebox-app';
         let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
