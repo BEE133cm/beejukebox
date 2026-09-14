@@ -13,123 +13,84 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
-
         .marquee-container { overflow: hidden; white-space: nowrap; position: relative; width: 100%; display: flex; }
-        .marquee-content { 
-            display: inline-block; 
-            white-space: nowrap;
-            padding-left: 100vw; 
-            animation: marquee 15s linear infinite; 
-        }
-        @keyframes marquee {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-100%); }
-        }
-
-        .toast {
-            position: fixed; top: 20px; right: 20px; z-index: 9999;
-            transform: translateX(150%); transition: transform 0.3s ease-in-out;
-        }
+        .marquee-content { display: inline-block; white-space: nowrap; padding-left: 100vw; animation: marquee 15s linear infinite; }
+        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+        .toast { position: fixed; top: 20px; right: 20px; z-index: 9999; transform: translateX(150%); transition: transform 0.3s ease-in-out; }
         .toast.show { transform: translateX(0); }
-
-        .equalizer {
-            display: flex; align-items: flex-end; gap: 3px; height: 20px; opacity: 0; transition: opacity 0.3s;
-        }
+        .equalizer { display: flex; align-items: flex-end; gap: 3px; height: 20px; opacity: 0; transition: opacity 0.3s; }
         .equalizer.active { opacity: 1; }
-        .eq-bar {
-            width: 4px; background-color: #ef4444; border-radius: 2px;
-            animation: eq-bounce 0.5s infinite alternate ease-in-out;
-        }
+        .eq-bar { width: 4px; background-color: #ef4444; border-radius: 2px; animation: eq-bounce 0.5s infinite alternate ease-in-out; }
         .eq-bar:nth-child(1) { animation-delay: 0.1s; height: 30%; }
         .eq-bar:nth-child(2) { animation-delay: 0.3s; height: 60%; }
         .eq-bar:nth-child(3) { animation-delay: 0.0s; height: 100%; }
         .eq-bar:nth-child(4) { animation-delay: 0.4s; height: 40%; }
         .eq-bar:nth-child(5) { animation-delay: 0.2s; height: 70%; }
-        
-        @keyframes eq-bounce {
-            0% { transform: scaleY(0.3); }
-            100% { transform: scaleY(1); }
-        }
-
+        @keyframes eq-bounce { 0% { transform: scaleY(0.3); } 100% { transform: scaleY(1); } }
         .youtube-hidden { position: absolute; width: 1px; height: 1px; top: -9999px; left: -9999px; }
-
-        .banned-overlay {
-            position: fixed; inset: 0; background: #000; z-index: 9999;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-        }
-
+        .banned-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .layer-hidden { opacity: 0; pointer-events: none; z-index: 0; }
         .layer-visible { opacity: 1; pointer-events: auto; z-index: 10; }
-        
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
-
-        /* チャット入力フローティング作戦 (キーボード対策) */
-        .chat-backdrop {
-            position: absolute;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 30;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease;
-        }
-        .chat-input-container {
-            transition: all 0.2s ease;
-        }
-
-        /* 縦画面時のみフローティング化 */
+        .chat-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.85); z-index: 30; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+        .chat-input-container { transition: all 0.2s ease; }
         @media (orientation: portrait) {
-            .chat-backdrop.active {
-                opacity: 1;
-                pointer-events: auto;
-            }
-            .chat-input-floating {
-                position: fixed !important;
-                top: 35vh !important; 
-                left: 0 !important;
-                right: 0 !important;
-                z-index: 9999 !important;
-                padding: 15px !important;
-                background: rgba(24, 24, 27, 0.98) !important;
-                border-top: 1px solid #4f46e5 !important;
-                border-bottom: 1px solid #4f46e5 !important;
-                box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important;
-            }
+            .chat-backdrop.active { opacity: 1; pointer-events: auto; }
+            .chat-input-floating { position: fixed !important; top: 35vh !important; left: 0 !important; right: 0 !important; z-index: 9999 !important; padding: 15px !important; background: rgba(24, 24, 27, 0.98) !important; border-top: 1px solid #4f46e5 !important; border-bottom: 1px solid #4f46e5 !important; box-shadow: 0 15px 30px rgba(0,0,0,0.8) !important; }
         }
-        /* 横画面時はバックドロップ等フローティング効果を無効化 */
-        @media (orientation: landscape) {
-            .chat-backdrop { display: none !important; }
-        }
+        @media (orientation: landscape) { .chat-backdrop { display: none !important; } }
     </style>
+
+    <!-- Firebase Initialization -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'jukebox-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.db = db;
+        window.auth = auth;
+        window.appId = appId;
+        window.collection = collection;
+        window.doc = doc;
+        window.setDoc = setDoc;
+        window.updateDoc = updateDoc;
+        window.addDoc = addDoc;
+        window.deleteDoc = deleteDoc;
+        window.onSnapshot = onSnapshot;
+
+        async function initFirebase() {
+            try {
+                if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
+                else await signInAnonymously(auth);
+                window.dispatchEvent(new Event('firebase-auth-ready'));
+            } catch (e) {
+                console.error("Firebase Auth Error:", e);
+            }
+        }
+        initFirebase();
+    </script>
 </head>
 <body class="p-0 overflow-hidden relative">
 
-    <!-- トースト通知 -->
     <div id="toast" class="toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3">
         <span id="toast-msg"></span>
-    </div>
-
-    <!-- パスワード入力モーダル -->
-    <div id="password-modal" class="hidden fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
-        <div class="bg-gray-900 border border-indigo-500 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
-            <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-lock"></i> パスワードが必要です</h3>
-            <p class="text-sm text-gray-400 mb-6">このルームを操作・配信するには<br>ホストが設定したパスワードが必要です。</p>
-            <input type="password" id="room-password-input" placeholder="管理パスワードを入力" class="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white mb-2 outline-none focus:border-indigo-500">
-            <p id="password-error" class="hidden text-red-500 text-xs mb-4">パスワードが間違っています</p>
-            <div class="flex gap-3 mt-4">
-                <button onclick="closePasswordModal()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">キャンセル</button>
-                <button onclick="submitPassword()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg">接続する</button>
-            </div>
-        </div>
     </div>
 
     <!-- リスナー名入力モーダル -->
     <div id="name-modal" class="hidden fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
         <div class="bg-gray-900 border border-indigo-500 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center">
             <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-user"></i> お名前を入力してください</h3>
-            <p class="text-sm text-gray-400 mb-6">※入室後の名前変更はできません。<br>（入室後に匿名にすることは可能です）</p>
+            <p class="text-sm text-gray-400 mb-6">※入室後の名前変更はできません。</p>
             <input type="text" id="initial-name-input" onkeypress="if(event.key === 'Enter') submitName()" placeholder="例: リスナーA" class="w-full bg-gray-800 border border-gray-600 rounded p-3 text-white mb-2 outline-none focus:border-indigo-500">
             <p id="name-error" class="hidden text-red-500 text-xs mb-4">名前を入力してください</p>
             <div class="flex mt-4">
@@ -138,97 +99,12 @@
         </div>
     </div>
 
-    <!-- リスナーチュートリアルモーダル -->
-    <div id="tutorial-modal" class="hidden fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4">
-        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center relative">
-            <h3 class="text-xl font-bold text-white mb-4">配信者にリクエストを送ろう！</h3>
-            <div class="text-sm text-gray-300 space-y-2 text-left mb-6">
-                <p>Youtube / Youtube musicの動画・音楽の共有URLをコピー＆ペースト！</p>
-                <p class="text-yellow-400">※おすすめはYoutube musicです！</p>
-                <p class="text-red-400">※動画の権利の関係で再生されないものもあります</p>
-            </div>
-            <button onclick="document.getElementById('tutorial-modal').classList.add('hidden')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg">閉じる</button>
-        </div>
-    </div>
-
-    <!-- ================= 3. リスナー画面 (新フルスクリーンUI) ================= -->
+    <!-- リスナー画面 -->
     <div id="listener-view" class="flex fixed top-0 left-0 w-full h-[100dvh] z-50 bg-[#0e0e10] flex-col landscape:flex-row text-sm">
-        <div id="listener-settings-modal" class="hidden absolute inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm px-4">
-            <div class="bg-[#18181b] border border-gray-700 p-6 rounded-xl w-full max-w-sm space-y-6 shadow-2xl overflow-y-auto max-h-[90vh]">
-                <div class="flex justify-between items-center border-b border-gray-800 pb-3">
-                    <h3 class="text-white font-bold text-sm"><i class="fa-solid fa-gear"></i> 設定</h3>
-                    <button onclick="document.getElementById('listener-settings-modal').classList.add('hidden')" class="text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
-                </div>
-                
-                <div class="space-y-5">
-                    <!-- メディア設定 -->
-                    <div>
-                        <h4 class="text-xs font-bold text-gray-500 mb-3 uppercase">メディア設定</h4>
-                        <div class="space-y-4">
-                            <div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-video"></i> Streamの音声</span>
-                                    <label class="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" id="toggle-cam-mute" class="sr-only peer" onchange="toggleListenerAudioFromSwitch(this.checked)">
-                                        <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-                                    </label>
-                                </div>
-                                <div class="flex flex-col mt-3 pl-2 border-l-2 border-gray-700 ml-1">
-                                    <span class="text-gray-400 text-xs font-bold mb-2"><i class="fa-solid fa-bolt text-yellow-500"></i> 音量ブースト (最大50倍)</span>
-                                    <div class="flex items-center">
-                                        <input type="range" id="stream-boost-slider" min="1" max="50" step="0.5" value="2.0" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeStreamBoost(this.value)">
-                                    </div>
-                                    <span class="text-[10px] text-gray-500 mt-2">※配信者の声が小さい場合のみ上げてください</span>
-                                </div>
-                            </div>
-                            
-                            <div class="flex justify-between items-center border-t border-gray-800 pt-3">
-                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-music"></i> Jukeboxの音声</span>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="toggle-wp-mute" class="sr-only peer" onchange="toggleWatchPartyMuteFromSwitch(this.checked)">
-                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-                                </label>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-desktop"></i> Jukeboxの映像</span>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="toggle-wp-video" class="sr-only peer" checked onchange="toggleWatchPartyVideoFromSwitch(this.checked); saveListenerSettings();">
-                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <hr class="border-gray-800 my-4">
-
-                    <!-- コメント設定 -->
-                    <div>
-                        <h4 class="text-xs font-bold text-gray-500 mb-3 uppercase">コメント設定</h4>
-                        <div class="space-y-4">
-                            <div>
-                                <input type="text" id="listener-name" placeholder="入室時に入力した名前" readonly class="w-full bg-gray-900/50 border border-gray-700 rounded p-2 text-gray-400 text-xs focus:outline-none cursor-not-allowed">
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-user-secret"></i> 匿名(184)にする</span>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="listener-anon" class="sr-only peer">
-                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-
-        <!-- ========== 左ペイン: 映像とコントロール (横画面時は残り幅全占有) ========== -->
+        
+        <!-- 左ペイン: 映像 -->
         <div class="flex flex-col w-full landscape:w-auto landscape:flex-1 landscape:h-full shrink-0 relative z-20 bg-black">
-            
-            <!-- 1. 映像エリア (上部固定 / 横画面時は全画面) -->
             <div id="listener-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden aspect-video landscape:aspect-auto landscape:flex-1">
-                
-                <!-- NowPlaying帯 (映像上部) -->
                 <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
                     <div id="listener-eq" class="equalizer scale-75 shrink-0 origin-left"><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div></div>
                     <div class="marquee-container h-4 flex-1">
@@ -239,18 +115,10 @@
                     </div>
                 </div>
 
-                <!-- Stream映像レイヤー -->
-                <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
-                    <!-- Web Audio API にルーティングするため、常にミュートにする -->
-                    <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
-                </div>
-                
-                <!-- Jukebox映像レイヤー -->
                 <div id="listener-wp-layer" class="absolute inset-0 layer-visible bg-black">
                     <div id="listener-youtube-player-wrapper" class="w-full h-full">
                         <div id="listener-youtube-player" class="w-full h-full pointer-events-auto"></div>
                     </div>
-                    <!-- 初回タップ用オーバーレイ -->
                     <div id="listener-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
                         <span class="text-4xl mb-2 hover:scale-110 transition-transform"><i class="fa-solid fa-play"></i></span>
                         <span class="text-sm font-bold">タップして音声をONにして視聴開始</span>
@@ -258,237 +126,81 @@
                 </div>
             </div>
 
-            <!-- 1.5 配信主からのコメント表示（テーマ） -->
             <div id="listener-theme-container" class="bg-indigo-900/90 border-b border-indigo-500/50 text-indigo-100 text-[11px] py-1.5 px-3 text-center font-bold shrink-0 hidden shadow-md z-10 break-words"></div>
+        </div> 
 
-            <div id="listener-controls-bar" class="flex-shrink-0 flex justify-between items-center px-3 py-2 bg-[#18181b] border-b border-gray-800 z-10 shadow-md">
-                <!-- 映像切り替えタブ -->
-                <div class="flex gap-2">
-                    <button onclick="switchListenerLayer('cam')" id="tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
-                    <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
-                </div>
-
-                <!-- Jukebox音量バー (WPタブ選択時かつ横画面時のみ表示) -->
-                <div class="hidden landscape:flex flex-1 max-w-[150px] mx-4 items-center">
-                    <div id="wp-volume-container" class="hidden items-center gap-2 w-full transition-opacity duration-300">
-                        <span class="text-[10px] text-gray-400 font-bold whitespace-nowrap"><i class="fa-solid fa-volume-high"></i> 🎵音量</span>
-                        <input type="range" id="wp-volume-slider" min="0" max="100" value="100" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeWpVolume(this.value)">
-                    </div>
-                </div>
-
-                <!-- 設定モーダル呼び出しボタン -->
-                <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white shrink-0" title="設定">
-                    <i class="fa-solid fa-gear"></i>
-                </button>
-            </div>
-
-        </div> <!-- 左ペイン終了 -->
-
-        <!-- ========== 右ペイン: スクロール領域 (リクエスト類 ＋ チャット) ========== -->
+        <!-- 右ペイン: スクロール領域 (リクエスト類 ＋ チャット) -->
         <div class="flex-1 flex flex-col relative bg-[#0e0e10] min-h-0 landscape:w-[320px] lg:landscape:w-[400px] landscape:flex-none landscape:border-l landscape:border-gray-800">
-            
-            <!-- リクエスト・ステータス等（アコーディオン） -->
             <details id="listener-menu-details" class="bg-[#18181b] border-b border-gray-800 shrink-0 group z-10 relative">
                 <summary class="p-3 cursor-pointer text-gray-400 font-bold text-xs flex justify-between items-center outline-none hover:text-white transition-colors">
-                    <div class="flex items-center gap-2">
-                        <i class="fa-solid fa-music text-indigo-400 text-sm"></i> 
-                        <span>リクエスト等 (タップで開閉)</span>
-                    </div>
+                    <div class="flex items-center gap-2"><i class="fa-solid fa-music text-indigo-400 text-sm"></i> <span>リクエスト等 (タップで開閉)</span></div>
                     <span class="group-open:rotate-180 transition-transform"><i class="fa-solid fa-chevron-down"></i></span>
                 </summary>
-                
-                <!-- アコーディオンの中身 (チャットを隠して表示) -->
                 <div class="p-4 space-y-6 bg-[#111827] border-t border-gray-800 h-full overflow-y-auto pb-32">
-                    
-                    <!-- ① リクエスト送信 -->
                     <div class="space-y-3">
-                        <h3 class="text-xs font-bold text-indigo-400 flex items-center gap-1">
-                            <i class="fa-solid fa-arrow-down text-indigo-400"></i> リクエストはこちらから！
-                            <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="bg-gray-700 text-gray-300 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-2"><i class="fa-solid fa-question"></i></button>
-                        </h3>
+                        <h3 class="text-xs font-bold text-indigo-400 flex items-center gap-1"><i class="fa-solid fa-arrow-down text-indigo-400"></i> リクエストはこちらから！</h3>
                         <div class="flex gap-2">
                             <input type="text" id="listener-url" placeholder="https://youtu.be/..." class="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs outline-none focus:border-indigo-500">
                             <button onclick="sendRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded text-xs font-bold transition-colors">送信</button>
                         </div>
                     </div>
-
-                    <!-- ② キューと履歴 -->
                     <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-800/60">
                         <div>
                             <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">順番待ち (<span id="listener-queue-count">0</span>)</h3>
                             <div id="listener-queue-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px]"></div>
                         </div>
-                        <div>
-                            <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">再生履歴</h3>
-                            <div id="listener-history-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px] text-gray-500"></div>
-                        </div>
                     </div>
-
-                    <!-- 最下部余白用バージョン表記 -->
-                    <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.41
-                    </div>
-
                 </div>
             </details>
 
-            <!-- チャットリスト領域 (アコーディオン開閉時に隠れるラッパー) -->
             <div id="listener-chat-area-wrapper" class="flex-1 flex flex-col min-h-0 relative">
-                <!-- 接続ステータス -->
                 <div id="listener-status" class="absolute top-2 left-0 w-full text-center text-[10px] text-yellow-500 animate-pulse pointer-events-none">ルームに接続中...</div>
-
-                <!-- フローティング用のバックドロップ（チャット履歴領域のみ暗くする） -->
                 <div id="listener-chat-backdrop" class="chat-backdrop" onclick="closeChatInput()"></div>
-
-                <div id="listener-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto min-h-0 flex flex-col justify-end pb-4 pt-6 relative z-10">
-                    <!-- Chat messages here -->
-                </div>
-
-                <!-- 4. チャット入力エリア -->
+                <div id="listener-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto min-h-0 flex flex-col justify-end pb-4 pt-6 relative z-10"></div>
+                
                 <div id="listener-chat-input-container" class="flex-shrink-0 px-3 pt-2 pb-safe bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20">
-                    <input type="text" id="listener-chat-input" name="dummy-chat-input" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusChatInput()" onblur="blurChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest(false)" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
-                    <button onclick="sendChatRequest(false)" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
+                    <input type="text" id="listener-chat-input" autocomplete="off" onfocus="focusChatInput()" onblur="blurChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest()" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
+                    <button onclick="sendChatRequest()" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
             </div>
-
-        </div> <!-- 右ペイン終了 -->
+        </div>
     </div>
 
-    <!-- 全画面共通リロードボタン (アイコン化) -->
-    <button onclick="location.reload()" class="fixed top-3 right-3 bg-gray-800/80 hover:bg-gray-700 border border-gray-600 text-white w-9 h-9 flex items-center justify-center rounded-full shadow-lg text-sm font-bold z-[9999] backdrop-blur-sm transition-colors active:bg-gray-600" title="画面を更新">
-        <i class="fa-solid fa-rotate-right"></i>
-    </button>
-
     <script>
-        let peer = null;
         let currentRoomId = null;
-        
-        let savedPasswords = JSON.parse(localStorage.getItem('jukebox_passwords')) || {};
-
         let queue = [];
-        let historyQueue = [];
         let chatHistory = []; 
         let currentSong = null;
-
-        let listenerConn = null;
-        let listenerId = null;
-        
-        let myGuestUUID = localStorage.getItem('jukebox_uuid');
-        if (!myGuestUUID) {
-            myGuestUUID = 'user-' + generateId() + generateId();
-            localStorage.setItem('jukebox_uuid', myGuestUUID);
-        }
-
-        let isListenerVideoOpen = false;
-        let listenerHasStream = false;
-        let isWatchPartyEnabled = true;
-
         let viewerYTPlayer = null;
         let isWpOverlayActive = true;
-        let hostCurrentTime = 0;
-        let hostCurrentStatus = -1;
-        let pendingConnection = null;
-
-        // Web Audio API 用の変数
-        let streamAudioCtx = null;
-        let streamAudioSource = null;
-        let streamGainNode = null;
-        let streamMuteNode = null;
-        let streamCompressorNode = null;
-
-        // --- 自動リカバリー用変数・処理 ---
-        let reconnectTimeout = null;
-        let reconnectAttempts = 0;
-
-        function scheduleReconnect() {
-            if (reconnectTimeout) clearTimeout(reconnectTimeout);
-            const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000); // 3秒〜最大30秒の指数バックオフ
-            reconnectTimeout = setTimeout(() => {
-                if (currentRoomId && (!listenerConn || !listenerConn.open)) {
-                     reconnectAttempts++;
-                     showToast(`自動再接続を試みています... (${reconnectAttempts}回目)`, "info");
-                     if (peer) {
-                         peer.destroy();
-                         peer = null;
-                     }
-                     startListenerConnection();
-                }
-            }, delay);
-        }
-
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
-                if (currentRoomId && (!listenerConn || !listenerConn.open)) {
-                    showToast("画面復帰を検知。再接続します...", "info");
-                    if (peer) {
-                        peer.destroy();
-                        peer = null;
-                    }
-                    startListenerConnection();
-                }
-            }
-        });
-        // ----------------------------------
+        let listenerName = "名無し";
 
         document.addEventListener('DOMContentLoaded', () => {
             const menuDetails = document.getElementById('listener-menu-details');
             if (menuDetails) {
                 menuDetails.addEventListener('toggle', () => {
                     const chatWrapper = document.getElementById('listener-chat-area-wrapper');
-                    if (menuDetails.open) {
-                        chatWrapper.classList.add('hidden');
-                    } else {
-                        chatWrapper.classList.remove('hidden');
-                        const chatList = document.getElementById('listener-chat-list');
-                        if(chatList) chatList.scrollTop = chatList.scrollHeight;
-                    }
+                    if (menuDetails.open) chatWrapper.classList.add('hidden');
+                    else { chatWrapper.classList.remove('hidden'); const chatList = document.getElementById('listener-chat-list'); if(chatList) chatList.scrollTop = chatList.scrollHeight; }
                 });
             }
         });
 
-        // チャット入力欄フローティング機能のJS関数 (リスナー用)
-        function focusChatInput() {
-            document.getElementById('listener-chat-input-container').classList.add('chat-input-floating');
-            document.getElementById('listener-chat-backdrop').classList.add('active');
-        }
-
-        function closeChatInput() {
-            const input = document.getElementById('listener-chat-input');
-            if (input) input.blur();
-            document.getElementById('listener-chat-input-container').classList.remove('chat-input-floating');
-            document.getElementById('listener-chat-backdrop').classList.remove('active');
-        }
-
-        function blurChatInputDelay() {
-            setTimeout(() => {
-                const input = document.getElementById('listener-chat-input');
-                if (document.activeElement !== input) {
-                    document.getElementById('listener-chat-input-container').classList.remove('chat-input-floating');
-                    document.getElementById('listener-chat-backdrop').classList.remove('active');
-                }
-            }, 200);
-        }
+        function focusChatInput() { document.getElementById('listener-chat-input-container').classList.add('chat-input-floating'); document.getElementById('listener-chat-backdrop').classList.add('active'); }
+        function closeChatInput() { const input = document.getElementById('listener-chat-input'); if (input) input.blur(); document.getElementById('listener-chat-input-container').classList.remove('chat-input-floating'); document.getElementById('listener-chat-backdrop').classList.remove('active'); }
+        function blurChatInputDelay() { setTimeout(() => { const input = document.getElementById('listener-chat-input'); if (document.activeElement !== input) { document.getElementById('listener-chat-input-container').classList.remove('chat-input-floating'); document.getElementById('listener-chat-backdrop').classList.remove('active'); } }, 200); }
 
         window.onload = () => {
-            loadListenerSettings();
-
             const savedName = localStorage.getItem('jukebox_guest_name');
-            const savedAnon = localStorage.getItem('jukebox_guest_anon');
-            const nameEl = document.getElementById('listener-name');
-            const anonEl = document.getElementById('listener-anon');
-            if (savedName && nameEl) nameEl.value = savedName;
-            if (savedAnon !== null && anonEl) anonEl.checked = (savedAnon === 'true');
+            if (savedName) listenerName = savedName;
 
             const params = new URLSearchParams(window.location.search);
-            try {
-                if(params.has('host')) {
-                    currentRoomId = params.get('host');
-                    initListener();
-                } else {
-                    document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500">エラー</h1><p class="text-gray-300">ルームIDが指定されていません。URLを確認してください。</p></div>';
-                }
-            } catch(e) {
-                console.error("Initialization error:", e);
+            if(params.has('host')) {
+                currentRoomId = params.get('host');
+                if (window.db) initListener();
+                else window.addEventListener('firebase-auth-ready', initListener, { once: true });
+            } else {
+                document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500">エラー</h1><p class="text-gray-300">ルームIDが指定されていません。</p></div>';
             }
         };
 
@@ -502,191 +214,26 @@
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
-        function generateId() { return Math.random().toString(36).substring(2, 9); }
-
-        function showBannedScreen() {
-            document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500"><i class="fa-solid fa-ban"></i> アクセスがブロックされました</h1><p class="text-gray-300">管理者の操作により、このルームへのアクセスが制限されています。</p></div>';
-        }
-
-        function saveGuestHistory(roomId, hostName) {
-            if(!roomId) return;
-            let history = JSON.parse(localStorage.getItem('jukebox_guest_history')) || [];
-            history = history.filter(h => h.roomId !== roomId);
-            history.unshift({ roomId: roomId, hostName: hostName || roomId, time: Date.now() });
-            if(history.length > 10) history = history.slice(0, 10);
-            localStorage.setItem('jukebox_guest_history', JSON.stringify(history));
-        }
-
-        // リスナー用メディア設定の保存と読み込み
-        function saveListenerSettings() {
-            const settings = {
-                camAudioOn: document.getElementById('toggle-cam-mute').checked,
-                wpAudioOn: document.getElementById('toggle-wp-mute').checked,
-                wpVideoOn: document.getElementById('toggle-wp-video').checked,
-                wpVolume: document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100,
-                streamBoost: document.getElementById('stream-boost-slider') ? document.getElementById('stream-boost-slider').value : 2.0
-            };
-            localStorage.setItem('jukebox_listener_settings', JSON.stringify(settings));
-        }
-
-        function loadListenerSettings() {
-            try {
-                const saved = localStorage.getItem('jukebox_listener_settings');
-                if (saved) {
-                    const settings = JSON.parse(saved);
-                    const camMute = document.getElementById('toggle-cam-mute');
-                    const wpMute = document.getElementById('toggle-wp-mute');
-                    const wpVideo = document.getElementById('toggle-wp-video');
-                    const wpVol = document.getElementById('wp-volume-slider');
-                    const streamBoost = document.getElementById('stream-boost-slider');
-                    
-                    if(camMute && settings.camAudioOn !== undefined) camMute.checked = settings.camAudioOn;
-                    if(wpMute && settings.wpAudioOn !== undefined) wpMute.checked = settings.wpAudioOn;
-                    if(wpVideo && settings.wpVideoOn !== undefined) {
-                        wpVideo.checked = settings.wpVideoOn;
-                        toggleWatchPartyVideoFromSwitch(settings.wpVideoOn);
-                    }
-                    if(wpVol && settings.wpVolume !== undefined) {
-                        wpVol.value = settings.wpVolume;
-                    }
-                    if(streamBoost && settings.streamBoost !== undefined) {
-                        streamBoost.value = settings.streamBoost;
-                        changeStreamBoost(settings.streamBoost);
-                    }
-                    return settings;
-                }
-            } catch(e) {}
-            return null;
-        }
-
-        // --- Web Audio API を用いた Stream 音声のブーストとリミッター ---
-        function setupStreamAudio(stream) {
-            try {
-                if (!streamAudioCtx) {
-                    streamAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                }
-
-                if (streamAudioSource) {
-                    streamAudioSource.disconnect();
-                }
-
-                streamAudioSource = streamAudioCtx.createMediaStreamSource(stream);
-                
-                streamGainNode = streamAudioCtx.createGain();
-                const boostVal = document.getElementById('stream-boost-slider') ? parseFloat(document.getElementById('stream-boost-slider').value) : 2.0;
-                streamGainNode.gain.value = boostVal;
-
-                if (!window.streamEqNode) {
-                    window.streamEqNode = streamAudioCtx.createBiquadFilter();
-                    window.streamEqNode.type = 'lowshelf';
-                    window.streamEqNode.frequency.value = 250; 
-                    window.streamEqNode.gain.value = 4.0; 
-                }
-
-                streamMuteNode = streamAudioCtx.createGain();
-                const camMuteToggle = document.getElementById('toggle-cam-mute');
-                streamMuteNode.gain.value = (camMuteToggle && camMuteToggle.checked) ? 1.0 : 0.0;
-
-                streamCompressorNode = streamAudioCtx.createDynamicsCompressor();
-                streamCompressorNode.threshold.value = -1;   
-                streamCompressorNode.knee.value = 30;        
-                streamCompressorNode.ratio.value = 4;        
-                streamCompressorNode.attack.value = 0.01;
-                streamCompressorNode.release.value = 0.1;
-
-                streamAudioSource.connect(streamGainNode);
-                streamGainNode.connect(window.streamEqNode);
-                window.streamEqNode.connect(streamMuteNode);
-                streamMuteNode.connect(streamCompressorNode);
-                streamCompressorNode.connect(streamAudioCtx.destination);
-                
-                if (streamAudioCtx.state === 'suspended') {
-                    streamAudioCtx.resume().catch(e => console.warn(e));
-                }
-            } catch (e) {
-                console.error("Web Audio API setup error:", e);
-            }
-        }
-
-        function changeStreamBoost(val) {
-            if (streamGainNode) {
-                streamGainNode.gain.value = parseFloat(val);
-            }
-            saveListenerSettings();
-        }
-
-        function changeWpVolume(val) {
-            if (viewerYTPlayer && typeof viewerYTPlayer.setVolume === 'function') {
-                viewerYTPlayer.setVolume(val);
-                if (val > 0) {
-                    const toggle = document.getElementById('toggle-wp-mute');
-                    if (toggle && !toggle.checked) {
-                        toggle.checked = true;
-                        if (typeof viewerYTPlayer.unMute === 'function') viewerYTPlayer.unMute();
-                    }
-                }
-            }
-            saveListenerSettings();
-        }
-
-        function showPasswordModal() {
-            document.getElementById('password-modal').classList.remove('hidden');
-            document.getElementById('room-password-input').value = '';
-            document.getElementById('password-error').classList.add('hidden');
-        }
-
-        function hidePasswordModal() {
-            document.getElementById('password-modal').classList.add('hidden');
-        }
-
-        function closePasswordModal() {
-            hidePasswordModal();
-            showToast("接続をキャンセルしました", "info");
-            if (pendingConnection) pendingConnection.close();
-        }
-
-        function submitPassword() {
-            const pwd = document.getElementById('room-password-input').value;
-            if (!pwd) {
-                const err = document.getElementById('password-error');
-                err.textContent = "パスワードを入力してください";
-                err.classList.remove('hidden');
-                return;
-            }
-            document.getElementById('password-error').classList.add('hidden');
-
-            if (pendingConnection) {
-                pendingConnection.send({ type: 'auth_request', password: pwd });
-            }
-        }
-
         function showNameModal() {
             document.getElementById('name-modal').classList.remove('hidden');
-            const savedName = localStorage.getItem('jukebox_guest_name');
-            if (savedName) {
-                document.getElementById('initial-name-input').value = savedName;
-            }
-            document.getElementById('name-error').classList.add('hidden');
+            if (listenerName !== "名無し") document.getElementById('initial-name-input').value = listenerName;
         }
 
         function submitName() {
             const nameInput = document.getElementById('initial-name-input').value.trim();
-            if (!nameInput) {
-                document.getElementById('name-error').classList.remove('hidden');
-                return;
-            }
+            if (!nameInput) return document.getElementById('name-error').classList.remove('hidden');
+            
             document.getElementById('name-error').classList.add('hidden');
             document.getElementById('name-modal').classList.add('hidden');
             
-            document.getElementById('listener-name').value = nameInput;
+            listenerName = nameInput;
             localStorage.setItem('jukebox_guest_name', nameInput);
-            
-            startListenerConnection();
+            startCloudConnection();
         }
         
         function loadYouTubeAPI() {
             if (window.YT && window.YT.Player) {
-                // Ignore for listener if not ready to play
+                // Ignore
             } else if (!document.getElementById('youtube-api-script')) {
                 const tag = document.createElement('script');
                 tag.id = 'youtube-api-script';
@@ -698,570 +245,223 @@
 
         function handleOverlayClick() {
             if (isWpOverlayActive) {
-                if (streamAudioCtx && streamAudioCtx.state === 'suspended') {
-                    streamAudioCtx.resume().catch(e => console.error(e));
-                }
-
-                if (viewerYTPlayer) {
-                    const wpToggle = document.getElementById('toggle-wp-mute');
-                    if (wpToggle && wpToggle.checked) {
-                        if (typeof viewerYTPlayer.unMute === 'function') viewerYTPlayer.unMute();
-                        const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
-                        if (typeof viewerYTPlayer.setVolume === 'function') viewerYTPlayer.setVolume(savedVol);
-                    } else {
-                        if (typeof viewerYTPlayer.mute === 'function') viewerYTPlayer.mute();
-                    }
-
+                if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
+                    viewerYTPlayer.unMute();
                     if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
                         viewerYTPlayer.playVideo();
                     }
                 }
-                
-                const overlayId = 'listener-youtube-overlay';
-                const overlay = document.getElementById(overlayId);
-                if(overlay) {
-                    overlay.style.display = 'none'; 
-                }
-                
+                document.getElementById('listener-youtube-overlay').style.display = 'none'; 
                 isWpOverlayActive = false;
                 showToast("視聴を開始しました！", "info");
             }
         }
-        
-        function switchListenerLayer(layer) {
-            const camLayer = document.getElementById('listener-cam-layer');
-            const wpLayer = document.getElementById('listener-wp-layer');
-            const tabCam = document.getElementById('tab-cam');
-            const tabWp = document.getElementById('tab-wp');
-            const volContainer = document.getElementById('wp-volume-container');
-
-            if(layer === 'cam') {
-                camLayer.classList.replace('layer-hidden', 'layer-visible');
-                wpLayer.classList.replace('layer-visible', 'layer-hidden');
-                tabCam.classList.add('bg-red-600', 'text-white');
-                tabCam.classList.remove('bg-gray-700', 'text-gray-400');
-                tabWp.classList.add('bg-gray-700', 'text-gray-400');
-                tabWp.classList.remove('bg-indigo-600', 'text-white');
-                if(volContainer) {
-                    volContainer.classList.add('hidden');
-                    volContainer.classList.remove('flex');
-                }
-            } else {
-                wpLayer.classList.replace('layer-hidden', 'layer-visible');
-                camLayer.classList.replace('layer-visible', 'layer-hidden');
-                tabWp.classList.add('bg-indigo-600', 'text-white');
-                tabWp.classList.remove('bg-gray-700', 'text-gray-400');
-                tabCam.classList.add('bg-gray-700', 'text-gray-400');
-                tabCam.classList.remove('bg-red-600', 'text-white');
-                if(volContainer) {
-                    volContainer.classList.remove('hidden');
-                    volContainer.classList.add('flex');
-                }
-            }
-        }
-
-        function toggleListenerAudioFromSwitch(isSoundOn) {
-            const video = document.getElementById('listener-video');
-            if (video) {
-                video.muted = true;
-                if (video.paused) video.play().catch(e=>{});
-            }
-
-            if (streamMuteNode) {
-                streamMuteNode.gain.value = isSoundOn ? 1.0 : 0.0;
-            }
-
-            if (isSoundOn && streamAudioCtx && streamAudioCtx.state === 'suspended') {
-                streamAudioCtx.resume().catch(e => console.error(e));
-            }
-
-            saveListenerSettings();
-        }
-
-        function toggleWatchPartyMuteFromSwitch(isSoundOn) {
-            if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
-            if (isSoundOn) {
-                viewerYTPlayer.unMute();
-                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
-                viewerYTPlayer.setVolume(savedVol);
-            } else {
-                viewerYTPlayer.mute();
-            }
-            saveListenerSettings();
-        }
-
-        function toggleWatchPartyVideoFromSwitch(isOn) {
-            const playerWrapper = document.getElementById('listener-youtube-player-wrapper');
-            if (playerWrapper) {
-                playerWrapper.style.opacity = isOn ? '1' : '0';
-                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
-            }
-        }
-
-        function handleSyncPlayback(data) {
-            const wpPlayerId = 'listener-youtube-player';
-
-            if (!isWatchPartyEnabled) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
-                    viewerYTPlayer.pauseVideo();
-                }
-                return;
-            }
-
-            if (!viewerYTPlayer) {
-                if (typeof YT === 'undefined' || !YT.Player) {
-                    loadYouTubeAPI(); 
-                    return;
-                }
-                
-                let playerOptions = {
-                    height: '100%', width: '100%',
-                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
-                    events: {
-                        'onReady': (event) => {
-                            event.target.mute(); 
-                        },
-                        'onStateChange': (event) => {
-                            if (event.data === YT.PlayerState.PLAYING) {
-                                const wpToggle = document.getElementById('toggle-wp-mute');
-                                if (wpToggle && wpToggle.checked) {
-                                    event.target.unMute();
-                                    const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
-                                    event.target.setVolume(savedVol);
-                                }
-                            }
-                        }
-                    }
-                };
-                if (data.videoId) {
-                    playerOptions.videoId = data.videoId;
-                }
-                
-                if (document.getElementById(wpPlayerId)) {
-                    viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
-                }
-                return;
-            }
-
-            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
-            
-            if (!data.videoId) {
-                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
-                    viewerYTPlayer.stopVideo();
-                }
-                currentSong = null;
-                return;
-            }
-
-            const state = viewerYTPlayer.getPlayerState();
-            const currentTime = viewerYTPlayer.getCurrentTime();
-            hostCurrentTime = data.time; 
-            hostCurrentStatus = data.status;
-
-            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
-                currentSong = { videoId: data.videoId };
-                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
-                return;
-            }
-
-            if (data.status === 1) { 
-                if (state !== 1 && state !== 3) {
-                    viewerYTPlayer.playVideo();
-                }
-                
-                const diff = hostCurrentTime - currentTime;
-                
-                if (Math.abs(diff) < 1.0) {
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
-                    if (diff > 0) {
-                        viewerYTPlayer.setPlaybackRate(1.05); 
-                    } else {
-                        viewerYTPlayer.setPlaybackRate(0.95); 
-                    }
-                } else {
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
-                }
-            } else if (data.status === 2 || data.status === -1) { 
-                if (state === 1) {
-                    viewerYTPlayer.pauseVideo();
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                }
-            }
-        }
 
         function initListener() {
-            const savedName = localStorage.getItem('jukebox_guest_name');
-            if (savedName) {
-                document.getElementById('listener-name').value = savedName;
-                startListenerConnection();
+            if (listenerName !== "名無し") {
+                startCloudConnection();
             } else {
                 showNameModal();
             }
         }
 
-        function startListenerConnection() {
-            if (peer) peer.destroy();
-            listenerId = generateId();
-            peer = new Peer(`listener-${listenerId}`);
-
-            peer.on('open', () => {
-                listenerConn = peer.connect(`jukebox-${currentRoomId}`);
-                
-                listenerConn.on('open', () => {
-                    reconnectAttempts = 0; // 再接続試行回数をリセット
-                    const statusId = 'listener-status';
-                    if(document.getElementById(statusId)) {
-                        document.getElementById(statusId).textContent = "接続完了！";
-                        document.getElementById(statusId).classList.replace('text-yellow-500', 'text-green-500');
-                        document.getElementById(statusId).classList.replace('text-red-500', 'text-green-500');
-                    }
-                    sendProfileUpdate();
-                    // 復帰後の同期リクエスト (Host側にStateとSyncの自動送信を促す)
-                    listenerConn.send({ type: 'request_sync' });
-                });
-
-                listenerConn.on('close', () => {
-                    const statusId = 'listener-status';
-                    if(document.getElementById(statusId)) {
-                        document.getElementById(statusId).textContent = "通信切断...";
-                        document.getElementById(statusId).classList.replace('text-green-500', 'text-red-500');
-                    }
-                    scheduleReconnect();
-                });
-
-                listenerConn.on('data', (data) => {
-                    if (data.type === 'ping') {
-                        listenerConn.send({ type: 'pong' });
-                        return;
-                    }
-                    if(data.type === 'banned') {
-                        showBannedScreen();
-                        if(peer) peer.destroy();
-                        return;
-                    }
-                    if(data.type === 'error') { showToast(data.msg, "error"); return; }
-                    
-                    if(data.type === 'sync_playback') {
-                        handleSyncPlayback(data);
-                    }
-                    
-                    if(data.type === 'state') {
-                        saveGuestHistory(currentRoomId, data.hostName);
-                        renderListenerState(data);
-                    }
-                    
-                    if (data.type === 'auth_response') {
-                        if (data.success) {
-                            hidePasswordModal();
-                            showToast("認証に成功しました");
-                            const pwdInput = document.getElementById('room-password-input').value;
-                            if (pwdInput) {
-                                savedPasswords[currentRoomId] = pwdInput;
-                                localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
-                            }
-                            pendingConnection = null;
-                            sendProfileUpdate();
-                        } else {
-                            document.getElementById('password-error').classList.remove('hidden');
-                            delete savedPasswords[currentRoomId];
-                            localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
-                            showPasswordModal(); 
-                        }
-                    }
-                    
-                    if (data.type === 'auth_required') {
-                         showToast("操作にはパスワード認証が必要です", "error");
-                         pendingConnection = listenerConn;
-                         showPasswordModal();
-                    }
-                    
-                    if(data.type === 'new_chat') {
-                        if(!chatHistory.some(c => c.id === data.chat.id)) {
-                            chatHistory.push(data.chat);
-                            if(chatHistory.length > 100) chatHistory.shift();
-                            
-                            renderChatList('listener-chat-list', chatHistory, false);
-                        }
-                    }
-                });
-            });
-
-            peer.on('call', (call) => {
-                call.answer(); 
-                call.on('stream', (stream) => {
-                    listenerHasStream = true;
-                    const video = document.getElementById('listener-video');
-                    const btn = document.getElementById('btn-toggle-camera');
-                    
-                    if(btn) btn.classList.add('hidden'); 
-                    video.srcObject = stream;
-                    
-                    setupStreamAudio(stream);
-                    
-                    video.muted = true;
-                    
-                    video.play().catch(e => {
-                        video.play().catch(er=>{});
-                    });
-                    
-                    isListenerVideoOpen = true;
-                });
-                call.on('close', () => { 
-                    resetListenerVideo(); 
-                });
-            });
-
-            peer.on('disconnected', () => scheduleReconnect());
-            peer.on('error', (err) => {
-                console.warn("PeerJS Error:", err);
-                scheduleReconnect();
-            });
-
-            const url = new URL(window.location);
-            url.searchParams.set('host', currentRoomId);
-            history.replaceState(null, '', url);
-        }
-
-        function resetListenerVideo() {
-            listenerHasStream = false;
-            isListenerVideoOpen = false;
-            const videoEl = document.getElementById('listener-video');
-            if (videoEl) videoEl.srcObject = null;
-            const btn = document.getElementById('btn-toggle-camera');
-            if(btn) { 
-                btn.classList.remove('hidden'); 
-            }
-        }
-
-        function sendProfileUpdate() {
-            if(!listenerConn || !listenerConn.open) return;
-            let name = document.getElementById('listener-name').value.trim() || "名無し";
-            const isAnon = document.getElementById('listener-anon').checked;
-            localStorage.setItem('jukebox_guest_name', name);
-            localStorage.setItem('jukebox_guest_anon', isAnon);
+        function startCloudConnection() {
+            document.getElementById('listener-status').textContent = "クラウド同期中...";
+            document.getElementById('listener-status').classList.replace('text-yellow-500', 'text-green-500');
             
-            listenerConn.send({ type: 'update_profile', name: name, isRemote: false, isObs: false, uuid: myGuestUUID });
+            // Listen to Room State
+            window.onSnapshot(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), (docSnap) => {
+                if (docSnap.exists()) {
+                    handleRoomSync(docSnap.data());
+                } else {
+                    document.getElementById('listener-status').textContent = "ホストが見つかりません";
+                    document.getElementById('listener-status').classList.replace('text-green-500', 'text-red-500');
+                }
+            }, (err) => console.error(err));
+
+            // Listen to Queues
+            window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), (snapshot) => {
+                let allQ = [];
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+                    if (d.roomId === currentRoomId) allQ.push({ id: doc.id, ...d });
+                });
+                allQ.sort((a, b) => a.createdAt - b.createdAt);
+                queue = allQ;
+                renderQueue();
+            }, (err) => console.error(err));
+
+            // Listen to Chats
+            window.onSnapshot(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), (snapshot) => {
+                let allC = [];
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+                    if (d.roomId === currentRoomId) allC.push({ id: doc.id, ...d });
+                });
+                allC.sort((a, b) => a.createdAt - b.createdAt);
+                chatHistory = allC.slice(-100);
+                renderChatList('listener-chat-list', chatHistory);
+            }, (err) => console.error(err));
+
+            loadYouTubeAPI();
         }
 
-        const nameInput = document.getElementById('listener-name');
-        if(nameInput) nameInput.addEventListener('change', () => sendProfileUpdate());
-        const anonInput = document.getElementById('listener-anon');
-        if(anonInput) anonInput.addEventListener('change', () => sendProfileUpdate());
+        function handleRoomSync(data) {
+            const tDiv = document.getElementById('listener-theme-container');
+            if(data.theme) { tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${data.theme}`; tDiv.classList.remove('hidden'); }
+            else tDiv.classList.add('hidden');
 
-        function requestListenerCamera() {
-            const btn = document.getElementById('btn-toggle-camera');
-            if (btn && btn.disabled) return; 
+            const playingEl = document.getElementById('listener-now-playing');
+            const reqEl = document.getElementById('listener-now-requester');
+            const eq = document.getElementById('listener-eq');
 
-            if (listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'request_camera' });
-                if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
+            if (data.currentSong) {
+                playingEl.textContent = data.currentSong.title;
+                reqEl.innerHTML = data.currentSong.requester ? `- <i class="fa-solid fa-user"></i> ${data.currentSong.requester}` : "";
+                if(data.status === 'playing') eq.classList.add('active'); else eq.classList.remove('active');
+                
+                // Timestamp based Sync
+                if (!currentSong || currentSong.videoId !== data.currentSong.videoId) {
+                    currentSong = data.currentSong;
+                    if (viewerYTPlayer) viewerYTPlayer.loadVideoById(currentSong.videoId);
+                }
+
+                if (viewerYTPlayer && typeof viewerYTPlayer.getPlayerState === 'function') {
+                    const state = viewerYTPlayer.getPlayerState();
+                    if (data.status === 'playing') {
+                        const expectedTime = (Date.now() - currentSong.startedAt) / 1000;
+                        if (state !== 1 && state !== 3) {
+                            viewerYTPlayer.seekTo(expectedTime, true);
+                            viewerYTPlayer.playVideo();
+                        } else {
+                            const diff = expectedTime - viewerYTPlayer.getCurrentTime();
+                            if (Math.abs(diff) > 2.0) viewerYTPlayer.seekTo(expectedTime, true);
+                        }
+                    } else if (data.status === 'paused') {
+                        if (state === 1) {
+                            viewerYTPlayer.pauseVideo();
+                            viewerYTPlayer.seekTo(currentSong.pausePosition || 0, true);
+                        }
+                    }
+                }
+            } else {
+                currentSong = null;
+                playingEl.textContent = "BGM停止中";
+                reqEl.textContent = "";
+                eq.classList.remove('active');
+                if (viewerYTPlayer && typeof viewerYTPlayer.stopVideo === 'function') viewerYTPlayer.stopVideo();
             }
         }
+
+        // Initialize Player for Timestamp Sync
+        window.onYouTubeIframeAPIReady = function() {
+            viewerYTPlayer = new YT.Player('listener-youtube-player', {
+                height: '100%', width: '100%',
+                playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
+                events: {
+                    'onReady': (event) => { event.target.mute(); }
+                }
+            });
+        };
 
         function extractVideoId(url) {
             const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/);
             return match ? match[1] : null;
         }
 
+        async function fetchYouTubeTitle(videoId) {
+            try {
+                const res = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+                if(res.ok) { const data = await res.json(); return data.title || "不明なタイトル"; }
+            } catch(e) {}
+            return "不明なタイトル";
+        }
+
         function sendRequest() {
             const url = document.getElementById('listener-url').value;
-            const name = document.getElementById('listener-name').value.trim();
-            const isAnon = document.getElementById('listener-anon').checked;
-            if(!name) return showToast("あなたの名前を入力してください！", "error");
             if(!url) return showToast("URLを入力してください！", "error");
-
-            localStorage.setItem('jukebox_guest_name', name);
-            localStorage.setItem('jukebox_guest_anon', isAnon);
-
+            
             const vid = extractVideoId(url);
             if(vid) {
-                listenerConn.send({ type: 'request', videoId: vid, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
                 document.getElementById('listener-url').value = '';
-                showToast("リクエストを送信しました！");
+                showToast("リクエストを送信中...");
+                fetchYouTubeTitle(vid).then(title => {
+                    window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'queues'), {
+                        roomId: currentRoomId,
+                        videoId: vid,
+                        title: title,
+                        requester: listenerName,
+                        requesterReal: listenerName,
+                        isAnon: false,
+                        isRemote: false,
+                        createdAt: Date.now()
+                    });
+                    showToast("リクエストを送信しました！");
+                });
             } else showToast("無効なYouTube URLです", "error");
         }
 
-        function cancelRequest(id) {
-            listenerConn.send({ type: 'cancel', id: id });
-            showToast("キャンセルしました");
-        }
-
-        function reRequestListener(videoId) {
-            const name = document.getElementById('listener-name').value.trim();
-            const isAnon = document.getElementById('listener-anon').checked;
-            if(!name) return showToast("名前を入力してください", "error");
-            
-            localStorage.setItem('jukebox_guest_name', name);
-            localStorage.setItem('jukebox_guest_anon', isAnon);
-            
-            listenerConn.send({ type: 'request', videoId: videoId, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
-            showToast("再リクエストを送信しました");
-        }
-
-        function sendChatRequest(isDummyMode = false) {
+        function sendChatRequest() {
             const inputId = 'listener-chat-input';
             const text = document.getElementById(inputId).value.trim();
             if(!text) return;
+            document.getElementById(inputId).value = '';
+            closeChatInput();
 
-            const senderReal = document.getElementById('listener-name').value.trim() || "名無し";
-            const isAnon = document.getElementById('listener-anon').checked;
-            const sender = isAnon ? '184(匿名)' : senderReal;
+            window.addDoc(window.collection(window.db, 'artifacts', window.appId, 'public', 'data', 'chats'), {
+                roomId: currentRoomId,
+                text: text,
+                sender: listenerName,
+                senderReal: listenerName,
+                isAnon: false,
+                isRemote: false,
+                createdAt: Date.now()
+            });
+        }
+
+        function renderQueue() {
+            const countEl = document.getElementById('listener-queue-count');
+            if(countEl) countEl.textContent = queue.length;
             
-            localStorage.setItem('jukebox_guest_name', senderReal);
-            localStorage.setItem('jukebox_guest_anon', isAnon);
-
-            if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'chat', text, sender, senderReal, isAnon, isRemote: false });
-                document.getElementById(inputId).value = '';
-                closeChatInput();
+            const qList = document.getElementById('listener-queue-list');
+            if(qList) {
+                qList.innerHTML = '';
+                queue.forEach((q, idx) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
+                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                            <div class="truncate">
+                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
+                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${q.requester} ${isCrown}</p>
+                            </div>
+                        </div>
+                    `;
+                    qList.appendChild(div);
+                });
             }
         }
 
-        function renderChatList(containerId, chats, isPrivileged) {
+        function renderChatList(containerId, chats) {
             const container = document.getElementById(containerId);
             if(!container) return;
-
             container.innerHTML = '';
             chats.forEach(c => {
                 const div = document.createElement('div');
                 div.className = "text-[13px] leading-relaxed flex group";
-                
-                const dispName = (c.isAnon && !isPrivileged) ? '184(匿名)' : c.senderReal;
                 const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400"></i> ' : '';
                 const nameColor = c.isRemote ? 'text-yellow-400' : 'text-indigo-400';
-                
                 div.innerHTML = `
                     <div class="flex-1 break-words">
-                        <span class="font-bold ${nameColor} mr-1">${badge}${dispName}:</span>
+                        <span class="font-bold ${nameColor} mr-1">${badge}${c.senderReal}:</span>
                         <span class="text-gray-100">${c.text}</span>
                     </div>
                 `;
                 container.appendChild(div);
             });
             container.scrollTop = container.scrollHeight;
-        }
-
-        function renderListenerState(state) {
-            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, hostTheme, isLive, cameraApprovalMode, participants } = state;
-
-            if(serverChatHistory) {
-                chatHistory = serverChatHistory;
-                renderChatList('listener-chat-list', chatHistory, false);
-            }
-
-            const playingEl = document.getElementById('listener-now-playing');
-            
-            if(currentSongData && playingEl) {
-                playingEl.textContent = currentSongData.title;
-                const reqName = currentSongData.isAnon ? '184(匿名)' : (currentSongData.requester || "");
-                const reqEl = document.getElementById('listener-now-requester');
-                if(reqEl) reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
-                
-                const eq = document.getElementById('listener-eq');
-                if(eq) isPlaying ? eq.classList.add('active') : eq.classList.remove('active');
-            } else if (playingEl) {
-                playingEl.textContent = "BGM停止中";
-                const reqEl = document.getElementById('listener-now-requester');
-                if(reqEl) reqEl.textContent = "";
-                const eq = document.getElementById('listener-eq');
-                if(eq) eq.classList.remove('active');
-            }
-
-            document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
-
-            const tDiv = document.getElementById('listener-theme-container');
-            if(tDiv) {
-                if(hostTheme) { 
-                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
-                    tDiv.classList.remove('hidden'); 
-                } else {
-                    tDiv.classList.add('hidden');
-                }
-            }
-
-            const btn = document.getElementById('btn-toggle-camera');
-            const tabCamIcon = document.querySelector('#tab-cam i');
-            
-            if(isLive) {
-                if(btn && !listenerHasStream) {
-                    btn.disabled = false;
-                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    if(cameraApprovalMode) {
-                        const myData = participants ? participants.find(p => p.id === listenerId) : null;
-                        if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
-                        else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
-                    } else btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
-                }
-                if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
-            } else { 
-                resetListenerVideo(); 
-                if(btn) {
-                    btn.textContent = "配信はオフラインです"; 
-                    btn.disabled = true;
-                    btn.classList.add('opacity-50', 'cursor-not-allowed');
-                }
-                if(tabCamIcon) tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
-            }
-
-            const countEl = document.getElementById('listener-queue-count');
-            if(countEl) countEl.textContent = serverQueue ? serverQueue.length : 0;
-            
-            const qList = document.getElementById('listener-queue-list');
-            if(qList && serverQueue) {
-                qList.innerHTML = '';
-                const myName = document.getElementById('listener-name').value.trim();
-                serverQueue.forEach((q, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
-                    
-                    const dispName = q.isAnon ? '184(匿名)' : q.requester;
-                    const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
-                    
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                            <div class="truncate">
-                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
-                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
-                            </div>
-                        </div>
-                    `;
-                    
-                    if(myName && q.requesterReal === myName && !q.isRemote) {
-                        const btn = document.createElement('button');
-                        btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
-                        btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-                        btn.onclick = () => cancelRequest(q.id);
-                        div.appendChild(btn);
-                    }
-                    qList.appendChild(div);
-                });
-            }
-
-            if(serverHistQueue) {
-                const listenerHist = document.getElementById('listener-history-list');
-                if (listenerHist) {
-                    listenerHist.innerHTML = '';
-                    serverHistQueue.forEach((q, idx) => {
-                        const div = document.createElement('div');
-                        div.className = "flex items-center justify-between bg-gray-800/50 border border-gray-700/50 p-2 rounded text-sm mb-1";
-                        div.innerHTML = `
-                            <div class="flex items-center gap-2 overflow-hidden flex-1">
-                                <span class="text-gray-500 font-bold w-4">${idx+1}</span>
-                                <div class="truncate">
-                                    <p class="text-gray-300 truncate font-medium">${q.title}</p>
-                                    <p class="text-[10px] text-gray-500 truncate"><i class="fa-solid fa-user"></i> ${q.isAnon ? '184(匿名)' : q.requesterReal}</p>
-                                </div>
-                            </div>
-                            <button onclick="reRequestListener('${q.videoId}')" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded flex-shrink-0"><i class="fa-solid fa-rotate-right"></i></button>
-                        `;
-                        listenerHist.appendChild(div);
-                    });
-                }
-            }
         }
     </script>
 </body>
