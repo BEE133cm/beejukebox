@@ -1161,7 +1161,7 @@
                         : `<i class="fa-solid fa-play text-lg"></i>`;
                 }
 
-                // Firestoreからの絶対時間での同期
+                // Firestoreからの絶対時間での同期（大枠の同期のみ、細かいシークはP2Pに任せる）
                 if (!currentSong || currentSong.videoId !== data.currentSong.videoId) {
                     currentSong = data.currentSong;
                     if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
@@ -1184,19 +1184,12 @@
                     if (viewerYTPlayer && typeof viewerYTPlayer.getPlayerState === 'function') {
                         const state = viewerYTPlayer.getPlayerState();
                         if (data.status === 'playing') {
-                            const expectedTime = (Date.now() - (currentSong.startedAt || Date.now())) / 1000;
                             if (state !== 1 && state !== 3 && !isWpOverlayActive) {
                                 viewerYTPlayer.playVideo();
                             }
-                            const diff = expectedTime - viewerYTPlayer.getCurrentTime();
-                            if (Math.abs(diff) > 2.0) viewerYTPlayer.seekTo(expectedTime, true);
                         } else if (data.status === 'paused') {
                             if (state === 1 || state === 3) {
                                 viewerYTPlayer.pauseVideo();
-                            }
-                            const expectedPauseTime = currentSong.pausePosition || 0;
-                            if (Math.abs(expectedPauseTime - viewerYTPlayer.getCurrentTime()) > 1.0) {
-                                viewerYTPlayer.seekTo(expectedPauseTime, true);
                             }
                         }
                     }
