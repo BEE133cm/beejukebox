@@ -57,6 +57,11 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // ==========================================
+        // 【重要】Firebase 接続設定
+        // クラウド同期を利用するには、ご自身でFirebaseプロジェクトを作成し、
+        // 以下の myFirebaseConfig に設定オブジェクトを貼り付けてください。
+        // ==========================================
         const myFirebaseConfig = {
           apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
           authDomain: "beejukebox-94ad8.firebaseapp.com",
@@ -408,7 +413,9 @@
 
         let hostMediaConn = null; 
         let currentStreamToListeners = null;
-        let isHostStateLoaded = false; 
+
+        // Firestoreへの書き込みデバウンス用
+        let cloudUpdateTimeout = null;
 
         function adjustLayoutForMobile() {
             const isMobile = window.innerWidth < 1024;
@@ -498,16 +505,14 @@
                 icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
                 if(player && typeof player.mute === 'function') player.mute();
             }
-            saveHostState();
+            saveLocalSettings();
         }
 
         function changeHostJukeboxVol(val) {
             const numVal = Number(val);
             const icon = document.getElementById('icon-host-jukebox-mute');
             
-            if(player && typeof player.unMute === 'function') {
-                player.unMute(); 
-            }
+            if(player && typeof player.unMute === 'function') player.unMute(); 
 
             if(numVal > 0) {
                 if(icon && icon.classList.contains('fa-volume-xmark')) {
@@ -525,7 +530,7 @@
             if(player && typeof player.setVolume === 'function') {
                 player.setVolume(numVal);
             }
-            saveHostState();
+            saveLocalSettings();
         }
 
         function toggleHostStreamMute() {
@@ -541,7 +546,7 @@
                 icon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
             }
             updateStreamAudioByWindowSize();
-            saveHostState();
+            saveLocalSettings();
         }
 
         function changeHostStreamVol(val) {
@@ -553,7 +558,7 @@
                 }
             }
             updateStreamAudioByWindowSize();
-            saveHostState();
+            saveLocalSettings();
         }
 
         window.onload = () => {
@@ -729,10 +734,9 @@
             url.searchParams.set('setup_host', currentRoomId);
             history.replaceState(null, '', url);
 
-            // ローカルから即座にロード（初期値として）
-            loadHostState(); 
-
-            // サーバー(Firestore)にデータがあれば、そちらを正として優先してロードする
+            loadLocalSettings(); 
+            
+            // 初回Firebaseデータ取得と同期
             if (window.db && window.getDoc) {
                 window.getDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId))
                 .then(docSnap => {
@@ -740,15 +744,17 @@
                         const data = docSnap.data();
                         if (data.queue) queue = data.queue;
                         if (data.historyQueue) historyQueue = data.historyQueue;
+                        if (data.chatHistory) chatHistory = data.chatHistory;
                         if (data.currentSong) currentSong = data.currentSong;
                         if (data.theme) {
                             hostTheme = data.theme;
                             const tInput = document.getElementById('setting-theme');
                             if(tInput) tInput.value = hostTheme;
                         }
-                        updateUI();
                     }
-                }).catch(e => console.warn(e));
+                    updateUI();
+                    updateCloudRoomState(); // 初期化直後にクラウドに上書きして状態を確定
+                }).catch(e => console.warn("Firebase Get Error:", e));
             }
 
             peer = new Peer(`jukebox-${currentRoomId}`);
@@ -760,27 +766,8 @@
                 document.getElementById('error-text').classList.add('hidden');
                 
                 loadYouTubeAPI(); 
-                
-                setInterval(() => {
-                    if (player && typeof player.getCurrentTime === 'function' && typeof player.getPlayerState === 'function') {
-                        let actualVideoId = currentSong ? currentSong.videoId : null;
-                        try {
-                            const vData = player.getVideoData();
-                            if(vData && vData.video_id) actualVideoId = vData.video_id;
-                        } catch(e) {}
 
-                        const syncData = {
-                            type: 'sync_playback',
-                            videoId: actualVideoId,
-                            time: player.getCurrentTime(),
-                            status: player.getPlayerState()
-                        };
-                        Object.values(connectedListeners).forEach(p => {
-                            if(p.conn.open) p.conn.send(syncData);
-                        });
-                    }
-                }, 1000);
-
+                // 定期的な死活監視
                 setInterval(() => {
                     const now = Date.now();
                     Object.values(connectedListeners).forEach(p => {
@@ -790,14 +777,14 @@
                                 p.conn.close();
                                 delete connectedListeners[p.id];
                                 updateParticipantsUI();
-                                broadcastState();
+                                updateCloudRoomState();
                             } else {
                                 p.conn.send({ type: 'ping' });
                             }
                         } else {
                             delete connectedListeners[p.id];
                             updateParticipantsUI();
-                            broadcastState();
+                            updateCloudRoomState();
                         }
                     });
                 }, 10000);
@@ -826,14 +813,12 @@
                 updateParticipantsUI();
 
                 conn.on('open', () => { 
+                    // P2PでのState送信は初回（パスワード用）のみに限定。あとはFirebase任せ。
                     conn.send({
                         type: 'state',
-                        status: player ? (player.getPlayerState && player.getPlayerState() === 1 ? 'playing' : 'paused') : 'paused',
-                        videoId: currentSong ? currentSong.videoId : null,
                         hostName: hostName,
                         requirePassword: !!hostPassword 
                     });
-                    broadcastState(); 
                 });
                 
                 conn.on('data', (data) => { 
@@ -842,7 +827,6 @@
                             if (data.password === hostPassword) {
                                 conn.isAuthenticated = true;
                                 conn.send({ type: 'auth_response', success: true });
-                                broadcastState();
                             } else {
                                 conn.send({ type: 'auth_response', success: false });
                             }
@@ -877,6 +861,7 @@
                     if(connectedListeners[conn.peer]) {
                         delete connectedListeners[conn.peer];
                         updateParticipantsUI();
+                        updateCloudRoomState();
                     }
                 });
             });
@@ -983,7 +968,7 @@
                     }
 
                     updateParticipantsUI();
-                    broadcastState(); // 参加者情報の更新をブロードキャスト
+                    updateCloudRoomState(); // 参加者変更をクラウドへ
                 }
             }
             else if(data.type === 'request') {
@@ -1002,12 +987,12 @@
                     if (p.isRemote && p.conn.open) p.conn.send({type: 'remote_alert', msg: `<i class="fa-solid fa-music"></i> リクエスト追加: <b>${data.requesterReal}</b>`});
                 });
 
-                saveHostState();
                 updateUI();
+                updateCloudRoomState(); // キュー追加をクラウドへ
                 
                 fetchYouTubeTitle(song.videoId).then(title => {
                     const qItem = queue.find(q => q.id === song.id);
-                    if(qItem) { qItem.title = title; saveHostState(); updateUI(); }
+                    if(qItem) { qItem.title = title; updateUI(); updateCloudRoomState(); }
                 });
 
                 if(!currentSong || currentSong.isBGM) {
@@ -1016,14 +1001,14 @@
             }
             else if(data.type === 'cancel') {
                 queue = queue.filter(q => q.id !== data.id);
-                saveHostState();
                 updateUI();
+                updateCloudRoomState(); // キュー削除をクラウドへ
             }
             else if(data.type === 'remote_cmd') {
                 if(data.cmd === 'toggle') togglePlayHost();
                 else if(data.cmd === 'skip') playNext(true); 
                 else if(data.cmd === 'manage') {
-                    if (data.action === 'cancel_req') removeQueue(data.targetId);
+                    if (data.action === 'cancel_req') { removeQueue(data.targetId); }
                     else if (data.action === 'toggle_cam_approval') {
                         const el = document.getElementById('setting-cam-approval');
                         if (el) el.checked = data.targetId;
@@ -1036,8 +1021,7 @@
                 hostTheme = data.theme;
                 const themeInput = document.getElementById('setting-theme');
                 if(themeInput) themeInput.value = hostTheme;
-                saveHostState();
-                broadcastState();
+                updateCloudRoomState();
                 showToast("THEME UPDATED");
             }
             else if(data.type === 'request_camera') {
@@ -1045,12 +1029,14 @@
                     if(cameraApprovalMode && !listener.isRemote && !listener.isObs) {
                         listener.cameraStatus = 'requested';
                         updateParticipantsUI();
+                        updateCloudRoomState();
                         showHostNews(`<i class="fa-solid fa-bell text-yellow-400"></i> ${listener.name} がStream視聴承認待ちです`);
                         Object.values(connectedListeners).forEach(p => {
                             if(p.isRemote && p.conn.open) p.conn.send({type: 'camera_request_alert', id: listener.id, name: listener.name});
                         });
                     } else {
                         listener.cameraStatus = 'approved';
+                        updateCloudRoomState();
                         if(currentStreamToListeners && !listener.call) sendStreamToPeer(peerId);
                     }
                 }
@@ -1067,13 +1053,11 @@
                 if(!chatHistory.some(c => c.id === newChat.id)) {
                     chatHistory.push(newChat);
                     if(chatHistory.length > 100) chatHistory.shift();
-                    saveHostState();
-                    updateUI(); 
-                    showHostNews(`<i class="fa-solid fa-comment-dots text-gray-500"></i> <span class="text-indigo-300">${newChat.senderReal}</span>: ${newChat.text}`);
                     
-                    Object.values(connectedListeners).forEach(p => {
-                        if(p.conn.open) p.conn.send({type: 'new_chat', chat: newChat});
-                    });
+                    updateUI(); 
+                    updateCloudRoomState(); // チャット追加をクラウドへ
+                    
+                    showHostNews(`<i class="fa-solid fa-comment-dots text-gray-500"></i> <span class="text-indigo-300">${newChat.senderReal}</span>: ${newChat.text}`);
                     triggerTTS(newChat);
                 }
             }
@@ -1081,16 +1065,7 @@
                 deleteChat(data.id);
             }
             else if(data.type === 'request_sync') {
-                broadcastState();
-                if(listener && listener.conn.open) {
-                    listener.conn.send({
-                        type: 'state',
-                        status: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1 ? 'playing' : 'paused') : 'paused',
-                        videoId: currentSong ? currentSong.videoId : null,
-                        hostName: hostName,
-                        requirePassword: !!hostPassword
-                    });
-                }
+                // クラウドベースでは、個別同期要求は無視して良い（各自でFirestoreを見ているため）
             }
         }
 
@@ -1105,12 +1080,12 @@
                 };
                 queue.push(song);
                 showToast(`リクエストを追加しました`);
-                saveHostState();
                 updateUI();
+                updateCloudRoomState();
                 
                 fetchYouTubeTitle(song.videoId).then(title => {
                     const qItem = queue.find(q => q.id === song.id);
-                    if(qItem) { qItem.title = title; saveHostState(); updateUI(); }
+                    if(qItem) { qItem.title = title; updateUI(); updateCloudRoomState(); }
                 });
                 
                 if(!currentSong || currentSong.isBGM) {
@@ -1138,16 +1113,16 @@
                     }
                 });
             }
-            broadcastState();
             updateParticipantsUI();
+            updateCloudRoomState();
         }
 
         function manageUser(peerId, action) {
             const p = connectedListeners[peerId];
             if(action === 'unban') {
                 delete bannedUsers[peerId];
-                saveHostState();
                 updateParticipantsUI();
+                updateCloudRoomState();
                 showToast("UNBANNED");
                 return;
             }
@@ -1155,12 +1130,12 @@
             if(!p) return;
             if(action === 'approve_cam') {
                 p.cameraStatus = 'approved';
-                if(p.uuid) { approvedUsers[p.uuid] = true; saveHostState(); }
+                if(p.uuid) approvedUsers[p.uuid] = true;
                 if(currentStreamToListeners && !p.call) sendStreamToPeer(peerId);
                 showToast(`${p.name}: CAM APPROVED`);
             } else if(action === 'reject_cam') {
                 p.cameraStatus = 'none';
-                if(p.uuid) { delete approvedUsers[p.uuid]; saveHostState(); }
+                if(p.uuid) delete approvedUsers[p.uuid];
                 showToast(`${p.name}: CAM REJECTED`);
             } else if(action === 'mute') {
                 p.isMuted = !p.isMuted;
@@ -1168,7 +1143,6 @@
             } else if(action === 'ban') {
                 bannedUsers[peerId] = { name: p.name, time: Date.now(), uuid: p.uuid }; 
                 if(p.uuid) delete approvedUsers[p.uuid];
-                saveHostState();
                 if(p.call) p.call.close();
                 p.conn.send({type: 'banned'});
                 p.conn.close();
@@ -1176,7 +1150,7 @@
                 showToast(`BANNED`, 'error');
             }
             updateParticipantsUI();
-            broadcastState(); 
+            updateCloudRoomState(); 
         }
 
         function updateParticipantsUI() {
@@ -1244,48 +1218,45 @@
             hostTheme = document.getElementById('setting-theme').value;
             durationLimit = parseInt(document.getElementById('setting-duration').value) * 60;
             if(isNaN(durationLimit)) durationLimit = 0;
-            saveHostState();
-            broadcastState();
+            updateCloudRoomState();
         }
 
-        function broadcastState() {
-            const safeParticipants = Object.values(connectedListeners).map(p => ({
-                id: p.id, name: p.name, isMuted: p.isMuted, cameraStatus: p.cameraStatus, isRemote: p.isRemote, isObs: p.isObs, isCam: p.isCam
-            }));
+        function updateCloudRoomState() {
+            if (!window.db || !window.setDoc) return;
+            if (cloudUpdateTimeout) clearTimeout(cloudUpdateTimeout);
+            
+            // 少し待ってから一括で書き込む（通信の節約）
+            cloudUpdateTimeout = setTimeout(() => {
+                const safeParticipants = Object.values(connectedListeners).map(p => ({
+                    id: p.id, name: p.name, isMuted: p.isMuted, cameraStatus: p.cameraStatus, isRemote: p.isRemote, isObs: p.isObs, isCam: p.isCam
+                }));
 
-            let stateCurrentSong = currentSong ? { ...currentSong } : null;
-            if (stateCurrentSong && player && typeof player.getVideoData === 'function') {
-                try {
-                    const vData = player.getVideoData();
-                    if(vData && vData.video_id) {
-                        stateCurrentSong.videoId = vData.video_id;
-                    }
-                } catch(e) {}
-            }
+                let stateCurrentSong = currentSong ? { ...currentSong } : null;
+                if (stateCurrentSong && player && typeof player.getVideoData === 'function') {
+                    try {
+                        const vData = player.getVideoData();
+                        if(vData && vData.video_id) stateCurrentSong.videoId = vData.video_id;
+                    } catch(e) {}
+                }
 
-            // Firebaseへ保存（リロード時の完全復旧とサーバー保存の実現）
-            if (window.db && window.setDoc) {
-                window.setDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), {
+                const roomState = {
                     hostName: hostName,
                     theme: hostTheme,
                     status: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1 ? 'playing' : 'paused') : 'paused',
                     currentSong: stateCurrentSong,
                     queue: queue,
                     historyQueue: historyQueue,
+                    chatHistory: chatHistory,
                     participants: safeParticipants,
                     cameraApprovalMode: cameraApprovalMode,
                     isLive: !!currentStreamToListeners,
-                    requirePassword: !!hostPassword
-                }, { merge: true }).catch(e => console.warn(e));
-            }
+                    requirePassword: !!hostPassword,
+                    updatedAt: Date.now()
+                };
 
-            const state = {
-                type: 'state', queue: queue, historyQueue: historyQueue, chatHistory: chatHistory, currentSong: stateCurrentSong,
-                isPlaying: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1) : false,
-                hostTheme: hostTheme, isLive: !!currentStreamToListeners, cameraApprovalMode: cameraApprovalMode,
-                participants: safeParticipants, bannedUsers: bannedUsers
-            };
-            Object.values(connectedListeners).forEach(p => { if(p.conn.open) p.conn.send(state); });
+                window.setDoc(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), roomState, { merge: true })
+                .catch(e => console.warn("Firebase Update Error:", e));
+            }, 300);
         }
 
         function loadYouTubeAPI() {
@@ -1341,23 +1312,25 @@
 
         function onPlayerStateChange(event) {
             updateUI(); 
+            
             if (event.data === YT.PlayerState.PLAYING) {
+                // 絶対時刻の記録
+                if (currentSong && !currentSong.startedAt) {
+                    currentSong.startedAt = Date.now() - (player.getCurrentTime() * 1000);
+                } else if (currentSong && currentSong.pausePosition) {
+                    // 再開時
+                    currentSong.startedAt = Date.now() - (currentSong.pausePosition * 1000);
+                    currentSong.pausePosition = null;
+                }
                 
                 const isMuted = document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-xmark');
-                if (isMuted) {
-                    player.mute();
-                } else {
-                    player.unMute();
-                }
+                if (isMuted) player.mute();
+                else player.unMute();
 
                 if (currentSong && currentSong.isBGM && currentSong.listId && !currentSong._settingsApplied) {
                     currentSong._settingsApplied = true;
-                    if (typeof player.setShuffle === 'function') {
-                        player.setShuffle(document.getElementById('bgm-shuffle').checked);
-                    }
-                    if (typeof player.setLoop === 'function') {
-                        player.setLoop(document.getElementById('bgm-loop').checked);
-                    }
+                    if (typeof player.setShuffle === 'function') player.setShuffle(document.getElementById('bgm-shuffle').checked);
+                    if (typeof player.setLoop === 'function') player.setLoop(document.getElementById('bgm-loop').checked);
                 }
 
                 if(currentSong) {
@@ -1380,7 +1353,14 @@
                         }
                     }, 1000); 
                 }
+                updateCloudRoomState();
             } 
+            else if (event.data === YT.PlayerState.PAUSED) {
+                if (currentSong) {
+                    currentSong.pausePosition = player.getCurrentTime();
+                }
+                updateCloudRoomState();
+            }
             else if (event.data === YT.PlayerState.ENDED) {
                 if (currentSong && currentSong.isBGM && document.getElementById('bgm-loop-one') && document.getElementById('bgm-loop-one').checked) {
                     player.seekTo(0);
@@ -1414,13 +1394,15 @@
 
             if (queue.length > 0) {
                 currentSong = queue.shift();
+                currentSong.startedAt = null; // リセット
                 player.loadVideoById({videoId: currentSong.videoId});
             } 
             else if (bgmResumeData) {
                 currentSong = {
                     id: 'bgm-resumed', videoId: bgmResumeData.videoId, listId: bgmResumeData.listId,
                     title: bgmResumeData.title, requester: 'BGM RESUMED', isBGM: true,
-                    startSeconds: bgmResumeData.time, playlistIndex: bgmResumeData.playlistIndex
+                    startSeconds: bgmResumeData.time, playlistIndex: bgmResumeData.playlistIndex,
+                    startedAt: null
                 };
                 if (currentSong.listId) player.loadPlaylist({list: currentSong.listId, index: bgmResumeData.playlistIndex, startSeconds: bgmResumeData.time});
                 else player.loadVideoById({videoId: currentSong.videoId, startSeconds: bgmResumeData.time});
@@ -1443,18 +1425,18 @@
                 }
                 
                 if(bgm.isPlaylist) {
-                    currentSong = { id: 'bgm-pl', videoId: '', listId: bgm.listId, title: '📁 プレイリスト', requester: 'BGM', isBGM: true };
+                    currentSong = { id: 'bgm-pl', videoId: '', listId: bgm.listId, title: '📁 プレイリスト', requester: 'BGM', isBGM: true, startedAt: null };
                     player.loadPlaylist({list: bgm.listId});
                 } else {
-                    currentSong = { id: 'bgm-' + generateId(), videoId: bgm.videoId, listId: null, title: bgm.title || "取得中...", requester: 'BGM', isBGM: true };
+                    currentSong = { id: 'bgm-' + generateId(), videoId: bgm.videoId, listId: null, title: bgm.title || "取得中...", requester: 'BGM', isBGM: true, startedAt: null };
                     player.loadVideoById({videoId: currentSong.videoId});
                 }
             } else {
                 currentSong = null;
                 player.stopVideo();
             }
-            saveHostState();
             updateUI();
+            updateCloudRoomState();
         }
 
         function extractVideoId(url) {
@@ -1494,13 +1476,13 @@
         }
 
         function updateAndSaveBGM() {
-            saveHostState();
+            saveLocalSettings(); // BGMリストはローカル保存でOK（クラウド共有不要）
             updateUI();
             if(!currentSong && player && typeof player.getPlayerState === 'function') playNext();
         }
 
         function updateBGMPlaybackSettings() {
-            saveHostState();
+            saveLocalSettings();
             if (player && typeof player.setShuffle === 'function' && currentSong && currentSong.isBGM && currentSong.listId) {
                 player.setShuffle(document.getElementById('bgm-shuffle').checked);
                 player.setLoop(document.getElementById('bgm-loop').checked);
@@ -1599,65 +1581,47 @@
             }
 
             renderChatList('host-chat-list', chatHistory);
-            broadcastState(); // ここで全員に確実に最新状態を送る
         }
 
         function reRequestHost(videoId, reqName) {
             queue.push({ id: generateId(), videoId: videoId, title: "取得中...", requester: reqName, requesterReal: reqName, isAnon: false });
             showToast("再リクエストしました");
             updateUI();
+            updateCloudRoomState();
             
             fetchYouTubeTitle(videoId).then(title => {
                 const qItem = queue[queue.length - 1];
-                if(qItem && qItem.videoId === videoId) { qItem.title = title; updateUI(); }
+                if(qItem && qItem.videoId === videoId) { qItem.title = title; updateUI(); updateCloudRoomState(); }
             });
             if(!currentSong || currentSong.isBGM) playNext();
         }
 
-        function removeQueue(id) { queue = queue.filter(q => q.id !== id); saveHostState(); updateUI(); }
-        function removeBGM(idx) { bgmQueue.splice(idx, 1); saveHostState(); updateUI(); }
+        function removeQueue(id) { queue = queue.filter(q => q.id !== id); updateUI(); updateCloudRoomState(); }
+        function removeBGM(idx) { bgmQueue.splice(idx, 1); saveLocalSettings(); updateUI(); }
 
-        function saveHostState() {
-            if (!isHostStateLoaded) return; 
-            
+        function saveLocalSettings() {
+            // クラウドに同期しないローカル専用の設定（BGMリストやミキサー）
             const bgmSettings = {
                 shuffle: document.getElementById('bgm-shuffle') ? document.getElementById('bgm-shuffle').checked : false,
                 loop: document.getElementById('bgm-loop') ? document.getElementById('bgm-loop').checked : true,
                 loopOne: document.getElementById('bgm-loop-one') ? document.getElementById('bgm-loop-one').checked : false
             };
-            
             const mixerSettings = {
                 jukeboxVol: document.getElementById('host-jukebox-vol') ? document.getElementById('host-jukebox-vol').value : 100,
                 jukeboxMute: document.getElementById('icon-host-jukebox-mute') ? document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-xmark') : false,
                 streamVol: document.getElementById('host-stream-vol') ? document.getElementById('host-stream-vol').value : 0,
                 streamMute: document.getElementById('icon-host-stream-mute') ? document.getElementById('icon-host-stream-mute').classList.contains('fa-volume-xmark') : false
             };
-
-            const data = { queue, bgmQueue, historyQueue, chatHistory, currentSong, bgmResumeData, hostName, hostTheme, durationLimit, cameraApprovalMode, bannedUsers, bgmSettings, mixerSettings, approvedUsers };
-            localStorage.setItem('jukebox_state_' + currentRoomId, JSON.stringify(data));
+            const data = { bgmQueue, bgmSettings, mixerSettings };
+            localStorage.setItem('jukebox_local_settings_' + currentRoomId, JSON.stringify(data));
         }
 
-        function loadHostState() {
+        function loadLocalSettings() {
             try {
-                const saved = localStorage.getItem('jukebox_state_' + currentRoomId);
+                const saved = localStorage.getItem('jukebox_local_settings_' + currentRoomId);
                 if(saved) {
                     const data = JSON.parse(saved);
-                    queue = Array.isArray(data.queue) ? data.queue : [];
                     bgmQueue = Array.isArray(data.bgmQueue) ? data.bgmQueue : [];
-                    historyQueue = Array.isArray(data.historyQueue) ? data.historyQueue : [];
-                    chatHistory = Array.isArray(data.chatHistory) ? data.chatHistory : [];
-                    currentSong = data.currentSong || null;
-                    bgmResumeData = data.bgmResumeData || null;
-                    cameraApprovalMode = !!data.cameraApprovalMode;
-                    bannedUsers = data.bannedUsers || {};
-                    approvedUsers = data.approvedUsers || {};
-                    
-                    const camAppEl = document.getElementById('setting-cam-approval');
-                    if(camAppEl) camAppEl.checked = cameraApprovalMode;
-                    
-                    if(data.hostName) { hostName = data.hostName; document.getElementById('setting-host-name').value = hostName; }
-                    if(data.hostTheme) { hostTheme = data.hostTheme; document.getElementById('setting-theme').value = hostTheme; }
-                    if(data.durationLimit !== undefined) { durationLimit = data.durationLimit; document.getElementById('setting-duration').value = durationLimit / 60; }
                     
                     if(data.bgmSettings) {
                         if(document.getElementById('bgm-shuffle')) document.getElementById('bgm-shuffle').checked = data.bgmSettings.shuffle;
@@ -1682,14 +1646,9 @@
                             sIcon.parentElement.classList.replace('text-gray-300', 'text-gray-500');
                         }
                     }
-
                     updateUI();
                 }
-            } catch(e) { console.warn("Failed to load host state", e); }
-            finally {
-                isHostStateLoaded = true; 
-                updateStreamAudioByWindowSize(); 
-            }
+            } catch(e) { console.warn("Failed to load local settings", e); }
         }
 
         function saveToMyList() {
@@ -1756,7 +1715,7 @@
                 }
             });
             showToast("カメラ中継を開始しました", "info");
-            broadcastState();
+            updateCloudRoomState();
         }
 
         function stopBroadcastStream() {
@@ -1765,7 +1724,7 @@
                 if(listener.call) { listener.call.close(); listener.call = null; }
             });
             showToast("カメラ中継が停止しました", "info");
-            broadcastState(); 
+            updateCloudRoomState(); 
         }
 
         function sendChatRequest() {
@@ -1782,8 +1741,8 @@
 
         function deleteChat(id) {
             chatHistory = chatHistory.filter(c => c.id !== id);
-            saveHostState();
             updateUI();
+            updateCloudRoomState();
         }
 
         function renderChatList(containerId, chats) {
