@@ -887,12 +887,17 @@
 
         function handleOverlayClick() {
             if (isWpOverlayActive) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
-                    viewerYTPlayer.unMute();
+                if (viewerYTPlayer) {
                     const toggle = document.getElementById('toggle-remote-wp-mute');
                     if(toggle) toggle.checked = true;
-                    if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
-                        viewerYTPlayer.playVideo();
+                    
+                    if (typeof viewerYTPlayer.unMute === 'function') viewerYTPlayer.unMute();
+                    
+                    if (typeof viewerYTPlayer.getPlayerState === 'function') {
+                        const state = viewerYTPlayer.getPlayerState();
+                        if (state !== 1 && state !== 3) {
+                            if (typeof viewerYTPlayer.playVideo === 'function') viewerYTPlayer.playVideo();
+                        }
                     }
                 }
                 const overlay = document.getElementById('remote-youtube-overlay');
@@ -912,8 +917,11 @@
 
         function toggleWatchPartyMuteFromSwitch(isSoundOn) {
             if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
-            if (isSoundOn) viewerYTPlayer.unMute();
-            else viewerYTPlayer.mute();
+            if (isSoundOn) {
+                if (typeof viewerYTPlayer.unMute === 'function') viewerYTPlayer.unMute();
+            } else {
+                if (typeof viewerYTPlayer.mute === 'function') viewerYTPlayer.mute();
+            }
         }
 
         function toggleRemoteWatchPartyVideoFromSwitch(isOn) {
@@ -925,86 +933,110 @@
         }
 
         function handleSyncPlayback(data) {
-            const wpPlayerId = 'remote-youtube-player';
+            try {
+                const wpPlayerId = 'remote-youtube-player';
 
-            if (!isWatchPartyEnabled) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
-                    viewerYTPlayer.pauseVideo();
+                if (!isWatchPartyEnabled) {
+                    if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
+                        viewerYTPlayer.pauseVideo();
+                    }
+                    return;
                 }
-                return;
-            }
 
-            if (!viewerYTPlayer) {
-                if (typeof YT === 'undefined' || !YT.Player) {
-                    loadYouTubeAPI(); return;
+                if (!viewerYTPlayer) {
+                    if (typeof YT === 'undefined' || !YT.Player) {
+                        loadYouTubeAPI(); return;
+                    }
+                    
+                    let playerOptions = {
+                        height: '100%', width: '100%',
+                        playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
+                        events: { 
+                            'onReady': (event) => { 
+                                if (typeof event.target.mute === 'function') event.target.mute(); 
+                            } 
+                        }
+                    };
+                    if (data.videoId) {
+                        playerOptions.videoId = data.videoId;
+                    }
+                    
+                    if (document.getElementById(wpPlayerId)) {
+                        viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
+                    }
+                    return;
                 }
+
+                if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
                 
-                let playerOptions = {
-                    height: '100%', width: '100%',
-                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
-                    events: { 'onReady': (event) => { event.target.mute(); } }
-                };
-                if (data.videoId) playerOptions.videoId = data.videoId;
-                if (document.getElementById(wpPlayerId)) viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
-                return;
-            }
-
-            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
-            
-            if (!data.videoId) {
-                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
-                    viewerYTPlayer.stopVideo();
+                if (!data.videoId) {
+                    const pState = viewerYTPlayer.getPlayerState();
+                    if (pState !== -1 && pState !== 5) {
+                        if (typeof viewerYTPlayer.stopVideo === 'function') viewerYTPlayer.stopVideo();
+                    }
+                    currentSong = null;
+                    return;
                 }
-                currentSong = null;
-                return;
-            }
 
-            const state = viewerYTPlayer.getPlayerState();
-            const currentTime = viewerYTPlayer.getCurrentTime() || 0;
-            hostCurrentTime = data.time; 
-            
-            if (data.status === 'playing' || data.status === 'paused') {
-                hostCurrentStatus = data.status;
-            } else {
-                hostCurrentStatus = (data.status === 1) ? 'playing' : 'paused';
-            }
-
-            if (data.videoId !== (currentSong ? currentSong.videoId : "")) {
-                currentSong = { videoId: data.videoId };
-                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
-                lastSeekTime = Date.now();
-                return;
-            }
-
-            const now = Date.now();
-            const isBuffering = (state === 3);
-            const recentlySeeked = (now - lastSeekTime < 3000);
-
-            if (hostCurrentStatus === 'playing') { 
-                if (state !== 1 && state !== 3) {
-                    viewerYTPlayer.playVideo();
+                const state = viewerYTPlayer.getPlayerState();
+                const currentTime = (typeof viewerYTPlayer.getCurrentTime === 'function') ? viewerYTPlayer.getCurrentTime() : 0;
+                hostCurrentTime = data.time || 0; 
+                
+                if (data.status === 'playing' || data.status === 'paused') {
+                    hostCurrentStatus = data.status;
+                } else {
+                    hostCurrentStatus = (data.status === 1) ? 'playing' : 'paused';
                 }
-                
-                const diff = hostCurrentTime - currentTime;
-                
-                if (!recentlySeeked && !isBuffering) {
-                    if (Math.abs(diff) > 2.0) {
-                        viewerYTPlayer.seekTo(hostCurrentTime, true);
-                        lastSeekTime = now;
-                    } else if (Math.abs(diff) > 0.5) {
-                        viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
-                    } else {
-                        viewerYTPlayer.setPlaybackRate(1.0);
+
+                if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
+                    currentSong = { videoId: data.videoId };
+                    if (typeof viewerYTPlayer.loadVideoById === 'function') {
+                        viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: hostCurrentTime});
+                        lastSeekTime = Date.now();
+                    }
+                    return;
+                }
+
+                const now = Date.now();
+                const isBuffering = (state === 3);
+                const recentlySeeked = (now - lastSeekTime < 3000);
+
+                if (hostCurrentStatus === 'playing') { 
+                    if (state !== 1 && state !== 3) {
+                        if (typeof viewerYTPlayer.playVideo === 'function') viewerYTPlayer.playVideo();
+                    }
+                    
+                    const diff = hostCurrentTime - currentTime;
+                    
+                    if (!recentlySeeked && !isBuffering) {
+                        if (Math.abs(diff) > 2.0) {
+                            if (typeof viewerYTPlayer.seekTo === 'function') {
+                                viewerYTPlayer.seekTo(hostCurrentTime, true);
+                                lastSeekTime = now;
+                            }
+                        } else if (Math.abs(diff) > 0.5) {
+                            if (typeof viewerYTPlayer.setPlaybackRate === 'function') {
+                                viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
+                            }
+                        } else {
+                            if (typeof viewerYTPlayer.setPlaybackRate === 'function') {
+                                viewerYTPlayer.setPlaybackRate(1.0);
+                            }
+                        }
+                    }
+                } else if (hostCurrentStatus === 'paused') { 
+                    if (state === 1) {
+                        if (typeof viewerYTPlayer.pauseVideo === 'function') viewerYTPlayer.pauseVideo();
+                    }
+                    if (!recentlySeeked && Math.abs(hostCurrentTime - currentTime) > 1.5) {
+                        if (typeof viewerYTPlayer.seekTo === 'function') {
+                            viewerYTPlayer.seekTo(hostCurrentTime, true);
+                            lastSeekTime = now;
+                        }
                     }
                 }
-            } else if (hostCurrentStatus === 'paused') { 
-                if (state === 1) {
-                    viewerYTPlayer.pauseVideo();
-                }
-                if (!recentlySeeked && Math.abs(hostCurrentTime - currentTime) > 1.5) {
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
-                    lastSeekTime = now;
-                }
+            } catch (err) {
+                console.warn("YouTube Sync Ignored safely:", err);
             }
         }
 
