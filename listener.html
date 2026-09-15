@@ -353,7 +353,7 @@
 
                     <!-- 最下部余白用バージョン表記 -->
                     <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.42
+                        v1.0.46
                     </div>
 
                 </div>
@@ -416,7 +416,7 @@
         
         // --- Firebase同期用変数 ---
         let serverState = null;
-        let lastSeekTime = 0; // 連続シーク防止用タイマー
+        let lastSeekTime = 0; // クールダウン期間の起点となるタイマー
         let isYouTubeAPIReady = false;
 
         // Web Audio API 用の変数
@@ -718,6 +718,10 @@
         // ================= Firebase Integration & YouTube Sync =================
         window.onYouTubeIframeAPIReady = function() {
             isYouTubeAPIReady = true;
+            // リロード時に既に動画データがあれば初期化する
+            if (serverState && serverState.currentSong) {
+                initYouTubePlayer();
+            }
         };
 
         function loadYouTubeAPI() {
@@ -748,6 +752,9 @@
             
             // YouTube 強制同期プログラム（1秒ごとに自己補正）
             setInterval(enforceSync, 1000);
+            
+            // 念のためAPIをロード
+            loadYouTubeAPI();
         }
 
         function handleRoomSync(data) {
@@ -762,8 +769,10 @@
                     if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
                         try {
                             viewerYTPlayer.loadVideoById({videoId: currentSong.videoId, startSeconds: calculateCurrentTime()});
-                            lastSeekTime = Date.now();
+                            lastSeekTime = Date.now(); // 曲が変わったのでクールダウン開始
                         } catch(e) {}
+                    } else if (isYouTubeAPIReady) {
+                        initYouTubePlayer();
                     }
                 }
             } else {
@@ -788,7 +797,10 @@
                     'onReady': (event) => {
                         if (typeof event.target.mute === 'function') event.target.mute();
                         if (currentSong && currentSong.videoId) {
-                            try { event.target.loadVideoById({videoId: currentSong.videoId, startSeconds: calculateCurrentTime()}); } catch(e) {}
+                            try { 
+                                event.target.loadVideoById({videoId: currentSong.videoId, startSeconds: calculateCurrentTime()}); 
+                                lastSeekTime = Date.now(); // ロード直後なのでクールダウン開始
+                            } catch(e) {}
                         }
                     },
                     'onStateChange': (event) => {
@@ -816,7 +828,7 @@
 
         function enforceSync() {
             if (!isWatchPartyEnabled || !viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function') {
-                initYouTubePlayer();
+                if (isYouTubeAPIReady && serverState && serverState.currentSong) initYouTubePlayer();
                 return;
             }
             
@@ -834,7 +846,8 @@
                 
                 const now = Date.now();
                 const isBuffering = (state === 3);
-                const recentlySeeked = (now - lastSeekTime < 3000);
+                // クールダウン（猶予）期間を5秒に設定。動画のロード直後やシーク直後のガクガクを防止
+                const recentlySeeked = (now - lastSeekTime < 5000);
 
                 if (hostStatus === 'playing') {
                     if (state !== 1 && state !== 3) {
@@ -842,13 +855,17 @@
                     }
                     
                     const diff = expectedTime - currentTime;
-                    if (!recentlySeeked && !isBuffering) {
-                        if (Math.abs(diff) > 2.0) {
+                    
+                    // 確実に再生状態(state === 1)になってから、かつクールダウン明けのみ時間調整を行う
+                    if (!recentlySeeked && !isBuffering && state === 1) {
+                        // ズレが3秒以上ある場合は強制シーク
+                        if (Math.abs(diff) > 3.0) {
                             if (typeof viewerYTPlayer.seekTo === 'function') {
                                 viewerYTPlayer.seekTo(expectedTime, true);
-                                lastSeekTime = now;
+                                lastSeekTime = now; // シークしたら再びクールダウン開始
                             }
                         } else if (Math.abs(diff) > 0.5) {
+                            // ズレが0.5秒〜3秒の場合は再生速度を変えて自然に追いつかせる
                             if (typeof viewerYTPlayer.setPlaybackRate === 'function') {
                                 viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
                             }
@@ -862,6 +879,7 @@
                     if (state === 1) {
                         if (typeof viewerYTPlayer.pauseVideo === 'function') viewerYTPlayer.pauseVideo();
                     }
+                    // 停止中の場合もクールダウン明けのみシーク
                     if (!recentlySeeked && Math.abs(expectedTime - currentTime) > 1.5) {
                         if (typeof viewerYTPlayer.seekTo === 'function') {
                             viewerYTPlayer.seekTo(expectedTime, true);
