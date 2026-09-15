@@ -388,8 +388,21 @@
 
         let viewerYTPlayer = null;
         let isWpOverlayActive = true;
+        let hostCurrentTime = 0;
+        let hostCurrentStatus = -1;
+        let lastHostTimeReceivedAt = 0;
         let pendingConnection = null;
-        let isAuthenticated = false; 
+
+        let isVideoStable = true;
+        let stabilizationTimeout = null;
+
+        function resetStabilizationTimer() {
+            isVideoStable = false;
+            if (stabilizationTimeout) clearTimeout(stabilizationTimeout);
+            stabilizationTimeout = setTimeout(() => {
+                isVideoStable = true;
+            }, 5000); 
+        }
 
         // Web Audio API 用の変数
         let streamAudioCtx = null;
@@ -797,23 +810,46 @@
             }
         }
 
-        let hostCurrentTime = 0;
-        let hostCurrentStatus = -1;
-        let lastHostTimeReceivedAt = 0;
-        let isVideoStable = true;
-        let stabilizationTimeout = null;
+        // ================= YouTube Player Initialization =================
+        function initListenerYouTubePlayer() {
+            const wpPlayerId = 'listener-youtube-player';
+            if (viewerYTPlayer || !window.YT || !window.YT.Player) return;
 
-        function resetStabilizationTimer() {
-            isVideoStable = false;
-            if (stabilizationTimeout) clearTimeout(stabilizationTimeout);
-            stabilizationTimeout = setTimeout(() => {
-                isVideoStable = true;
-            }, 5000); 
+            let playerOptions = {
+                height: '100%', width: '100%',
+                playerVars: { autoplay: 1, controls: 1, rel: 0, disablekb: 0 },
+                events: {
+                    'onReady': (event) => {
+                        event.target.mute(); 
+                        resetStabilizationTimer();
+                    },
+                    'onStateChange': (event) => {
+                        if (event.data === YT.PlayerState.PLAYING) {
+                            const wpToggle = document.getElementById('toggle-wp-mute');
+                            if (wpToggle && wpToggle.checked) {
+                                event.target.unMute();
+                                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
+                                event.target.setVolume(savedVol);
+                            }
+                        }
+                    }
+                }
+            };
+
+            if (currentSong && currentSong.videoId) {
+                playerOptions.videoId = currentSong.videoId;
+            }
+
+            if (document.getElementById(wpPlayerId)) {
+                viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
+            }
         }
 
-        function handleSyncPlayback(data) {
-            const wpPlayerId = 'listener-youtube-player';
+        window.onYouTubeIframeAPIReady = function() {
+            initListenerYouTubePlayer();
+        };
 
+        function handleSyncPlayback(data) {
             if (!isWatchPartyEnabled) {
                 if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
                     viewerYTPlayer.pauseVideo();
@@ -823,35 +859,10 @@
 
             if (!viewerYTPlayer) {
                 if (typeof YT === 'undefined' || !YT.Player) {
-                    loadYouTubeAPI(); return;
-                }
-                
-                let playerOptions = {
-                    height: '100%', width: '100%',
-                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
-                    events: {
-                        'onReady': (event) => {
-                            event.target.mute(); 
-                            resetStabilizationTimer();
-                        },
-                        'onStateChange': (event) => {
-                            if (event.data === YT.PlayerState.PLAYING) {
-                                const wpToggle = document.getElementById('toggle-wp-mute');
-                                if (wpToggle && wpToggle.checked) {
-                                    event.target.unMute();
-                                    const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
-                                    event.target.setVolume(savedVol);
-                                }
-                            }
-                        }
-                    }
-                };
-                if (data.videoId) {
-                    playerOptions.videoId = data.videoId;
-                }
-                
-                if (document.getElementById(wpPlayerId)) {
-                    viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
+                    loadYouTubeAPI(); 
+                } else if (data.videoId) {
+                    currentSong = { videoId: data.videoId };
+                    if(typeof initListenerYouTubePlayer === 'function') initListenerYouTubePlayer();
                 }
                 return;
             }
@@ -924,6 +935,8 @@
                 showNameModal();
             }
         }
+
+        let isAuthenticated = false;
 
         function startListenerConnection() {
             if (peer) peer.destroy();
@@ -1184,6 +1197,14 @@
         function renderListenerState(state) {
             const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, hostTheme, isLive, cameraApprovalMode, participants } = state;
 
+            // ローカル変数の確実な更新
+            currentSong = currentSongData || null;
+
+            // データ受信時にもAPIロード状態をチェックしてYouTube枠を強制生成
+            if (currentSong && currentSong.videoId && !viewerYTPlayer && window.YT && window.YT.Player) {
+                if(typeof initListenerYouTubePlayer === 'function') initListenerYouTubePlayer();
+            }
+
             if(serverChatHistory) {
                 chatHistory = serverChatHistory;
                 renderChatList('listener-chat-list', chatHistory, false);
@@ -1191,9 +1212,9 @@
 
             const playingEl = document.getElementById('listener-now-playing');
             
-            if(currentSongData && playingEl) {
-                playingEl.textContent = currentSongData.title;
-                const reqName = currentSongData.isAnon ? '184(匿名)' : (currentSongData.requester || "");
+            if(currentSong && playingEl) {
+                playingEl.textContent = currentSong.title;
+                const reqName = currentSong.isAnon ? '184(匿名)' : (currentSong.requester || "");
                 const reqEl = document.getElementById('listener-now-requester');
                 if(reqEl) reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
                 
