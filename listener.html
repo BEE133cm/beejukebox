@@ -103,6 +103,63 @@
             .chat-backdrop { display: none !important; }
         }
     </style>
+
+    <!-- Firebase Initialization -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ==========================================
+        // 【重要】Firebase 接続設定
+        // ==========================================
+        const myFirebaseConfig = {
+          apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
+          authDomain: "beejukebox-94ad8.firebaseapp.com",
+          projectId: "beejukebox-94ad8",
+          storageBucket: "beejukebox-94ad8.firebasestorage.app",
+          messagingSenderId: "902266249398",
+          appId: "1:902266249398:web:8de3ff1d14ea5eef224617",
+          measurementId: "G-H4SV4FHX3Z"
+        };
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'jukebox-app';
+        let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        if (!firebaseConfig && myFirebaseConfig) {
+            firebaseConfig = myFirebaseConfig;
+        }
+
+        try {
+            if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+                throw new Error("Firebaseの接続設定がありません。");
+            }
+
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+
+            window.db = db;
+            window.auth = auth;
+            window.appId = appId;
+            window.doc = doc;
+            window.onSnapshot = onSnapshot;
+
+            async function initFirebase() {
+                try {
+                    if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
+                    else await signInAnonymously(auth);
+                    window.dispatchEvent(new Event('firebase-auth-ready'));
+                } catch (e) {
+                    console.error("Firebase Auth Error:", e);
+                }
+            }
+            initFirebase();
+        } catch (e) {
+            console.error("Firebase Setup Error:", e);
+        }
+    </script>
 </head>
 <body class="p-0 overflow-hidden relative">
 
@@ -241,6 +298,9 @@
 
                 <!-- Stream映像レイヤー -->
                 <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
+                    <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
+                        <i class="fa-solid fa-video"></i> 配信を見る (タップで申請)
+                    </button>
                     <!-- Web Audio API にルーティングするため、常にミュートにする -->
                     <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
                 </div>
@@ -369,6 +429,7 @@
         let historyQueue = [];
         let chatHistory = []; 
         let currentSong = null;
+        let isHostLive = false;
 
         let listenerConn = null;
         let listenerId = null;
@@ -385,8 +446,14 @@
 
         let viewerYTPlayer = null;
         let isWpOverlayActive = true;
+
+        // --- 同期とシーク追従用の変数 ---
         let hostCurrentTime = 0;
         let hostCurrentStatus = -1;
+        let lastHostTimeReceivedAt = 0;
+        let isVideoStable = false; // クールダウン中かどうかのフラグ
+        let stabilizationTimeout = null; // クールダウン用のタイマー
+
         let pendingConnection = null;
 
         // Web Audio API 用の変数
@@ -471,6 +538,7 @@
 
         window.onload = () => {
             loadListenerSettings();
+            loadYouTubeAPI();
 
             const savedName = localStorage.getItem('jukebox_guest_name');
             const savedAnon = localStorage.getItem('jukebox_guest_anon');
@@ -683,29 +751,37 @@
             
             startListenerConnection();
         }
-        
+
+        // =====================================
+        // YouTube API & Player Initialization
+        // =====================================
         function loadYouTubeAPI() {
             if (window.YT && window.YT.Player) {
-                // Ignore for listener if not ready to play
-            } else if (!document.getElementById('youtube-api-script')) {
-                const tag = document.createElement('script');
-                tag.id = 'youtube-api-script';
-                tag.src = 'https://www.youtube.com/iframe_api';
-                const firstScriptTag = document.getElementsByTagName('script')[0];
-                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+                // API already loaded
+                return;
             }
+            const tag = document.createElement('script');
+            tag.id = 'youtube-api-script';
+            tag.src = 'https://www.youtube.com/iframe_api';
+            const firstScriptTag = document.getElementsByTagName('script')[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
         }
 
-        // --- 追加ここから ---
+        // 1. API Loaded Callback (May fire before or after data arrives)
         window.onYouTubeIframeAPIReady = function() {
             if (currentSong && !viewerYTPlayer) {
                 initListenerYouTubePlayer();
             }
         };
 
+        // 2. The actual initialization function
         function initListenerYouTubePlayer() {
             if (!isWatchPartyEnabled || viewerYTPlayer) return;
-            if (typeof YT === 'undefined' || !YT.Player) return;
+            if (typeof window.YT === 'undefined' || !window.YT.Player) return;
+            if (!currentSong) return;
+
+            // Make sure the container exists
+            if (!document.getElementById('listener-youtube-player')) return;
             
             let playerOptions = {
                 height: '100%', width: '100%',
@@ -714,16 +790,13 @@
                 events: { 
                     'onReady': (event) => { 
                         event.target.mute(); 
-                        lastListenerSeekTime = Date.now();
+                        isVideoStable = false; 
+                        resetStabilizationTimer();
                     } 
                 }
             };
-            if (document.getElementById('listener-youtube-player')) {
-                viewerYTPlayer = new YT.Player('listener-youtube-player', playerOptions);
-                lastListenerSeekTime = Date.now();
-            }
+            viewerYTPlayer = new window.YT.Player('listener-youtube-player', playerOptions);
         }
-        // --- 追加ここまで ---
 
         function handleOverlayClick() {
             if (isWpOverlayActive) {
@@ -732,18 +805,20 @@
                 }
 
                 if (viewerYTPlayer) {
-                    const wpToggle = document.getElementById('toggle-wp-mute');
-                    if (wpToggle && wpToggle.checked) {
-                        if (typeof viewerYTPlayer.unMute === 'function') viewerYTPlayer.unMute();
-                        const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
-                        if (typeof viewerYTPlayer.setVolume === 'function') viewerYTPlayer.setVolume(savedVol);
-                    } else {
-                        if (typeof viewerYTPlayer.mute === 'function') viewerYTPlayer.mute();
-                    }
+                    try {
+                        const wpToggle = document.getElementById('toggle-wp-mute');
+                        if (wpToggle && wpToggle.checked) {
+                            if (typeof viewerYTPlayer.unMute === 'function') viewerYTPlayer.unMute();
+                            const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
+                            if (typeof viewerYTPlayer.setVolume === 'function') viewerYTPlayer.setVolume(savedVol);
+                        } else {
+                            if (typeof viewerYTPlayer.mute === 'function') viewerYTPlayer.mute();
+                        }
 
-                    if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
-                        viewerYTPlayer.playVideo();
-                    }
+                        if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
+                            viewerYTPlayer.playVideo();
+                        }
+                    } catch(e) {}
                 }
                 
                 const overlayId = 'listener-youtube-overlay';
@@ -809,13 +884,15 @@
 
         function toggleWatchPartyMuteFromSwitch(isSoundOn) {
             if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
-            if (isSoundOn) {
-                viewerYTPlayer.unMute();
-                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
-                viewerYTPlayer.setVolume(savedVol);
-            } else {
-                viewerYTPlayer.mute();
-            }
+            try {
+                if (isSoundOn) {
+                    viewerYTPlayer.unMute();
+                    const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
+                    viewerYTPlayer.setVolume(savedVol);
+                } else {
+                    viewerYTPlayer.mute();
+                }
+            } catch(e) {}
             saveListenerSettings();
         }
 
@@ -827,64 +904,89 @@
             }
         }
 
-        function handleSyncPlayback(data) {
-            const wpPlayerId = 'listener-youtube-player';
+        // =====================================
+        // Synchronized Playback Logic (P2P + Firebase Hybrid)
+        // =====================================
+        function resetStabilizationTimer() {
+            isVideoStable = false;
+            if (stabilizationTimeout) clearTimeout(stabilizationTimeout);
+            stabilizationTimeout = setTimeout(() => {
+                isVideoStable = true;
+            }, 5000); 
+        }
 
-            if (!isWatchPartyEnabled) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
-                    viewerYTPlayer.pauseVideo();
-                }
-                return;
-            }
+        function enforceSync() {
+            if (!isWatchPartyEnabled || !viewerYTPlayer || !currentSong || !currentSong.startedAt || !isVideoStable) return;
 
-            if (!viewerYTPlayer) return; // <--- 修正箇所：初期化はここでは行わずスルーする
-
-            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
-            
-            if (!data.videoId) {
-                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
-                    viewerYTPlayer.stopVideo();
-                }
-                currentSong = null;
-                return;
-            }
-
-            const state = viewerYTPlayer.getPlayerState();
-            const currentTime = viewerYTPlayer.getCurrentTime();
-            hostCurrentTime = data.time; 
-            hostCurrentStatus = data.status;
-
-            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
-                currentSong = { videoId: data.videoId };
-                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
-                return;
-            }
-
-            if (data.status === 1) { 
-                if (state !== 1 && state !== 3) {
-                    viewerYTPlayer.playVideo();
-                }
+            try {
+                if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
+                const state = viewerYTPlayer.getPlayerState();
                 
-                const diff = hostCurrentTime - currentTime;
-                
-                if (Math.abs(diff) < 1.0) {
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
-                    if (diff > 0) {
-                        viewerYTPlayer.setPlaybackRate(1.05); 
+                // Only enforce sync if the player is actually playing. This prevents crashes during loading/CMs.
+                if (state !== 1) return;
+
+                if (hostCurrentStatus === 'playing') {
+                    const expectedTime = (Date.now() - currentSong.startedAt) / 1000;
+                    const currentTime = viewerYTPlayer.getCurrentTime();
+                    const diff = expectedTime - currentTime;
+
+                    if (Math.abs(diff) < 1.0) {
+                        viewerYTPlayer.setPlaybackRate(1.0);
+                    } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
+                        if (diff > 0) viewerYTPlayer.setPlaybackRate(1.05); 
+                        else viewerYTPlayer.setPlaybackRate(0.95); 
                     } else {
-                        viewerYTPlayer.setPlaybackRate(0.95); 
+                        viewerYTPlayer.setPlaybackRate(1.0);
+                        viewerYTPlayer.seekTo(expectedTime, true);
+                        resetStabilizationTimer(); 
                     }
-                } else {
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
                 }
-            } else if (data.status === 2 || data.status === -1) { 
-                if (state === 1) {
+            } catch (e) {
+                console.warn("enforceSync safely caught an error:", e);
+            }
+        }
+
+        // Self-correction loop
+        setInterval(enforceSync, 1000);
+
+        function handleSyncPlayback(data) {
+            if (!isWatchPartyEnabled) return;
+
+            // Update P2P sync variables
+            hostCurrentTime = data.time; 
+            hostCurrentStatus = data.status === 1 ? 'playing' : 'paused';
+            lastHostTimeReceivedAt = Date.now();
+
+            if (!viewerYTPlayer || !currentSong) return;
+
+            try {
+                if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
+                const state = viewerYTPlayer.getPlayerState();
+
+                // 1. Detect Host Seeking
+                const expectedHostTime = hostCurrentTime;
+                const myCurrentTime = viewerYTPlayer.getCurrentTime();
+                const diff = expectedHostTime - myCurrentTime;
+
+                let hostSeeked = false;
+                if (data.status === 1 && Math.abs(diff) > 3.0) hostSeeked = true; 
+                if (data.status === 2 && Math.abs(diff) > 1.0) hostSeeked = true; 
+
+                // 2. Intercept and Follow Host Seek
+                if (hostSeeked) {
+                    viewerYTPlayer.seekTo(expectedHostTime, true);
+                    resetStabilizationTimer(); 
+                }
+
+                // 3. Play/Pause Follow
+                if (data.status === 1 && state !== 1 && state !== 3) {
+                    viewerYTPlayer.playVideo();
+                } else if ((data.status === 2 || data.status === -1) && state === 1) {
                     viewerYTPlayer.pauseVideo();
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
-                    viewerYTPlayer.setPlaybackRate(1.0);
+                    viewerYTPlayer.seekTo(expectedHostTime, true);
                 }
+            } catch (e) {
+                console.warn("handleSyncPlayback safely caught an error:", e);
             }
         }
 
@@ -907,7 +1009,7 @@
                 listenerConn = peer.connect(`jukebox-${currentRoomId}`);
                 
                 listenerConn.on('open', () => {
-                    reconnectAttempts = 0; // 再接続試行回数をリセット
+                    reconnectAttempts = 0; 
                     const statusId = 'listener-status';
                     if(document.getElementById(statusId)) {
                         document.getElementById(statusId).textContent = "接続完了！";
@@ -915,8 +1017,15 @@
                         document.getElementById(statusId).classList.replace('text-red-500', 'text-green-500');
                     }
                     sendProfileUpdate();
-                    // 復帰後の同期リクエスト (Host側にStateとSyncの自動送信を促す)
-                    listenerConn.send({ type: 'request_sync' });
+                    
+                    // Start Firestore Sync only after P2P is established (ensures Host has created room)
+                    if (window.db && window.onSnapshot && currentRoomId) {
+                        window.onSnapshot(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), (docSnap) => {
+                            if (docSnap.exists()) {
+                                handleCloudRoomState(docSnap.data());
+                            }
+                        });
+                    }
                 });
 
                 listenerConn.on('close', () => {
@@ -944,11 +1053,6 @@
                         handleSyncPlayback(data);
                     }
                     
-                    if(data.type === 'state') {
-                        saveGuestHistory(currentRoomId, data.hostName);
-                        renderListenerState(data);
-                    }
-                    
                     if (data.type === 'auth_response') {
                         if (data.success) {
                             hidePasswordModal();
@@ -972,15 +1076,6 @@
                          showToast("操作にはパスワード認証が必要です", "error");
                          pendingConnection = listenerConn;
                          showPasswordModal();
-                    }
-                    
-                    if(data.type === 'new_chat') {
-                        if(!chatHistory.some(c => c.id === data.chat.id)) {
-                            chatHistory.push(data.chat);
-                            if(chatHistory.length > 100) chatHistory.shift();
-                            
-                            renderChatList('listener-chat-list', chatHistory, false);
-                        }
                     }
                 });
             });
@@ -1140,64 +1235,95 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        function renderListenerState(state) {
-            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, hostTheme, isLive, cameraApprovalMode, participants } = state;
+        // =====================================
+        // Handle Cloud State (Firestore)
+        // =====================================
+        function handleCloudRoomState(data) {
+            if (data.hostName) saveGuestHistory(currentRoomId, data.hostName);
 
+            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, status, theme, isLive, cameraApprovalMode, participants, requirePassword } = data;
+            
+            isHostLive = !!isLive;
+
+            // Password handling
+            if (requirePassword && !pendingConnection) {
+                const savedPwd = savedPasswords[currentRoomId];
+                if (savedPwd && listenerConn && listenerConn.open) {
+                    listenerConn.send({ type: 'auth_request', password: savedPwd });
+                } else if (!savedPwd) {
+                    showPasswordModal();
+                }
+            }
+
+            // Sync Core Variables
+            hostCurrentStatus = status;
+
+            // Chat Sync
             if(serverChatHistory) {
                 chatHistory = serverChatHistory;
                 renderChatList('listener-chat-list', chatHistory, false);
             }
 
+            // --- ★ YouTube Loading & Safe Initialization ---
             const playingEl = document.getElementById('listener-now-playing');
-            
-            if(currentSongData && playingEl) {
+            if (currentSongData && playingEl) {
                 playingEl.textContent = currentSongData.title;
                 const reqName = currentSongData.isAnon ? '184(匿名)' : (currentSongData.requester || "");
                 const reqEl = document.getElementById('listener-now-requester');
-                if(reqEl) reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
+                if (reqEl) reqEl.innerHTML = reqName ? `- <i class="fa-solid fa-user"></i> ${reqName}` : "";
                 
                 const eq = document.getElementById('listener-eq');
-                if(eq) isPlaying ? eq.classList.add('active') : eq.classList.remove('active');
+                if (eq) status === 'playing' ? eq.classList.add('active') : eq.classList.remove('active');
 
-                // --- ★ 動画のロードを安全に行う処理 ---
+                // If song changed
                 if (!currentSong || currentSongData.videoId !== currentSong.videoId) {
                     currentSong = currentSongData;
+                    
                     if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
+                        // Player exists, just load new video
                         viewerYTPlayer.loadVideoById(currentSong.videoId);
-                        lastListenerSeekTime = Date.now(); // ロードした瞬間にクールダウンを開始
-                    } else if (!viewerYTPlayer) {
-                        // まだプレイヤーが存在しない場合は初期化
-                        if (typeof YT !== 'undefined' && YT.Player) {
-                            initListenerYouTubePlayer();
-                        } else {
-                            loadYouTubeAPI();
-                        }
+                        resetStabilizationTimer();
+                    } else if (!viewerYTPlayer && window.YT && window.YT.Player) {
+                        // Data arrived AFTER API loaded, or API loaded but player wasn't created yet
+                        initListenerYouTubePlayer();
                     }
+                } else {
+                    // Update startedAt for existing song (e.g., resumed from pause)
+                    currentSong.startedAt = currentSongData.startedAt;
+                    currentSong.pausePosition = currentSongData.pausePosition;
                 }
-            } else if (playingEl) {
-                playingEl.textContent = "BGM停止中";
+
+            } else {
+                // No song playing
+                currentSong = null;
+                if (playingEl) playingEl.textContent = "BGM停止中";
                 const reqEl = document.getElementById('listener-now-requester');
-                if(reqEl) reqEl.textContent = "";
+                if (reqEl) reqEl.textContent = "";
                 const eq = document.getElementById('listener-eq');
-                if(eq) eq.classList.remove('active');
+                if (eq) eq.classList.remove('active');
+                if (viewerYTPlayer && typeof viewerYTPlayer.stopVideo === 'function') {
+                    viewerYTPlayer.stopVideo();
+                }
             }
 
             document.querySelectorAll('.marquee-content').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = null; });
 
+            // Theme Sync
             const tDiv = document.getElementById('listener-theme-container');
             if(tDiv) {
-                if(hostTheme) { 
-                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${hostTheme}`; 
+                if(theme) { 
+                    tDiv.innerHTML = `<i class="fa-solid fa-bullhorn"></i> ${theme}`; 
                     tDiv.classList.remove('hidden'); 
                 } else {
                     tDiv.classList.add('hidden');
                 }
             }
 
+            // Camera/Stream Button State
             const btn = document.getElementById('btn-toggle-camera');
             const tabCamIcon = document.querySelector('#tab-cam i');
             
-            if(isLive) {
+            if(isHostLive) {
                 if(btn && !listenerHasStream) {
                     btn.disabled = false;
                     btn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -1205,19 +1331,22 @@
                         const myData = participants ? participants.find(p => p.id === listenerId) : null;
                         if(myData && myData.cameraStatus === 'requested') btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-white"></i> 承認待ち...';
                         else btn.innerHTML = '<i class="fa-solid fa-video text-white"></i> 配信を見る (タップで申請)';
-                    } else btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs"></i> LIVE配信中！(タップして開く)';
+                    } else {
+                        btn.innerHTML = '<i class="fa-solid fa-circle text-white text-xs animate-pulse"></i> LIVE配信中！(タップして開く)';
+                    }
                 }
                 if(tabCamIcon) tabCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
             } else { 
                 resetListenerVideo(); 
                 if(btn) {
-                    btn.textContent = "配信はオフラインです"; 
+                    btn.innerHTML = '<i class="fa-solid fa-video-slash"></i> 配信はオフラインです'; 
                     btn.disabled = true;
                     btn.classList.add('opacity-50', 'cursor-not-allowed');
                 }
                 if(tabCamIcon) tabCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
             }
 
+            // Lists rendering
             const countEl = document.getElementById('listener-queue-count');
             if(countEl) countEl.textContent = serverQueue ? serverQueue.length : 0;
             
@@ -1228,7 +1357,6 @@
                 serverQueue.forEach((q, idx) => {
                     const div = document.createElement('div');
                     div.className = "flex items-center justify-between bg-gray-800/50 p-2 rounded border border-gray-700/50 text-sm mb-1";
-                    
                     const dispName = q.isAnon ? '184(匿名)' : q.requester;
                     const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
                     
