@@ -241,6 +241,9 @@
 
                 <!-- Stream映像レイヤー -->
                 <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
+                    <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
+                        <i class="fa-solid fa-video"></i> 映像を受信 (タップ)
+                    </button>
                     <!-- Web Audio API にルーティングするため、常にミュートにする -->
                     <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
                 </div>
@@ -686,10 +689,18 @@
             startListenerConnection();
         }
         
+        let isYouTubeAPIReady = false;
+        window.onYouTubeIframeAPIReady = function() {
+            isYouTubeAPIReady = true;
+        };
+
         function loadYouTubeAPI() {
+            if (isYouTubeAPIReady) return;
             if (window.YT && window.YT.Player) {
-                // Ignore for listener if not ready to play
-            } else if (!document.getElementById('youtube-api-script')) {
+                isYouTubeAPIReady = true;
+                return;
+            }
+            if (!document.getElementById('youtube-api-script')) {
                 const tag = document.createElement('script');
                 tag.id = 'youtube-api-script';
                 tag.src = 'https://www.youtube.com/iframe_api';
@@ -812,7 +823,7 @@
                 }
 
                 if (!viewerYTPlayer) {
-                    if (typeof YT === 'undefined' || !YT.Player) {
+                    if (!isYouTubeAPIReady || typeof YT === 'undefined' || !YT.Player) {
                         loadYouTubeAPI(); 
                         return;
                     }
@@ -840,7 +851,8 @@
                         playerOptions.videoId = data.videoId;
                     }
                     
-                    if (document.getElementById(wpPlayerId)) {
+                    const container = document.getElementById(wpPlayerId);
+                    if (container) {
                         viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
                     }
                     return;
