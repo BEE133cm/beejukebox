@@ -417,7 +417,7 @@
 
         function scheduleReconnect() {
             if (reconnectTimeout) clearTimeout(reconnectTimeout);
-            const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000); 
+            const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000); // 3秒〜最大30秒の指数バックオフ
             reconnectTimeout = setTimeout(() => {
                 if (currentRoomId && (!listenerConn || !listenerConn.open)) {
                      reconnectAttempts++;
@@ -461,6 +461,7 @@
             }
         });
 
+        // チャット入力欄フローティング機能のJS関数 (リスナー用)
         function focusChatInput() {
             document.getElementById('listener-chat-input-container').classList.add('chat-input-floating');
             document.getElementById('listener-chat-backdrop').classList.add('active');
@@ -531,6 +532,7 @@
             localStorage.setItem('jukebox_guest_history', JSON.stringify(history));
         }
 
+        // リスナー用メディア設定の保存と読み込み
         function saveListenerSettings() {
             const settings = {
                 camAudioOn: document.getElementById('toggle-cam-mute').checked,
@@ -572,6 +574,7 @@
             return null;
         }
 
+        // --- Web Audio API を用いた Stream 音声のブーストとリミッター ---
         function setupStreamAudio(stream) {
             try {
                 if (!streamAudioCtx) {
@@ -698,7 +701,7 @@
         
         function loadYouTubeAPI() {
             if (window.YT && window.YT.Player) {
-                // Ignore for listener if not ready to play
+                // Already loaded
             } else if (!document.getElementById('youtube-api-script')) {
                 const tag = document.createElement('script');
                 tag.id = 'youtube-api-script';
@@ -707,6 +710,45 @@
                 firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
             }
         }
+
+        // ================= YouTube Player Initialization =================
+        function initListenerYouTubePlayer() {
+            const wpPlayerId = 'listener-youtube-player';
+            if (viewerYTPlayer || !window.YT || !window.YT.Player) return;
+
+            let playerOptions = {
+                height: '100%', width: '100%',
+                playerVars: { autoplay: 1, controls: 1, rel: 0, disablekb: 0 },
+                events: {
+                    'onReady': (event) => {
+                        event.target.mute(); 
+                        resetStabilizationTimer();
+                    },
+                    'onStateChange': (event) => {
+                        if (event.data === YT.PlayerState.PLAYING) {
+                            const wpToggle = document.getElementById('toggle-wp-mute');
+                            if (wpToggle && wpToggle.checked) {
+                                event.target.unMute();
+                                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
+                                event.target.setVolume(savedVol);
+                            }
+                        }
+                    }
+                }
+            };
+
+            if (currentSong && currentSong.videoId) {
+                playerOptions.videoId = currentSong.videoId;
+            }
+
+            if (document.getElementById(wpPlayerId)) {
+                viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
+            }
+        }
+
+        window.onYouTubeIframeAPIReady = function() {
+            initListenerYouTubePlayer();
+        };
 
         function handleOverlayClick() {
             if (isWpOverlayActive) {
@@ -810,45 +852,6 @@
             }
         }
 
-        // ================= YouTube Player Initialization =================
-        function initListenerYouTubePlayer() {
-            const wpPlayerId = 'listener-youtube-player';
-            if (viewerYTPlayer || !window.YT || !window.YT.Player) return;
-
-            let playerOptions = {
-                height: '100%', width: '100%',
-                playerVars: { autoplay: 1, controls: 1, rel: 0, disablekb: 0 },
-                events: {
-                    'onReady': (event) => {
-                        event.target.mute(); 
-                        resetStabilizationTimer();
-                    },
-                    'onStateChange': (event) => {
-                        if (event.data === YT.PlayerState.PLAYING) {
-                            const wpToggle = document.getElementById('toggle-wp-mute');
-                            if (wpToggle && wpToggle.checked) {
-                                event.target.unMute();
-                                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
-                                event.target.setVolume(savedVol);
-                            }
-                        }
-                    }
-                }
-            };
-
-            if (currentSong && currentSong.videoId) {
-                playerOptions.videoId = currentSong.videoId;
-            }
-
-            if (document.getElementById(wpPlayerId)) {
-                viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
-            }
-        }
-
-        window.onYouTubeIframeAPIReady = function() {
-            initListenerYouTubePlayer();
-        };
-
         function handleSyncPlayback(data) {
             if (!isWatchPartyEnabled) {
                 if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
@@ -936,8 +939,6 @@
             }
         }
 
-        let isAuthenticated = false;
-
         function startListenerConnection() {
             if (peer) peer.destroy();
             listenerId = generateId();
@@ -947,8 +948,7 @@
                 listenerConn = peer.connect(`jukebox-${currentRoomId}`);
                 
                 listenerConn.on('open', () => {
-                    reconnectAttempts = 0; 
-                    isAuthenticated = false;
+                    reconnectAttempts = 0; // 再接続試行回数をリセット
                     const statusId = 'listener-status';
                     if(document.getElementById(statusId)) {
                         document.getElementById(statusId).textContent = "接続完了！";
@@ -956,6 +956,7 @@
                         document.getElementById(statusId).classList.replace('text-red-500', 'text-green-500');
                     }
                     sendProfileUpdate();
+                    // 復帰後の同期リクエスト (Host側にStateとSyncの自動送信を促す)
                     listenerConn.send({ type: 'request_sync' });
                 });
 
@@ -986,24 +987,11 @@
                     
                     if(data.type === 'state') {
                         saveGuestHistory(currentRoomId, data.hostName);
-                        
-                        if (data.requirePassword && !isAuthenticated) {
-                            const savedPwd = savedPasswords[currentRoomId];
-                            if (savedPwd) {
-                                listenerConn.send({ type: 'auth_request', password: savedPwd });
-                            } else {
-                                showPasswordModal();
-                            }
-                        } else {
-                            pendingConnection = null;
-                        }
-                        
                         renderListenerState(data);
                     }
                     
                     if (data.type === 'auth_response') {
                         if (data.success) {
-                            isAuthenticated = true;
                             hidePasswordModal();
                             showToast("認証に成功しました");
                             const pwdInput = document.getElementById('room-password-input').value;
@@ -1014,7 +1002,6 @@
                             pendingConnection = null;
                             sendProfileUpdate();
                         } else {
-                            isAuthenticated = false;
                             document.getElementById('password-error').classList.remove('hidden');
                             delete savedPasswords[currentRoomId];
                             localStorage.setItem('jukebox_passwords', JSON.stringify(savedPasswords));
