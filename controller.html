@@ -324,11 +324,23 @@
         let isWatchPartyEnabled = true;
         let viewerYTPlayer = null;
         let isWpOverlayActive = true;
+        let hostCurrentTime = 0;
+        let hostCurrentStatus = -1;
+        let lastHostTimeReceivedAt = 0;
         let remoteHasStream = false;
 
+        let isVideoStable = true;
+        let stabilizationTimeout = null;
+
         let remoteNotifTimeout = null;
-        let isHostLive = false;
-        let isAuthenticated = false;
+
+        function resetStabilizationTimer() {
+            isVideoStable = false;
+            if (stabilizationTimeout) clearTimeout(stabilizationTimeout);
+            stabilizationTimeout = setTimeout(() => {
+                isVideoStable = true;
+            }, 5000); 
+        }
 
         // --- 自動リカバリー用変数・処理 ---
         let reconnectTimeout = null;
@@ -390,7 +402,7 @@
                     }
                 });
             }
-            
+
             const params = new URLSearchParams(window.location.search);
             if(params.has('remote')) {
                 currentRoomId = params.get('remote');
@@ -557,164 +569,36 @@
             }
         }
 
-        function loadYouTubeAPI() {
-            if (window.YT && window.YT.Player) {
-                // API is ready
-            } else if (!document.getElementById('youtube-api-script')) {
-                const tag = document.createElement('script');
-                tag.id = 'youtube-api-script';
-                tag.src = 'https://www.youtube.com/iframe_api';
-                const firstScriptTag = document.getElementsByTagName('script')[0];
-                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-            }
-        }
-
-        function handleOverlayClick() {
-            if (isWpOverlayActive) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
-                    viewerYTPlayer.unMute();
-                    const toggle = document.getElementById('toggle-remote-wp-mute');
-                    if(toggle) toggle.checked = true;
-                    if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
-                        viewerYTPlayer.playVideo();
-                    }
-                }
-                const overlay = document.getElementById('remote-youtube-overlay');
-                if(overlay) overlay.style.display = 'none'; 
-                isWpOverlayActive = false;
-                showToast("音声をONにして視聴を開始しました！", "info");
-            }
-        }
-
-        function toggleRemoteAudioFromSwitch(isSoundOn) {
-            const video = document.getElementById('remote-video');
-            if (video) {
-                video.muted = !isSoundOn;
-                if (!video.muted) video.play().catch(e=>{});
-            }
-        }
-
-        function toggleWatchPartyMuteFromSwitch(isSoundOn) {
-            if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
-            if (isSoundOn) viewerYTPlayer.unMute();
-            else viewerYTPlayer.mute();
-        }
-
-        function toggleRemoteWatchPartyVideoFromSwitch(isOn) {
-            const playerWrapper = document.getElementById('remote-youtube-player-wrapper');
-            if (playerWrapper) {
-                playerWrapper.style.opacity = isOn ? '1' : '0';
-                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
-            }
-        }
-
-        let hostCurrentTime = 0;
-        let hostCurrentStatus = -1;
-        let lastHostTimeReceivedAt = 0;
-        let isVideoStable = true;
-        let stabilizationTimeout = null;
-
-        function resetStabilizationTimer() {
-            isVideoStable = false;
-            if (stabilizationTimeout) clearTimeout(stabilizationTimeout);
-            stabilizationTimeout = setTimeout(() => {
-                isVideoStable = true;
-            }, 5000); 
-        }
-
-        function handleSyncPlayback(data) {
+        // ================= YouTube Player Initialization =================
+        function initRemoteYouTubePlayer() {
             const wpPlayerId = 'remote-youtube-player';
+            if (viewerYTPlayer || !window.YT || !window.YT.Player) return;
 
-            if (!isWatchPartyEnabled) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
-                    viewerYTPlayer.pauseVideo();
-                }
-                return;
-            }
-
-            if (!viewerYTPlayer) {
-                if (typeof YT === 'undefined' || !YT.Player) {
-                    loadYouTubeAPI(); return;
-                }
-                
-                let playerOptions = {
-                    height: '100%', width: '100%',
-                    playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
-                    events: {
-                        'onReady': (event) => {
-                            event.target.mute(); 
-                            resetStabilizationTimer();
-                        }
+            let playerOptions = {
+                height: '100%', width: '100%',
+                playerVars: { autoplay: 1, controls: 0, rel: 0, disablekb: 0 },
+                events: {
+                    'onReady': (event) => {
+                        event.target.mute(); 
+                        resetStabilizationTimer();
                     }
-                };
-                if (data.videoId) {
-                    playerOptions.videoId = data.videoId;
                 }
-                
-                if (document.getElementById(wpPlayerId)) {
-                    viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
-                }
-                return;
+            };
+
+            if (currentSong && currentSong.videoId) {
+                playerOptions.videoId = currentSong.videoId;
             }
 
-            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
-            
-            if (!data.videoId) {
-                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
-                    viewerYTPlayer.stopVideo();
-                }
-                currentSong = null;
-                return;
-            }
-
-            const state = viewerYTPlayer.getPlayerState();
-            const currentTime = viewerYTPlayer.getCurrentTime();
-            
-            let hostSeeked = false;
-            const expectedTimeProgression = hostCurrentStatus === 1 ? ((Date.now() - lastHostTimeReceivedAt) / 1000) : 0;
-            if (lastHostTimeReceivedAt > 0 && Math.abs(data.time - (hostCurrentTime + expectedTimeProgression)) > 2.0) {
-                hostSeeked = true;
-            }
-
-            hostCurrentTime = data.time; 
-            hostCurrentStatus = data.status;
-            lastHostTimeReceivedAt = Date.now();
-
-            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
-                currentSong = { videoId: data.videoId };
-                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
-                resetStabilizationTimer();
-                return;
-            }
-
-            if (!isVideoStable && !hostSeeked) return;
-
-            if (data.status === 1) { 
-                if (state !== 1 && state !== 3) {
-                    viewerYTPlayer.playVideo();
-                }
-                
-                const diff = hostCurrentTime - currentTime;
-                
-                if (hostSeeked || Math.abs(diff) >= 3.0) {
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
-                    resetStabilizationTimer();
-                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
-                    viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
-                } else {
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                }
-            } else if (data.status === 2 || data.status === -1) { 
-                if (state === 1) {
-                    viewerYTPlayer.pauseVideo();
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                }
-                if (hostSeeked || Math.abs(hostCurrentTime - currentTime) > 1.0) {
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
-                }
+            if (document.getElementById(wpPlayerId)) {
+                viewerYTPlayer = new YT.Player(wpPlayerId, playerOptions);
             }
         }
+
+        window.onYouTubeIframeAPIReady = function() {
+            initRemoteYouTubePlayer();
+        };
+
+        let isAuthenticated = false;
 
         function initRemoteConnection() {
             if (peer) peer.destroy();
@@ -723,7 +607,7 @@
 
             peer.on('open', () => {
                 listenerConn = peer.connect(`jukebox-${currentRoomId}`);
-                
+
                 listenerConn.on('open', () => {
                     reconnectAttempts = 0; 
                     isAuthenticated = false;
@@ -1030,6 +914,134 @@
             }
         }
 
+        function loadYouTubeAPI() {
+            if (window.YT && window.YT.Player) {
+                // API is ready
+            } else if (!document.getElementById('youtube-api-script')) {
+                const tag = document.createElement('script');
+                tag.id = 'youtube-api-script';
+                tag.src = 'https://www.youtube.com/iframe_api';
+                const firstScriptTag = document.getElementsByTagName('script')[0];
+                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            }
+        }
+
+        function handleOverlayClick() {
+            if (isWpOverlayActive) {
+                if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
+                    viewerYTPlayer.unMute();
+                    const toggle = document.getElementById('toggle-remote-wp-mute');
+                    if(toggle) toggle.checked = true;
+                    if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
+                        viewerYTPlayer.playVideo();
+                    }
+                }
+                const overlay = document.getElementById('remote-youtube-overlay');
+                if(overlay) overlay.style.display = 'none'; 
+                isWpOverlayActive = false;
+                showToast("音声をONにして視聴を開始しました！", "info");
+            }
+        }
+
+        function toggleRemoteAudioFromSwitch(isSoundOn) {
+            const video = document.getElementById('remote-video');
+            if (video) {
+                video.muted = !isSoundOn;
+                if (!video.muted) video.play().catch(e=>{});
+            }
+        }
+
+        function toggleWatchPartyMuteFromSwitch(isSoundOn) {
+            if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
+            if (isSoundOn) viewerYTPlayer.unMute();
+            else viewerYTPlayer.mute();
+        }
+
+        function toggleRemoteWatchPartyVideoFromSwitch(isOn) {
+            const playerWrapper = document.getElementById('remote-youtube-player-wrapper');
+            if (playerWrapper) {
+                playerWrapper.style.opacity = isOn ? '1' : '0';
+                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
+            }
+        }
+
+        function handleSyncPlayback(data) {
+            if (!isWatchPartyEnabled) {
+                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
+                    viewerYTPlayer.pauseVideo();
+                }
+                return;
+            }
+
+            if (!viewerYTPlayer) {
+                if (typeof YT === 'undefined' || !YT.Player) {
+                    loadYouTubeAPI(); 
+                } else if (data.videoId) {
+                    currentSong = { videoId: data.videoId };
+                    if(typeof initRemoteYouTubePlayer === 'function') initRemoteYouTubePlayer();
+                }
+                return;
+            }
+
+            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
+            
+            if (!data.videoId) {
+                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
+                    viewerYTPlayer.stopVideo();
+                }
+                currentSong = null;
+                return;
+            }
+
+            const state = viewerYTPlayer.getPlayerState();
+            const currentTime = viewerYTPlayer.getCurrentTime();
+            
+            let hostSeeked = false;
+            const expectedTimeProgression = hostCurrentStatus === 1 ? ((Date.now() - lastHostTimeReceivedAt) / 1000) : 0;
+            if (lastHostTimeReceivedAt > 0 && Math.abs(data.time - (hostCurrentTime + expectedTimeProgression)) > 2.0) {
+                hostSeeked = true;
+            }
+
+            hostCurrentTime = data.time; 
+            hostCurrentStatus = data.status;
+            lastHostTimeReceivedAt = Date.now();
+
+            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
+                currentSong = { videoId: data.videoId };
+                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
+                resetStabilizationTimer();
+                return;
+            }
+
+            if (!isVideoStable && !hostSeeked) return;
+
+            if (data.status === 1) { 
+                if (state !== 1 && state !== 3) {
+                    viewerYTPlayer.playVideo();
+                }
+                
+                const diff = hostCurrentTime - currentTime;
+                
+                if (hostSeeked || Math.abs(diff) >= 3.0) {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                    resetStabilizationTimer();
+                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
+                    viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
+                } else {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                }
+            } else if (data.status === 2 || data.status === -1) { 
+                if (state === 1) {
+                    viewerYTPlayer.pauseVideo();
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                }
+                if (hostSeeked || Math.abs(hostCurrentTime - currentTime) > 1.0) {
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                }
+            }
+        }
+
         function triggerTTS(chatObj) {
             let ttsOn = false;
             const toggle = document.getElementById('remote-tts-toggle');
@@ -1129,10 +1141,18 @@
         }
 
         function renderRemoteState(state) {
-            const { queue, historyQueue, chatHistory: serverChatHistory, currentSong, isPlaying, hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
+            const { queue, historyQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
             
             const toggleEl = document.getElementById('remote-cam-approval-toggle');
             if (toggleEl) toggleEl.checked = serverCamAppMode;
+
+            // ローカル変数の確実な更新
+            currentSong = currentSongData || null;
+
+            // データ受信時にもAPIロード状態をチェックしてYouTube枠を強制生成
+            if (currentSong && currentSong.videoId && !viewerYTPlayer && window.YT && window.YT.Player) {
+                if(typeof initRemoteYouTubePlayer === 'function') initRemoteYouTubePlayer();
+            }
 
             if(serverChatHistory) {
                 chatHistory = serverChatHistory;
