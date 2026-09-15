@@ -241,10 +241,6 @@
 
                 <!-- Stream映像レイヤー -->
                 <div id="listener-cam-layer" class="absolute inset-0 layer-hidden bg-black">
-                    <!-- 配信オフライン時のボタン表示 -->
-                    <button onclick="requestListenerCamera()" id="btn-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-gray-700 text-gray-300 font-bold rounded-lg flex items-center justify-center gap-2 shadow-lg z-20 opacity-50 cursor-not-allowed" disabled>
-                        配信はオフラインです
-                    </button>
                     <!-- Web Audio API にルーティングするため、常にミュートにする -->
                     <video id="listener-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
                 </div>
@@ -389,6 +385,8 @@
 
         let viewerYTPlayer = null;
         let isWpOverlayActive = true;
+        let hostCurrentTime = 0;
+        let hostCurrentStatus = -1;
         let pendingConnection = null;
 
         // Web Audio API 用の変数
@@ -688,7 +686,7 @@
         
         function loadYouTubeAPI() {
             if (window.YT && window.YT.Player) {
-                // Ignore if already loaded
+                // Ignore for listener if not ready to play
             } else if (!document.getElementById('youtube-api-script')) {
                 const tag = document.createElement('script');
                 tag.id = 'youtube-api-script';
@@ -698,7 +696,7 @@
             }
         }
 
-        // --- ★消滅バグ防止：APIのロード完了を正しく検知する ---
+        // --- 追加ここから ---
         window.onYouTubeIframeAPIReady = function() {
             if (currentSong && !viewerYTPlayer) {
                 initListenerYouTubePlayer();
@@ -706,26 +704,18 @@
         };
 
         function initListenerYouTubePlayer() {
+            if (!isWatchPartyEnabled || viewerYTPlayer) return;
             if (typeof YT === 'undefined' || !YT.Player) return;
+            
             let playerOptions = {
                 height: '100%', width: '100%',
                 videoId: currentSong.videoId,
                 playerVars: { autoplay: 1, controls: 1, rel: 0, disablekb: 0 },
-                events: {
-                    'onReady': (event) => {
+                events: { 
+                    'onReady': (event) => { 
                         event.target.mute(); 
-                        lastListenerSeekTime = Date.now(); // ロード直後もクールダウン
-                    },
-                    'onStateChange': (event) => {
-                        if (event.data === YT.PlayerState.PLAYING) {
-                            const wpToggle = document.getElementById('toggle-wp-mute');
-                            if (wpToggle && wpToggle.checked) {
-                                event.target.unMute();
-                                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
-                                event.target.setVolume(savedVol);
-                            }
-                        }
-                    }
+                        lastListenerSeekTime = Date.now();
+                    } 
                 }
             };
             if (document.getElementById('listener-youtube-player')) {
@@ -733,6 +723,7 @@
                 lastListenerSeekTime = Date.now();
             }
         }
+        // --- 追加ここまで ---
 
         function handleOverlayClick() {
             if (isWpOverlayActive) {
@@ -798,89 +789,104 @@
             }
         }
 
-        // ====================== YouTube P2P 同期・自己補正エンジン ======================
-        let lastSyncReceived = 0;
-        let lastHostTime = 0;
-        let lastListenerSeekTime = 0;
+        function toggleListenerAudioFromSwitch(isSoundOn) {
+            const video = document.getElementById('listener-video');
+            if (video) {
+                video.muted = true;
+                if (video.paused) video.play().catch(e=>{});
+            }
 
-        function handleSyncPlayback(data) {
-            try {
-                if (!isWatchPartyEnabled || !viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function') return;
+            if (streamMuteNode) {
+                streamMuteNode.gain.value = isSoundOn ? 1.0 : 0.0;
+            }
 
-                const state = viewerYTPlayer.getPlayerState();
-                const currentTime = viewerYTPlayer.getCurrentTime ? viewerYTPlayer.getCurrentTime() : 0;
-                const now = Date.now();
-                
-                // YouTubeプレイヤーが準備前（-1: 未開始, 5: 動画指定済み）の時は処理を保留
-                if (state === -1 || state === 5) return;
+            if (isSoundOn && streamAudioCtx && streamAudioCtx.state === 'suspended') {
+                streamAudioCtx.resume().catch(e => console.error(e));
+            }
 
-                // --- ホストのシーク（時間ジャンプ）検知 ---
-                let hostSeeked = false;
-                if (lastSyncReceived > 0) {
-                    const elapsed = (now - lastSyncReceived) / 1000;
-                    // 自然に時間が進んだ場合のホストの予想時間
-                    const expectedHostTime = lastHostTime + (data.status === 1 ? elapsed : 0);
-                    // ホストからの時間(data.time)が、予想時間から2秒以上ズレていれば「ホストが自らシークした」と断定
-                    if (Math.abs(data.time - expectedHostTime) > 2.0) {
-                        hostSeeked = true;
-                    }
-                }
-                lastHostTime = data.time;
-                lastSyncReceived = now;
+            saveListenerSettings();
+        }
 
-                // クールダウン判定（ロード直後、または自分がシークした直後は5秒間調整を待つ）
-                const recentlySeeked = (now - lastListenerSeekTime < 5000);
+        function toggleWatchPartyMuteFromSwitch(isSoundOn) {
+            if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
+            if (isSoundOn) {
+                viewerYTPlayer.unMute();
+                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
+                viewerYTPlayer.setVolume(savedVol);
+            } else {
+                viewerYTPlayer.mute();
+            }
+            saveListenerSettings();
+        }
 
-                // --- ホストがシークした場合の即時追従（クールダウン貫通） ---
-                if (hostSeeked) {
-                    if (typeof viewerYTPlayer.seekTo === 'function') viewerYTPlayer.seekTo(data.time, true);
-                    lastListenerSeekTime = now; // 自分がシークしたのでクールダウンをリセット
-                    if (data.status === 1 && state !== 1 && state !== 3) {
-                        if (typeof viewerYTPlayer.playVideo === 'function') viewerYTPlayer.playVideo();
-                    }
-                    return; // シーク処理をした場合は以降の微調整はスキップ
-                }
-
-                // --- 通常の再生状態の同期（ズレの微調整） ---
-                if (data.status === 1) { // ホストが再生中
-                    if (state !== 1 && state !== 3) {
-                        if (typeof viewerYTPlayer.playVideo === 'function') viewerYTPlayer.playVideo();
-                    }
-                    
-                    // クールダウン中は自然なズレの補正は行わない（ガクガク防止）
-                    if (!recentlySeeked && state === 1) {
-                        const diff = data.time - currentTime;
-                        if (Math.abs(diff) > 3.0) {
-                            if (typeof viewerYTPlayer.seekTo === 'function') viewerYTPlayer.seekTo(data.time, true);
-                            lastListenerSeekTime = now;
-                        } else if (Math.abs(diff) >= 1.0) {
-                            if (typeof viewerYTPlayer.setPlaybackRate === 'function') viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
-                        } else {
-                            if (typeof viewerYTPlayer.setPlaybackRate === 'function') viewerYTPlayer.setPlaybackRate(1.0);
-                        }
-                    }
-                } else if (data.status === 2 || data.status === -1) { // ホストが一時停止・未開始の場合
-                    if (state === 1 || state === 3) {
-                        if (typeof viewerYTPlayer.pauseVideo === 'function') viewerYTPlayer.pauseVideo();
-                        if (typeof viewerYTPlayer.setPlaybackRate === 'function') viewerYTPlayer.setPlaybackRate(1.0);
-                    }
-                    // ホスト停止中も大きなズレがあれば合わせる（ホストが停止中にシークした等）
-                    if (!recentlySeeked && Math.abs(data.time - currentTime) > 1.5) {
-                        if (typeof viewerYTPlayer.seekTo === 'function') viewerYTPlayer.seekTo(data.time, true);
-                        lastListenerSeekTime = now;
-                    }
-                } else if (data.status === 3) { // ホストがバッファリング中
-                    if (state === 1) {
-                        if (typeof viewerYTPlayer.pauseVideo === 'function') viewerYTPlayer.pauseVideo();
-                    }
-                }
-
-            } catch (e) {
-                // 安全装置：もし何らかの理由でAPIがエラーになっても画面を消さない
-                console.warn("Sync execution safely bypassed:", e);
+        function toggleWatchPartyVideoFromSwitch(isOn) {
+            const playerWrapper = document.getElementById('listener-youtube-player-wrapper');
+            if (playerWrapper) {
+                playerWrapper.style.opacity = isOn ? '1' : '0';
+                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
             }
         }
-        // ===========================================================================
+
+        function handleSyncPlayback(data) {
+            const wpPlayerId = 'listener-youtube-player';
+
+            if (!isWatchPartyEnabled) {
+                if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
+                    viewerYTPlayer.pauseVideo();
+                }
+                return;
+            }
+
+            if (!viewerYTPlayer) return; // <--- 修正箇所：初期化はここでは行わずスルーする
+
+            if (typeof viewerYTPlayer.getPlayerState !== 'function') return;
+            
+            if (!data.videoId) {
+                if (viewerYTPlayer.getPlayerState() !== -1 && viewerYTPlayer.getPlayerState() !== 5) {
+                    viewerYTPlayer.stopVideo();
+                }
+                currentSong = null;
+                return;
+            }
+
+            const state = viewerYTPlayer.getPlayerState();
+            const currentTime = viewerYTPlayer.getCurrentTime();
+            hostCurrentTime = data.time; 
+            hostCurrentStatus = data.status;
+
+            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
+                currentSong = { videoId: data.videoId };
+                viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
+                return;
+            }
+
+            if (data.status === 1) { 
+                if (state !== 1 && state !== 3) {
+                    viewerYTPlayer.playVideo();
+                }
+                
+                const diff = hostCurrentTime - currentTime;
+                
+                if (Math.abs(diff) < 1.0) {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
+                    if (diff > 0) {
+                        viewerYTPlayer.setPlaybackRate(1.05); 
+                    } else {
+                        viewerYTPlayer.setPlaybackRate(0.95); 
+                    }
+                } else {
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                }
+            } else if (data.status === 2 || data.status === -1) { 
+                if (state === 1) {
+                    viewerYTPlayer.pauseVideo();
+                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                    viewerYTPlayer.setPlaybackRate(1.0);
+                }
+            }
+        }
 
         function initListener() {
             const savedName = localStorage.getItem('jukebox_guest_name');
@@ -909,7 +915,7 @@
                         document.getElementById(statusId).classList.replace('text-red-500', 'text-green-500');
                     }
                     sendProfileUpdate();
-                    // 復帰後の同期リクエスト
+                    // 復帰後の同期リクエスト (Host側にStateとSyncの自動送信を促す)
                     listenerConn.send({ type: 'request_sync' });
                 });
 
@@ -934,7 +940,6 @@
                     }
                     if(data.type === 'error') { showToast(data.msg, "error"); return; }
                     
-                    // --- ★ P2Pからの絶対同期信号（毎秒）を受信して処理 ---
                     if(data.type === 'sync_playback') {
                         handleSyncPlayback(data);
                     }
