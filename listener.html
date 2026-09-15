@@ -497,7 +497,7 @@
         function showToast(msg, type="info") {
             const toast = document.getElementById('toast');
             document.getElementById('toast-msg').innerHTML = msg;
-            toast.className = `toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3`;
+            toast.className = `toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3 text-sm`;
             if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
             else toast.classList.replace('border-red-500', 'border-indigo-500');
             toast.classList.add('show');
@@ -688,13 +688,49 @@
         
         function loadYouTubeAPI() {
             if (window.YT && window.YT.Player) {
-                // Ignore for listener if not ready to play
+                // Ignore if already loaded
             } else if (!document.getElementById('youtube-api-script')) {
                 const tag = document.createElement('script');
                 tag.id = 'youtube-api-script';
                 tag.src = 'https://www.youtube.com/iframe_api';
                 const firstScriptTag = document.getElementsByTagName('script')[0];
                 firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            }
+        }
+
+        // --- ★消滅バグ防止：APIのロード完了を正しく検知する ---
+        window.onYouTubeIframeAPIReady = function() {
+            if (currentSong && !viewerYTPlayer) {
+                initListenerYouTubePlayer();
+            }
+        };
+
+        function initListenerYouTubePlayer() {
+            if (typeof YT === 'undefined' || !YT.Player) return;
+            let playerOptions = {
+                height: '100%', width: '100%',
+                videoId: currentSong.videoId,
+                playerVars: { autoplay: 1, controls: 1, rel: 0, disablekb: 0 },
+                events: {
+                    'onReady': (event) => {
+                        event.target.mute(); 
+                        lastListenerSeekTime = Date.now(); // ロード直後もクールダウン
+                    },
+                    'onStateChange': (event) => {
+                        if (event.data === YT.PlayerState.PLAYING) {
+                            const wpToggle = document.getElementById('toggle-wp-mute');
+                            if (wpToggle && wpToggle.checked) {
+                                event.target.unMute();
+                                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
+                                event.target.setVolume(savedVol);
+                            }
+                        }
+                    }
+                }
+            };
+            if (document.getElementById('listener-youtube-player')) {
+                viewerYTPlayer = new YT.Player('listener-youtube-player', playerOptions);
+                lastListenerSeekTime = Date.now();
             }
         }
 
@@ -762,44 +798,6 @@
             }
         }
 
-        function toggleListenerAudioFromSwitch(isSoundOn) {
-            const video = document.getElementById('listener-video');
-            if (video) {
-                video.muted = true;
-                if (video.paused) video.play().catch(e=>{});
-            }
-
-            if (streamMuteNode) {
-                streamMuteNode.gain.value = isSoundOn ? 1.0 : 0.0;
-            }
-
-            if (isSoundOn && streamAudioCtx && streamAudioCtx.state === 'suspended') {
-                streamAudioCtx.resume().catch(e => console.error(e));
-            }
-
-            saveListenerSettings();
-        }
-
-        function toggleWatchPartyMuteFromSwitch(isSoundOn) {
-            if (!viewerYTPlayer || typeof viewerYTPlayer.isMuted !== 'function') return;
-            if (isSoundOn) {
-                viewerYTPlayer.unMute();
-                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
-                viewerYTPlayer.setVolume(savedVol);
-            } else {
-                viewerYTPlayer.mute();
-            }
-            saveListenerSettings();
-        }
-
-        function toggleWatchPartyVideoFromSwitch(isOn) {
-            const playerWrapper = document.getElementById('listener-youtube-player-wrapper');
-            if (playerWrapper) {
-                playerWrapper.style.opacity = isOn ? '1' : '0';
-                playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
-            }
-        }
-
         // ====================== YouTube P2P 同期・自己補正エンジン ======================
         let lastSyncReceived = 0;
         let lastHostTime = 0;
@@ -810,7 +808,7 @@
                 if (!isWatchPartyEnabled || !viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function') return;
 
                 const state = viewerYTPlayer.getPlayerState();
-                const currentTime = viewerYTPlayer.getCurrentTime();
+                const currentTime = viewerYTPlayer.getCurrentTime ? viewerYTPlayer.getCurrentTime() : 0;
                 const now = Date.now();
                 
                 // YouTubeプレイヤーが準備前（-1: 未開始, 5: 動画指定済み）の時は処理を保留
@@ -835,48 +833,51 @@
 
                 // --- ホストがシークした場合の即時追従（クールダウン貫通） ---
                 if (hostSeeked) {
-                    viewerYTPlayer.seekTo(data.time, true);
+                    if (typeof viewerYTPlayer.seekTo === 'function') viewerYTPlayer.seekTo(data.time, true);
                     lastListenerSeekTime = now; // 自分がシークしたのでクールダウンをリセット
                     if (data.status === 1 && state !== 1 && state !== 3) {
-                        viewerYTPlayer.playVideo();
+                        if (typeof viewerYTPlayer.playVideo === 'function') viewerYTPlayer.playVideo();
                     }
                     return; // シーク処理をした場合は以降の微調整はスキップ
                 }
 
                 // --- 通常の再生状態の同期（ズレの微調整） ---
                 if (data.status === 1) { // ホストが再生中
-                    if (state !== 1 && state !== 3) viewerYTPlayer.playVideo();
+                    if (state !== 1 && state !== 3) {
+                        if (typeof viewerYTPlayer.playVideo === 'function') viewerYTPlayer.playVideo();
+                    }
                     
                     // クールダウン中は自然なズレの補正は行わない（ガクガク防止）
                     if (!recentlySeeked && state === 1) {
                         const diff = data.time - currentTime;
                         if (Math.abs(diff) > 3.0) {
-                            viewerYTPlayer.seekTo(data.time, true);
+                            if (typeof viewerYTPlayer.seekTo === 'function') viewerYTPlayer.seekTo(data.time, true);
                             lastListenerSeekTime = now;
                         } else if (Math.abs(diff) >= 1.0) {
-                            viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
+                            if (typeof viewerYTPlayer.setPlaybackRate === 'function') viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
                         } else {
-                            viewerYTPlayer.setPlaybackRate(1.0);
+                            if (typeof viewerYTPlayer.setPlaybackRate === 'function') viewerYTPlayer.setPlaybackRate(1.0);
                         }
                     }
                 } else if (data.status === 2 || data.status === -1) { // ホストが一時停止・未開始の場合
                     if (state === 1 || state === 3) {
-                        viewerYTPlayer.pauseVideo();
-                        viewerYTPlayer.setPlaybackRate(1.0);
+                        if (typeof viewerYTPlayer.pauseVideo === 'function') viewerYTPlayer.pauseVideo();
+                        if (typeof viewerYTPlayer.setPlaybackRate === 'function') viewerYTPlayer.setPlaybackRate(1.0);
                     }
                     // ホスト停止中も大きなズレがあれば合わせる（ホストが停止中にシークした等）
                     if (!recentlySeeked && Math.abs(data.time - currentTime) > 1.5) {
-                        viewerYTPlayer.seekTo(data.time, true);
+                        if (typeof viewerYTPlayer.seekTo === 'function') viewerYTPlayer.seekTo(data.time, true);
                         lastListenerSeekTime = now;
                     }
                 } else if (data.status === 3) { // ホストがバッファリング中
                     if (state === 1) {
-                        viewerYTPlayer.pauseVideo();
+                        if (typeof viewerYTPlayer.pauseVideo === 'function') viewerYTPlayer.pauseVideo();
                     }
                 }
 
             } catch (e) {
-                console.warn("Sync execution safely bypassed during load:", e);
+                // 安全装置：もし何らかの理由でAPIがエラーになっても画面を消さない
+                console.warn("Sync execution safely bypassed:", e);
             }
         }
         // ===========================================================================
@@ -908,7 +909,7 @@
                         document.getElementById(statusId).classList.replace('text-red-500', 'text-green-500');
                     }
                     sendProfileUpdate();
-                    // 復帰後の同期リクエスト (Host側にStateとSyncの自動送信を促す)
+                    // 復帰後の同期リクエスト
                     listenerConn.send({ type: 'request_sync' });
                 });
 
@@ -933,7 +934,7 @@
                     }
                     if(data.type === 'error') { showToast(data.msg, "error"); return; }
                     
-                    // P2Pからの絶対同期信号（毎秒）
+                    // --- ★ P2Pからの絶対同期信号（毎秒）を受信して処理 ---
                     if(data.type === 'sync_playback') {
                         handleSyncPlayback(data);
                     }
@@ -1153,7 +1154,7 @@
                 const eq = document.getElementById('listener-eq');
                 if(eq) isPlaying ? eq.classList.add('active') : eq.classList.remove('active');
 
-                // P2Pに併せて曲の切り替わりもここで検知（二重セーフティ）
+                // --- ★ 動画のロードを安全に行う処理 ---
                 if (!currentSong || currentSongData.videoId !== currentSong.videoId) {
                     currentSong = currentSongData;
                     if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
@@ -1162,30 +1163,7 @@
                     } else if (!viewerYTPlayer) {
                         // まだプレイヤーが存在しない場合は初期化
                         if (typeof YT !== 'undefined' && YT.Player) {
-                            let playerOptions = {
-                                height: '100%', width: '100%',
-                                videoId: currentSong.videoId,
-                                playerVars: { autoplay: 1, controls: 1, rel: 0, disablekb: 0 },
-                                events: {
-                                    'onReady': (event) => {
-                                        event.target.mute(); 
-                                    },
-                                    'onStateChange': (event) => {
-                                        if (event.data === YT.PlayerState.PLAYING) {
-                                            const wpToggle = document.getElementById('toggle-wp-mute');
-                                            if (wpToggle && wpToggle.checked) {
-                                                event.target.unMute();
-                                                const savedVol = document.getElementById('wp-volume-slider') ? document.getElementById('wp-volume-slider').value : 100;
-                                                event.target.setVolume(savedVol);
-                                            }
-                                        }
-                                    }
-                                }
-                            };
-                            if (document.getElementById('listener-youtube-player')) {
-                                viewerYTPlayer = new YT.Player('listener-youtube-player', playerOptions);
-                                lastListenerSeekTime = Date.now();
-                            }
+                            initListenerYouTubePlayer();
                         } else {
                             loadYouTubeAPI();
                         }
