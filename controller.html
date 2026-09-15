@@ -324,8 +324,6 @@
         let isWatchPartyEnabled = true;
         let viewerYTPlayer = null;
         let isWpOverlayActive = true;
-        let hostCurrentTime = 0;
-        let hostCurrentStatus = -1;
         let remoteHasStream = false;
 
         let remoteNotifTimeout = null;
@@ -557,87 +555,6 @@
             }
         }
 
-        // ====================== YouTube P2P 同期・自己補正エンジン ======================
-        let lastSyncReceived = 0;
-        let lastHostTime = 0;
-        let lastListenerSeekTime = 0;
-
-        function handleSyncPlayback(data) {
-            try {
-                if (!isWatchPartyEnabled || !viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function') return;
-
-                const state = viewerYTPlayer.getPlayerState();
-                const currentTime = viewerYTPlayer.getCurrentTime();
-                const now = Date.now();
-                
-                // YouTubeプレイヤーが準備前（-1: 未開始, 5: 動画指定済み）の時は処理を保留
-                if (state === -1 || state === 5) return;
-
-                // --- ホストのシーク（時間ジャンプ）検知 ---
-                let hostSeeked = false;
-                if (lastSyncReceived > 0) {
-                    const elapsed = (now - lastSyncReceived) / 1000;
-                    // 自然に時間が進んだ場合のホストの予想時間
-                    const expectedHostTime = lastHostTime + (data.status === 1 ? elapsed : 0);
-                    // ホストからの時間(data.time)が、予想時間から2秒以上ズレていれば「ホストが自らシークした」と断定
-                    if (Math.abs(data.time - expectedHostTime) > 2.0) {
-                        hostSeeked = true;
-                    }
-                }
-                lastHostTime = data.time;
-                lastSyncReceived = now;
-
-                // クールダウン判定（ロード直後、または自分がシークした直後は5秒間調整を待つ）
-                const recentlySeeked = (now - lastListenerSeekTime < 5000);
-
-                // --- ホストがシークした場合の即時追従（クールダウン貫通） ---
-                if (hostSeeked) {
-                    viewerYTPlayer.seekTo(data.time, true);
-                    lastListenerSeekTime = now; // 自分がシークしたのでクールダウンをリセット
-                    if (data.status === 1 && state !== 1 && state !== 3) {
-                        viewerYTPlayer.playVideo();
-                    }
-                    return; // シーク処理をした場合は以降の微調整はスキップ
-                }
-
-                // --- 通常の再生状態の同期（ズレの微調整） ---
-                if (data.status === 1) { // ホストが再生中
-                    if (state !== 1 && state !== 3) viewerYTPlayer.playVideo();
-                    
-                    // クールダウン中は自然なズレの補正は行わない（ガクガク防止）
-                    if (!recentlySeeked && state === 1) {
-                        const diff = data.time - currentTime;
-                        if (Math.abs(diff) > 3.0) {
-                            viewerYTPlayer.seekTo(data.time, true);
-                            lastListenerSeekTime = now;
-                        } else if (Math.abs(diff) >= 1.0) {
-                            viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
-                        } else {
-                            viewerYTPlayer.setPlaybackRate(1.0);
-                        }
-                    }
-                } else if (data.status === 2 || data.status === -1) { // ホストが一時停止・未開始の場合
-                    if (state === 1 || state === 3) {
-                        viewerYTPlayer.pauseVideo();
-                        viewerYTPlayer.setPlaybackRate(1.0);
-                    }
-                    // ホスト停止中も大きなズレがあれば合わせる（ホストが停止中にシークした等）
-                    if (!recentlySeeked && Math.abs(data.time - currentTime) > 1.5) {
-                        viewerYTPlayer.seekTo(data.time, true);
-                        lastListenerSeekTime = now;
-                    }
-                } else if (data.status === 3) { // ホストがバッファリング中
-                    if (state === 1) {
-                        viewerYTPlayer.pauseVideo();
-                    }
-                }
-
-            } catch (e) {
-                console.warn("Sync execution safely bypassed during load:", e);
-            }
-        }
-        // ===========================================================================
-
         function initRemoteConnection() {
             if (peer) peer.destroy();
             listenerId = generateId();
@@ -656,7 +573,7 @@
                         document.getElementById(statusId).classList.replace('text-red-500', 'text-green-500');
                     }
                     sendProfileUpdate();
-                    // 復帰後の同期リクエスト (Host側にStateとSyncの自動送信を促す)
+                    // 復帰後の同期リクエスト
                     listenerConn.send({ type: 'request_sync' });
                 });
 
@@ -696,7 +613,7 @@
                         return;
                     }
                     
-                    // P2Pからの絶対同期信号（毎秒）
+                    // --- ★ P2Pからの絶対同期信号（毎秒）を受信して処理 ---
                     if(data.type === 'sync_playback') {
                         handleSyncPlayback(data);
                     }
@@ -964,6 +881,34 @@
             }
         }
 
+        // --- ★消滅バグ防止：APIのロード完了を正しく検知する ---
+        window.onYouTubeIframeAPIReady = function() {
+            if (currentSong && !viewerYTPlayer) {
+                initYouTubePlayer();
+            }
+        };
+
+        function initYouTubePlayer() {
+            if (!isWatchPartyEnabled || viewerYTPlayer) return;
+            if (typeof YT === 'undefined' || !YT.Player) return;
+            
+            let playerOptions = {
+                height: '100%', width: '100%',
+                videoId: currentSong.videoId,
+                playerVars: { autoplay: 1, controls: 1, rel: 0, disablekb: 0 },
+                events: { 
+                    'onReady': (event) => { 
+                        event.target.mute(); 
+                        lastSeekTime = Date.now(); // ロード直後もクールダウン
+                    } 
+                }
+            };
+            if (document.getElementById('remote-youtube-player')) {
+                viewerYTPlayer = new YT.Player('remote-youtube-player', playerOptions);
+                lastSeekTime = Date.now();
+            }
+        }
+
         function handleOverlayClick() {
             if (isWpOverlayActive) {
                 if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
@@ -1002,6 +947,82 @@
                 playerWrapper.style.pointerEvents = isOn ? 'auto' : 'none';
             }
         }
+
+        // ====================== YouTube P2P 同期・自己補正エンジン ======================
+        let lastSyncReceived = 0;
+        let lastHostTime = 0;
+        let lastSeekTime = 0;
+
+        function handleSyncPlayback(data) {
+            try {
+                if (!isWatchPartyEnabled || !viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function') return;
+
+                const state = viewerYTPlayer.getPlayerState();
+                const currentTime = viewerYTPlayer.getCurrentTime ? viewerYTPlayer.getCurrentTime() : 0;
+                const now = Date.now();
+                
+                if (state === -1 || state === 5) return;
+
+                // --- ホストのシーク（時間ジャンプ）検知 ---
+                let hostSeeked = false;
+                if (lastSyncReceived > 0) {
+                    const elapsed = (now - lastSyncReceived) / 1000;
+                    const expectedHostTime = lastHostTime + (data.status === 1 ? elapsed : 0);
+                    if (Math.abs(data.time - expectedHostTime) > 2.0) {
+                        hostSeeked = true;
+                    }
+                }
+                lastHostTime = data.time;
+                lastSyncReceived = now;
+
+                const recentlySeeked = (now - lastSeekTime < 5000);
+
+                // --- ホストがシークした場合の即時追従（クールダウン貫通） ---
+                if (hostSeeked) {
+                    if (typeof viewerYTPlayer.seekTo === 'function') viewerYTPlayer.seekTo(data.time, true);
+                    lastSeekTime = now;
+                    if (data.status === 1 && state !== 1 && state !== 3) {
+                        if (typeof viewerYTPlayer.playVideo === 'function') viewerYTPlayer.playVideo();
+                    }
+                    return; 
+                }
+
+                // --- 通常の再生状態の同期（ズレの微調整） ---
+                if (data.status === 1) { 
+                    if (state !== 1 && state !== 3) {
+                        if (typeof viewerYTPlayer.playVideo === 'function') viewerYTPlayer.playVideo();
+                    }
+                    
+                    if (!recentlySeeked && state === 1) {
+                        const diff = data.time - currentTime;
+                        if (Math.abs(diff) > 3.0) {
+                            if (typeof viewerYTPlayer.seekTo === 'function') viewerYTPlayer.seekTo(data.time, true);
+                            lastSeekTime = now;
+                        } else if (Math.abs(diff) >= 1.0) {
+                            if (typeof viewerYTPlayer.setPlaybackRate === 'function') viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
+                        } else {
+                            if (typeof viewerYTPlayer.setPlaybackRate === 'function') viewerYTPlayer.setPlaybackRate(1.0);
+                        }
+                    }
+                } else if (data.status === 2 || data.status === -1) { 
+                    if (state === 1 || state === 3) {
+                        if (typeof viewerYTPlayer.pauseVideo === 'function') viewerYTPlayer.pauseVideo();
+                        if (typeof viewerYTPlayer.setPlaybackRate === 'function') viewerYTPlayer.setPlaybackRate(1.0);
+                    }
+                    if (!recentlySeeked && Math.abs(data.time - currentTime) > 1.5) {
+                        if (typeof viewerYTPlayer.seekTo === 'function') viewerYTPlayer.seekTo(data.time, true);
+                        lastSeekTime = now;
+                    }
+                } else if (data.status === 3) { 
+                    if (state === 1) {
+                        if (typeof viewerYTPlayer.pauseVideo === 'function') viewerYTPlayer.pauseVideo();
+                    }
+                }
+            } catch (e) {
+                console.warn("Sync execution safely bypassed:", e);
+            }
+        }
+        // ===========================================================================
 
         function triggerTTS(chatObj) {
             let ttsOn = false;
@@ -1120,35 +1141,22 @@
                     const reqName = currentSongData.isAnon ? '184(匿名)' : (currentSongData.requesterReal || "");
                     remoteReqEl.innerHTML = reqName ? `<i class="fa-solid fa-user"></i> ${reqName}` : "---";
                 }
-
-                // P2Pに併せて曲の切り替わりもここで検知（二重セーフティ）
+                
+                // --- ★ 動画のロードを安全に行う処理 ---
                 if (!currentSong || currentSongData.videoId !== currentSong.videoId) {
                     currentSong = currentSongData;
                     if (viewerYTPlayer && typeof viewerYTPlayer.loadVideoById === 'function') {
                         viewerYTPlayer.loadVideoById(currentSong.videoId);
-                        lastListenerSeekTime = Date.now(); // ロードした瞬間にクールダウンを開始
+                        lastSeekTime = Date.now(); // ロードした瞬間にクールダウンを開始
                     } else if (!viewerYTPlayer) {
+                        // まだプレイヤーが存在しない場合は初期化
                         if (typeof YT !== 'undefined' && YT.Player) {
-                            let playerOptions = {
-                                height: '100%', width: '100%',
-                                videoId: currentSong.videoId,
-                                playerVars: { autoplay: 1, controls: 1, rel: 0, disablekb: 0 },
-                                events: {
-                                    'onReady': (event) => {
-                                        event.target.mute(); 
-                                    }
-                                }
-                            };
-                            if (document.getElementById('remote-youtube-player')) {
-                                viewerYTPlayer = new YT.Player('remote-youtube-player', playerOptions);
-                                lastListenerSeekTime = Date.now();
-                            }
+                            initYouTubePlayer();
                         } else {
                             loadYouTubeAPI();
                         }
                     }
                 }
-
             } else if (playingEl) {
                 playingEl.textContent = "BGM停止中";
                 const remoteReqEl = document.getElementById('remote-now-requester');
@@ -1201,10 +1209,10 @@
             renderParticipantList(document.getElementById('remote-participant-list'));
 
             const countEl = document.getElementById('remote-queue-count');
-            if(countEl) countEl.textContent = queue.length;
+            if(countEl) countEl.textContent = queue ? queue.length : 0;
             
             const qList = document.getElementById('remote-queue-list');
-            if(qList) {
+            if(qList && queue) {
                 qList.innerHTML = '';
                 queue.forEach((q, idx) => {
                     const div = document.createElement('div');
