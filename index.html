@@ -1094,6 +1094,14 @@
                         updateCloudRoomState();
                         showToast(`自動承認を${isAutoApprove ? 'ON' : 'OFF'}にしました`);
                     }
+                    // ★追加：受付停止のコマンド受信処理
+                    else if (data.action === 'toggle_request_stop') {
+                        isRequestStopped = data.targetId;
+                        const el = document.getElementById('setting-request-stop');
+                        if(el) el.checked = isRequestStopped;
+                        updateCloudRoomState();
+                        showToast(`一般リクエスト受付を${isRequestStopped ? '停止' : '再開'}しました`);
+                    }
                     else if (data.action === 'approve_req') { approveRequest(data.targetId); }
                     else if (data.action === 'reject_req') { rejectRequest(data.targetId); }
                     else if (data.action === 'reorder_queue') {
