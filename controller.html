@@ -412,7 +412,9 @@
         });
         // ----------------------------------
 
-        function generateId() { return Math.random().toString(36).substring(2, 9); }
+function generateId() { return Math.random().toString(36).substring(2, 9); }
+
+        let toastTimeout = null; // ★追加：トースト渋滞を防ぐためのタイマー変数
 
         function showToast(msg, type="info") {
             const toast = document.getElementById('toast');
@@ -420,8 +422,12 @@
             toast.className = `toast bg-gray-800 border-l-4 border-red-500 text-white p-4 rounded shadow-lg flex items-center gap-3 text-sm`;
             if (type === 'error') toast.classList.replace('border-indigo-500', 'border-red-500');
             else toast.classList.replace('border-red-500', 'border-indigo-500');
+            
             toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3000);
+            
+            // ★追加：古いタイマーをキャンセルして、新しく確実に3秒数え直す
+            if(toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
         window.onload = () => {
@@ -1296,7 +1302,9 @@ function handleSyncPlayback(data) {
 
             const remotePlayBtn = document.getElementById('btn-remote-play');
             if(remotePlayBtn) {
-                remotePlayBtn.innerHTML = isPlaying
+                // ★修正：ホストから送られてくる本物の再生状態データ(state.status)を使う
+                const isActuallyPlaying = state.status === 'playing';
+                remotePlayBtn.innerHTML = isActuallyPlaying
                     ? `<i class="fa-solid fa-pause text-lg"></i>`
                     : `<i class="fa-solid fa-play text-lg"></i>`;
             }
