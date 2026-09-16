@@ -171,21 +171,21 @@
                     <div class="flex justify-between items-center">
                         <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-video"></i> Streamの音声</span>
                         <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="toggle-remote-cam-mute" class="sr-only peer" onchange="toggleRemoteAudioFromSwitch(this.checked)">
+                            <input type="checkbox" id="toggle-remote-cam-mute" class="sr-only peer" onchange="toggleRemoteAudioFromSwitch(this.checked); saveRemoteSettings();">
                             <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                         </label>
                     </div>
                     <div class="flex justify-between items-center">
                         <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-music"></i> Jukeboxの音声</span>
                         <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="toggle-remote-wp-mute" class="sr-only peer" onchange="toggleWatchPartyMuteFromSwitch(this.checked)">
+                            <input type="checkbox" id="toggle-remote-wp-mute" class="sr-only peer" onchange="toggleWatchPartyMuteFromSwitch(this.checked); saveRemoteSettings();">
                             <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                         </label>
                     </div>
                     <div class="flex justify-between items-center">
                         <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-desktop"></i> Jukeboxの映像</span>
                         <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="toggle-remote-wp-video" class="sr-only peer" checked onchange="toggleRemoteWatchPartyVideoFromSwitch(this.checked)">
+                            <input type="checkbox" id="toggle-remote-wp-video" class="sr-only peer" checked onchange="toggleRemoteWatchPartyVideoFromSwitch(this.checked); saveRemoteSettings();">
                             <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                         </label>
                     </div>
@@ -432,6 +432,7 @@ function generateId() { return Math.random().toString(36).substring(2, 9); }
 
         window.onload = () => {
             loadYouTubeAPI(); // ←★この1行を絶対に追加してください★
+            loadRemoteSettings(); // ★追加：保存したメディア設定をロードする
             const rTts = document.getElementById('remote-tts-toggle');
             if(rTts) {
                 const savedTTS = localStorage.getItem('jukebox_remote_tts');
@@ -1018,10 +1019,15 @@ function switchRemoteLayer(layer) {
 
         function handleOverlayClick() {
             if (isWpOverlayActive) {
-                if (viewerYTPlayer && typeof viewerYTPlayer.unMute === 'function') {
-                    viewerYTPlayer.unMute();
-                    const toggle = document.getElementById('toggle-remote-wp-mute');
-                    if(toggle) toggle.checked = true;
+                if (viewerYTPlayer) {
+                    const wpToggle = document.getElementById('toggle-remote-wp-mute');
+                    // ★設定がONの時だけミュート解除、OFFならミュートのままにする
+                    if (wpToggle && wpToggle.checked) {
+                        if (typeof viewerYTPlayer.unMute === 'function') viewerYTPlayer.unMute();
+                    } else {
+                        if (typeof viewerYTPlayer.mute === 'function') viewerYTPlayer.mute();
+                    }
+
                     if (typeof viewerYTPlayer.getPlayerState === 'function' && viewerYTPlayer.getPlayerState() !== 1 && viewerYTPlayer.getPlayerState() !== 3) {
                         viewerYTPlayer.playVideo();
                     }
@@ -1029,7 +1035,13 @@ function switchRemoteLayer(layer) {
                 const overlay = document.getElementById('remote-youtube-overlay');
                 if(overlay) overlay.style.display = 'none'; 
                 isWpOverlayActive = false;
-                showToast("音声をONにして視聴を開始しました！", "info");
+                
+                const wpToggle = document.getElementById('toggle-remote-wp-mute');
+                if (wpToggle && wpToggle.checked) {
+                    showToast("音声をONにして視聴を開始しました！", "info");
+                } else {
+                    showToast("視聴を開始しました！", "info");
+                }
             }
         }
 
@@ -1399,6 +1411,38 @@ function handleSyncPlayback(data) {
                 });
             }
         }
+
+        // リモコン用メディア設定の保存と読み込み
+        function saveRemoteSettings() {
+            const settings = {
+                camAudioOn: document.getElementById('toggle-remote-cam-mute').checked,
+                wpAudioOn: document.getElementById('toggle-remote-wp-mute').checked,
+                wpVideoOn: document.getElementById('toggle-remote-wp-video').checked
+            };
+            localStorage.setItem('jukebox_remote_settings', JSON.stringify(settings));
+        }
+
+        function loadRemoteSettings() {
+            try {
+                const saved = localStorage.getItem('jukebox_remote_settings');
+                if (saved) {
+                    const settings = JSON.parse(saved);
+                    const camMute = document.getElementById('toggle-remote-cam-mute');
+                    const wpMute = document.getElementById('toggle-remote-wp-mute');
+                    const wpVideo = document.getElementById('toggle-remote-wp-video');
+                    
+                    if(camMute && settings.camAudioOn !== undefined) camMute.checked = settings.camAudioOn;
+                    if(wpMute && settings.wpAudioOn !== undefined) wpMute.checked = settings.wpAudioOn;
+                    if(wpVideo && settings.wpVideoOn !== undefined) {
+                        wpVideo.checked = settings.wpVideoOn;
+                        toggleRemoteWatchPartyVideoFromSwitch(settings.wpVideoOn);
+                    }
+                    return settings;
+                }
+            } catch(e) {}
+            return null;
+        }
+        // ★★★ ここまで追加 ★★★
     </script>
 </body>
 </html>
