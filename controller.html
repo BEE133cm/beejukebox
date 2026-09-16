@@ -208,7 +208,8 @@
 
             <!-- Streamレイヤー -->
             <div id="remote-cam-layer" class="absolute inset-0 layer-hidden bg-black">
-                <button onclick="requestRemoteCamera()" id="btn-remote-toggle-camera" class="absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
+                <!-- 最初から隠しておくために hidden を追加 -->
+                <button onclick="requestRemoteCamera()" id="btn-remote-toggle-camera" class="hidden absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
                     <i class="fa-solid fa-video"></i> 映像を受信 (タップ)
                 </button>
                 <video id="remote-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
@@ -796,8 +797,7 @@
                     remoteHasStream = false;
                     const videoEl = document.getElementById('remote-video');
                     if (videoEl) videoEl.srcObject = null;
-                    const btn = document.getElementById('btn-remote-toggle-camera');
-                    if(btn) { btn.classList.remove('hidden'); }
+                    // 勝手にボタンを表示するコードを削除（排除）
                 });
             });
 
@@ -1282,7 +1282,7 @@
             if(isLive) {
                 if(btnRemote && !remoteHasStream) {
                     btnRemote.disabled = false;
-                    btnRemote.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btnRemote.classList.remove('hidden', 'opacity-50', 'cursor-not-allowed');
                     btnRemote.innerHTML = '<i class="fa-solid fa-video text-white text-xs"></i> 映像を受信 (タップ)';
                 }
                 if(tabRemoteCamIcon) tabRemoteCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
@@ -1290,12 +1290,12 @@
                 remoteHasStream = false;
                 const videoEl = document.getElementById('remote-video');
                 if (videoEl) videoEl.srcObject = null;
+                
+                // 「配信はオフラインです」のコードを完全に削除し、確実に隠す
                 if(btnRemote) {
-                    btnRemote.classList.remove('hidden');
-                    btnRemote.textContent = "配信はオフラインです"; 
-                    btnRemote.disabled = true;
-                    btnRemote.classList.add('opacity-50', 'cursor-not-allowed');
+                    btnRemote.classList.add('hidden');
                 }
+                
                 if(tabRemoteCamIcon) tabRemoteCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
             }
 
