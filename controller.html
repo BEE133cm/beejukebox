@@ -299,16 +299,26 @@
                 <!-- 📋 リスト タブ -->
                 <div id="remote-menu-content-list" class="hidden absolute inset-0 overflow-y-auto p-3 bg-[#111827] pb-12">
                     <div class="space-y-4">
-                        
-                        <!-- ★追加：自動承認トグル -->
-                        <div class="flex justify-between items-center bg-[#18181b] p-2 rounded border border-gray-800">
-                            <span class="text-xs font-bold text-yellow-500">リクエスト自動承認</span>
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="remote-auto-approve-toggle" onchange="sendRemoteAutoApproveToggle(this.checked)" class="sr-only peer">
-                                <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-yellow-500"></div>
-                            </label>
+                        <!-- ★追加：設定トグル群をまとめる枠 -->
+                        <div class="space-y-2 bg-[#18181b] p-3 rounded-lg border border-gray-800 shadow-sm">
+                            <!-- 自動承認トグル -->
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold text-yellow-500">リクエスト自動承認</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="remote-auto-approve-toggle" onchange="sendRemoteCommand('manage', 'toggle_auto_approve', this.checked)" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+                                </label>
+                            </div>
+                            <!-- ★追加：受付停止トグル -->
+                            <div class="flex justify-between items-center border-t border-gray-800 pt-2">
+                                <span class="text-xs font-bold text-red-500"><i class="fa-solid fa-ban"></i> 一般リクエスト受付停止</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="remote-request-stop-toggle" onchange="sendRemoteCommand('manage', 'toggle_request_stop', this.checked)" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
+                                </label>
+                            </div>
                         </div>
-
+                        
                         <!-- ★追加：承認待ちプール -->
                         <div id="remote-pool-container" class="hidden flex-col">
                             <div class="flex justify-between items-center border-b border-gray-800 pb-1 mb-2">
@@ -1324,8 +1334,8 @@ function handleSyncPlayback(data) {
 
         function renderRemoteState(state) {
             window.currentSong = state.currentSong || null;
-            // ★追加：requestPool と isAutoApprove を受け取る
-            const { queue, requestPool, isAutoApprove, historyQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, theme: hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
+            // ★追加：isRequestStopped を受け取るように修正
+            const { queue, requestPool, isAutoApprove, isRequestStopped, historyQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, theme: hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
             
             const toggleEl = document.getElementById('remote-cam-approval-toggle');
             if (toggleEl) toggleEl.checked = serverCamAppMode;
@@ -1432,7 +1442,17 @@ function handleSyncPlayback(data) {
             window.remoteBannedUsers = bannedUsers;
             renderParticipantList(document.getElementById('remote-participant-list'));
 
-            // ★追加：プールの表示処理
+            // ★追加：自動承認と受付停止トグルの状態反映
+            const autoApproveToggle = document.getElementById('remote-auto-approve-toggle');
+            if (autoApproveToggle && isAutoApprove !== undefined) {
+                autoApproveToggle.checked = isAutoApprove;
+            }
+            const reqStopToggle = document.getElementById('remote-request-stop-toggle');
+            if (reqStopToggle && isRequestStopped !== undefined) {
+                reqStopToggle.checked = isRequestStopped;
+            }
+
+            // ★追加：承認待ちプールの表示
             const pContainer = document.getElementById('remote-pool-container');
             const pList = document.getElementById('remote-pool-list');
             const pBadge = document.getElementById('remote-pool-badge');
