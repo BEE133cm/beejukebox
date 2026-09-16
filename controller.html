@@ -777,7 +777,7 @@ function generateId() { return Math.random().toString(36).substring(2, 9); }
                         if (data.success) {
                             isAuthenticated = true;
                             hidePasswordModal();
-                            showToast("認証に成功しました");
+                            // ★トースト通知を削除しました
                             const pwdInput = document.getElementById('room-password-input').value;
                             if (pwdInput) {
                                 savedPasswords[currentRoomId] = pwdInput;
