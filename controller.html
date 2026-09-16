@@ -1015,10 +1015,9 @@
                 if (vData && vData.video_id) playerLoadedVideoId = vData.video_id;
             } catch(e) {}
 
-            if (data.videoId && data.videoId !== playerLoadedVideoId) {
-                currentSong = { videoId: data.videoId };
+            if (data.videoId && data.videoId.length === 11 && data.videoId !== playerLoadedVideoId) {
+                window.currentSong = { videoId: data.videoId };
                 viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
-                resetStabilizationTimer();
                 return;
             }
 
@@ -1150,6 +1149,7 @@
         }
 
         function renderRemoteState(state) {
+            window.currentSong = state.currentSong || null;
             const { queue, historyQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
             
             const toggleEl = document.getElementById('remote-cam-approval-toggle');
