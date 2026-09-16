@@ -1073,6 +1073,30 @@
                         if (el) el.checked = data.targetId;
                         toggleCamApproval();
                     }
+                    // ★追加：プールと並び替えのコマンド受信処理
+                    else if (data.action === 'toggle_auto_approve') {
+                        isAutoApprove = data.targetId;
+                        const el = document.getElementById('setting-auto-approve');
+                        if(el) el.checked = isAutoApprove;
+                        localStorage.setItem('jukebox_auto_approve', isAutoApprove);
+                        updateUI();
+                        updateCloudRoomState();
+                        showToast(`自動承認を${isAutoApprove ? 'ON' : 'OFF'}にしました`);
+                    }
+                    else if (data.action === 'approve_req') { approveRequest(data.targetId); }
+                    else if (data.action === 'reject_req') { rejectRequest(data.targetId); }
+                    else if (data.action === 'reorder_queue') {
+                        // コントローラーからのD&D並び順を受け取る
+                        if (Array.isArray(data.targetId)) {
+                            // 送られてきたIDの配列の順番に合わせてqueueを並び替える
+                            queue.sort((a, b) => {
+                                return data.targetId.indexOf(a.id) - data.targetId.indexOf(b.id);
+                            });
+                            updateCloudRoomState();
+                            updateUI();
+                        }
+                    }
+                    // ★追加ここまで
                     else manageUser(data.targetId, data.action);
                 }
             }
