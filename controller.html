@@ -1292,7 +1292,8 @@ function handleSyncPlayback(data) {
 
         function renderRemoteState(state) {
             window.currentSong = state.currentSong || null;
-            const { queue, historyQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
+            // ★修正：hostTheme を theme: hostTheme に変更して正しくデータを受け取る
+            const { queue, historyQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, theme: hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
             
             const toggleEl = document.getElementById('remote-cam-approval-toggle');
             if (toggleEl) toggleEl.checked = serverCamAppMode;
