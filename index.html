@@ -1315,13 +1315,21 @@
             updateUI(); 
             
             if (event.data === YT.PlayerState.PLAYING) {
-                // 絶対時刻の記録
-                if (currentSong && !currentSong.startedAt) {
-                    currentSong.startedAt = Date.now() - (player.getCurrentTime() * 1000);
-                } else if (currentSong && currentSong.pausePosition) {
-                    // 再開時
-                    currentSong.startedAt = Date.now() - (currentSong.pausePosition * 1000);
-                    currentSong.pausePosition = null;
+                const playerTime = player.getCurrentTime();
+                
+                // 絶対時刻の記録 ＆ 【追加】再生中のシーク（時間ジャンプ）検知と再計算
+                if (currentSong) {
+                    let expectedTimeFromStart = currentSong.startedAt ? (Date.now() - currentSong.startedAt) / 1000 : 0;
+                    
+                    // 「startedAtはあるのに、プレイヤーの実際の時間と計算上の時間に2秒以上のズレがある」＝ シークされたと判定
+                    if (!currentSong.startedAt || Math.abs(playerTime - expectedTimeFromStart) > 2.0) {
+                        currentSong.startedAt = Date.now() - (playerTime * 1000);
+                        currentSong.pausePosition = null;
+                    } else if (currentSong.pausePosition) {
+                        // 停止からの再開時
+                        currentSong.startedAt = Date.now() - (currentSong.pausePosition * 1000);
+                        currentSong.pausePosition = null;
+                    }
                 }
                 
                 const isMuted = document.getElementById('icon-host-jukebox-mute').classList.contains('fa-volume-xmark');
