@@ -1069,6 +1069,35 @@
             history.replaceState(null, '', url);
         }
 
+        // ★追加: Firebaseのリアルタイム監視
+        function startCloudSync() {
+            if (!window.db || !currentRoomId) return;
+            window.onSnapshot(window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'rooms', currentRoomId), (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    saveGuestHistory(currentRoomId, data.hostName);
+                    
+                    // 1. 画面全体の更新
+                    renderListenerState(data);
+                    
+                    // 2. YouTubeの同期処理
+                    if (data.currentSong) {
+                        const syncData = {
+                            videoId: data.currentSong.videoId,
+                            status: data.status === 'playing' ? 1 : 2,
+                            // ホストの絶対開始時刻から、現在何秒進んでいるかを計算
+                            time: data.status === 'playing' && data.currentSong.startedAt 
+                                  ? (Date.now() - data.currentSong.startedAt) / 1000 
+                                  : (data.currentSong.pausePosition || 0)
+                        };
+                        handleSyncPlayback(syncData);
+                    } else {
+                        handleSyncPlayback({ videoId: null, status: -1, time: 0 });
+                    }
+                }
+            }, (err) => console.error("Firebase Sync Error:", err));
+        }
+
         function resetListenerVideo() {
             listenerHasStream = false;
             isListenerVideoOpen = false;
