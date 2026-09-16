@@ -390,6 +390,7 @@
         }
 
         window.onload = () => {
+            loadYouTubeAPI(); // ←★この1行を絶対に追加してください★
             const rTts = document.getElementById('remote-tts-toggle');
             if(rTts) {
                 const savedTTS = localStorage.getItem('jukebox_remote_tts');
