@@ -1024,6 +1024,9 @@
                 if(themeInput) themeInput.value = hostTheme;
                 updateCloudRoomState();
                 showToast("THEME UPDATED");
+                
+                // ★追加：テーマが変更されたので画面上の表示も書き換える
+                updateUI();
             }
             else if(data.type === 'request_camera') {
                 if(listener) {
