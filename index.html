@@ -675,6 +675,10 @@
             const elObsCam = document.getElementById('url-obs-cam');
             if(elObsCam) elObsCam.value = `${baseUrlPath}OBS.html?obs_cam=${currentRoomId}`;
 
+            // ★復活：OBS (JUKEBOX ONLY) のURL生成
+            const elObs = document.getElementById('url-obs');
+            if(elObs) elObs.value = `${baseUrlPath}OBS.html?obs=${currentRoomId}`;
+
             const elChat = document.getElementById('url-chat');
             if(elChat) elChat.value = `${baseUrlPath}chat.html?room=${currentRoomId}`;
         }
