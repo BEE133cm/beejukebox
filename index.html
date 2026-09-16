@@ -595,6 +595,14 @@
             const hTts = document.getElementById('host-tts-toggle');
             if(hTts) hTts.addEventListener('change', unlockTTS);
 
+            // ★追加：ブラウザに記憶させた「自動承認」の設定を読み込む
+            const savedAutoApprove = localStorage.getItem('jukebox_auto_approve');
+            if (savedAutoApprove !== null) {
+                isAutoApprove = savedAutoApprove === 'true';
+                const autoApproveEl = document.getElementById('setting-auto-approve');
+                if (autoApproveEl) autoApproveEl.checked = isAutoApprove;
+            }
+
             try {
                 const rawData = localStorage.getItem('jukebox_mylist');
                 if (rawData) {
@@ -774,6 +782,15 @@
                     if (docSnap.exists()) {
                         const data = docSnap.data();
                         if (data.queue) queue = data.queue;
+                        
+                        // ★追加：リロード時にプールと自動承認設定が消えないようにFirebaseから復元する
+                        if (data.requestPool) requestPool = data.requestPool;
+                        if (data.isAutoApprove !== undefined) {
+                            isAutoApprove = data.isAutoApprove;
+                            const autoApproveEl = document.getElementById('setting-auto-approve');
+                            if(autoApproveEl) autoApproveEl.checked = isAutoApprove;
+                        }
+
                         if (data.historyQueue) historyQueue = data.historyQueue;
                         if (data.chatHistory) chatHistory = data.chatHistory;
                         if (data.currentSong) currentSong = data.currentSong;
@@ -1263,9 +1280,12 @@
             hostTheme = document.getElementById('setting-theme').value;
             durationLimit = parseInt(document.getElementById('setting-duration').value) * 60;
             if(isNaN(durationLimit)) durationLimit = 0;
-            // ★追加：自動承認のトグル状態を保存
+            // ★自動承認のトグル状態を保存
             const autoApproveEl = document.getElementById('setting-auto-approve');
-            if(autoApproveEl) isAutoApprove = autoApproveEl.checked;
+            if(autoApproveEl) {
+                isAutoApprove = autoApproveEl.checked;
+                localStorage.setItem('jukebox_auto_approve', isAutoApprove); // ★追加：ブラウザにも記憶させる
+            }
             updateUI(); // プールの表示/非表示を切り替えるため
             updateCloudRoomState();
         }
