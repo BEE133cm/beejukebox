@@ -207,10 +207,9 @@
             </div>
 
             <!-- Streamレイヤー -->
-            <div id="remote-cam-layer" class="absolute inset-0 layer-hidden bg-black">
-                <!-- 最初から隠しておくために hidden を追加 -->
-                <button onclick="requestRemoteCamera()" id="btn-remote-toggle-camera" class="hidden absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20">
-                    <i class="fa-solid fa-video"></i> 映像を受信 (タップ)
+            <div id="remote-cam-layer" class="absolute inset-0 layer-hidden bg-black z-20" style="display: none;">
+                <button onclick="requestRemoteCamera()" id="btn-remote-toggle-camera" disabled class="absolute inset-0 m-auto w-[80%] h-12 bg-gray-800 text-gray-400 font-bold rounded-lg flex items-center justify-center gap-2 z-20 opacity-80 cursor-not-allowed border border-gray-700">
+                    <i class="fa-solid fa-video-slash"></i> 配信はオフラインです
                 </button>
                 <video id="remote-video" autoplay playsinline muted class="w-full h-full object-contain relative z-10"></video>
             </div>
@@ -797,7 +796,8 @@
                     remoteHasStream = false;
                     const videoEl = document.getElementById('remote-video');
                     if (videoEl) videoEl.srcObject = null;
-                    // 勝手にボタンを表示するコードを削除（排除）
+                    const btn = document.getElementById('btn-remote-toggle-camera');
+                    if(btn) { btn.classList.remove('hidden'); }
                 });
             });
 
@@ -842,29 +842,35 @@
             listenerConn.send({ type: 'update_profile', name: "👑 配信管理者", isRemote: true, isObs: false, uuid: myGuestUUID });
         }
 
-        function switchRemoteLayer(layer) {
+function switchRemoteLayer(layer) {
             const camLayer = document.getElementById('remote-cam-layer');
             const wpLayer = document.getElementById('remote-wp-layer');
             const tabCam = document.getElementById('remote-tab-cam');
             const tabWp = document.getElementById('remote-tab-wp');
 
             if(layer === 'cam') {
-                // Streamタブを開いた時
                 camLayer.classList.remove('layer-hidden');
                 camLayer.classList.add('layer-visible');
                 wpLayer.classList.remove('layer-visible');
                 wpLayer.classList.add('layer-hidden');
+                
+                // ★YouTubeを完全に隠してStreamを出す
+                wpLayer.style.display = 'none';
+                camLayer.style.display = 'block';
                 
                 tabCam.classList.add('bg-red-600', 'text-white');
                 tabCam.classList.remove('bg-gray-700', 'text-gray-400');
                 tabWp.classList.add('bg-gray-700', 'text-gray-400');
                 tabWp.classList.remove('bg-indigo-600', 'text-white');
             } else {
-                // Jukeboxタブを開いた時
                 wpLayer.classList.remove('layer-hidden');
                 wpLayer.classList.add('layer-visible');
                 camLayer.classList.remove('layer-visible');
                 camLayer.classList.add('layer-hidden');
+                
+                // ★Streamを完全に隠してYouTubeを出す
+                wpLayer.style.display = 'block';
+                camLayer.style.display = 'none';
                 
                 tabWp.classList.add('bg-indigo-600', 'text-white');
                 tabWp.classList.remove('bg-gray-700', 'text-gray-400');
@@ -1282,8 +1288,9 @@
             if(isLive) {
                 if(btnRemote && !remoteHasStream) {
                     btnRemote.disabled = false;
-                    btnRemote.classList.remove('hidden', 'opacity-50', 'cursor-not-allowed');
-                    btnRemote.innerHTML = '<i class="fa-solid fa-video text-white text-xs"></i> 映像を受信 (タップ)';
+                    // オフライン用のクラスを外して、LIVE用のクラスを追加
+                    btnRemote.className = "absolute inset-0 m-auto w-[80%] h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)] z-20 cursor-pointer";
+                    btnRemote.innerHTML = '<i class="fa-solid fa-circle text-xs"></i> LIVE配信中！(タップして開く)';
                 }
                 if(tabRemoteCamIcon) tabRemoteCamIcon.classList.add('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
             } else {
@@ -1291,9 +1298,11 @@
                 const videoEl = document.getElementById('remote-video');
                 if (videoEl) videoEl.srcObject = null;
                 
-                // 「配信はオフラインです」のコードを完全に削除し、確実に隠す
                 if(btnRemote) {
-                    btnRemote.classList.add('hidden');
+                    btnRemote.disabled = true;
+                    // LIVE用のクラスを外して、オフライン用のクラスを追加
+                    btnRemote.className = "absolute inset-0 m-auto w-[80%] h-12 bg-gray-800 text-gray-400 font-bold rounded-lg flex items-center justify-center gap-2 z-20 opacity-80 cursor-not-allowed border border-gray-700";
+                    btnRemote.innerHTML = '<i class="fa-solid fa-video-slash"></i> 配信はオフラインです';
                 }
                 
                 if(tabRemoteCamIcon) tabRemoteCamIcon.classList.remove('text-red-400', 'animate-pulse', 'drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]');
