@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #0e0e10; color: white; overscroll-behavior-y: none; }
         ::-webkit-scrollbar { width: 6px; }
@@ -296,10 +297,31 @@
                 <!-- 📋 リスト タブ -->
                 <div id="remote-menu-content-list" class="hidden absolute inset-0 overflow-y-auto p-3 bg-[#111827] pb-12">
                     <div class="space-y-4">
+                        
+                        <!-- ★追加：自動承認トグル -->
+                        <div class="flex justify-between items-center bg-[#18181b] p-2 rounded border border-gray-800">
+                            <span class="text-xs font-bold text-yellow-500">リクエスト自動承認</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="remote-auto-approve-toggle" onchange="sendRemoteAutoApproveToggle(this.checked)" class="sr-only peer">
+                                <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-yellow-500"></div>
+                            </label>
+                        </div>
+
+                        <!-- ★追加：承認待ちプール -->
+                        <div id="remote-pool-container" class="hidden flex-col">
+                            <div class="flex justify-between items-center border-b border-gray-800 pb-1 mb-2">
+                                <h3 class="text-xs font-bold text-yellow-500"><i class="fa-solid fa-inbox"></i> 承認待ち</h3>
+                                <span id="remote-pool-badge" class="text-[10px] bg-yellow-900 text-yellow-400 px-1.5 py-0.5 rounded font-bold">0</span>
+                            </div>
+                            <div id="remote-pool-list" class="space-y-1.5 text-[10px]"></div>
+                        </div>
+
+                        <!-- 既存のキュー -->
                         <div>
                             <h3 class="text-xs font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">順番待ち (<span id="remote-queue-count">0</span>)</h3>
                             <div id="remote-queue-list" class="space-y-1.5 text-[10px]"></div>
                         </div>
+                        
                         <div>
                             <h3 class="text-xs font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">再生履歴</h3>
                             <div id="remote-history-list" class="space-y-1.5 text-[10px] text-gray-500"></div>
@@ -379,6 +401,7 @@
         let stabilizationTimeout = null;
 
         let remoteNotifTimeout = null;
+        let sortableQueue = null;
 
         function resetStabilizationTimer() {
             isVideoStable = false;
@@ -972,6 +995,18 @@ function switchRemoteLayer(layer) {
         function sendRemoteCamApprovalToggle(isChecked) {
             if(listenerConn && listenerConn.open) {
                 listenerConn.send({ type: 'remote_cmd', cmd: 'manage', action: 'toggle_cam_approval', targetId: isChecked });
+            }
+        }
+
+        function sendRemoteAutoApproveToggle(isChecked) {
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'remote_cmd', cmd: 'manage', action: 'toggle_auto_approve', targetId: isChecked });
+            }
+        }
+
+        function handleRemotePool(action, id) {
+            if(listenerConn && listenerConn.open) {
+                listenerConn.send({ type: 'remote_cmd', cmd: 'manage', action: action === 'approve' ? 'approve_req' : 'reject_req', targetId: id });
             }
         }
 
