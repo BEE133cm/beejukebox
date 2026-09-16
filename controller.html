@@ -217,7 +217,7 @@
             <!-- Jukeboxレイヤー -->
             <div id="remote-wp-layer" class="absolute inset-0 layer-visible bg-black">
                 <div id="remote-youtube-player-wrapper" class="w-full h-full">
-                    <div id="remote-youtube-player" class="w-full h-full pointer-events-none"></div>
+                    <div id="remote-youtube-player" class="w-full h-full pointer-events-auto"></div>
                 </div>
                 <!-- 初回タップ用オーバーレイ -->
                 <div id="remote-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
@@ -1075,11 +1075,17 @@ function handleSyncPlayback(data) {
                     viewerYTPlayer.stopVideo();
                 }
                 currentSong = null;
+                hostCurrentStatus = -1;
                 return;
             }
 
             const state = viewerYTPlayer.getPlayerState();
             const currentTime = viewerYTPlayer.getCurrentTime();
+
+            // ★前回削ってしまった変数の更新を復活！（これがないと監視ループが機能しない）
+            hostCurrentTime = data.time; 
+            hostCurrentStatus = data.status;
+            lastHostTimeReceivedAt = Date.now();
 
             // プレイヤーが実際に読み込んでいる動画のIDを直接確認する
             let playerLoadedVideoId = "";
