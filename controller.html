@@ -1049,7 +1049,7 @@ function switchRemoteLayer(layer) {
             }
         }
 
-        function handleSyncPlayback(data) {
+function handleSyncPlayback(data) {
             if (!isWatchPartyEnabled) {
                 if (viewerYTPlayer && typeof viewerYTPlayer.pauseVideo === 'function' && viewerYTPlayer.getPlayerState() === 1) {
                     viewerYTPlayer.pauseVideo();
@@ -1062,6 +1062,7 @@ function switchRemoteLayer(layer) {
                     loadYouTubeAPI(); 
                 } else if (data.videoId) {
                     currentSong = { videoId: data.videoId };
+                    if(typeof initListenerYouTubePlayer === 'function') initListenerYouTubePlayer();
                     if(typeof initRemoteYouTubePlayer === 'function') initRemoteYouTubePlayer();
                 }
                 return;
@@ -1079,16 +1080,6 @@ function switchRemoteLayer(layer) {
 
             const state = viewerYTPlayer.getPlayerState();
             const currentTime = viewerYTPlayer.getCurrentTime();
-            
-            let hostSeeked = false;
-            const expectedTimeProgression = hostCurrentStatus === 1 ? ((Date.now() - lastHostTimeReceivedAt) / 1000) : 0;
-            if (lastHostTimeReceivedAt > 0 && Math.abs(data.time - (hostCurrentTime + expectedTimeProgression)) > 2.0) {
-                hostSeeked = true;
-            }
-
-            hostCurrentTime = data.time; 
-            hostCurrentStatus = data.status;
-            lastHostTimeReceivedAt = Date.now();
 
             // プレイヤーが実際に読み込んでいる動画のIDを直接確認する
             let playerLoadedVideoId = "";
@@ -1097,37 +1088,39 @@ function switchRemoteLayer(layer) {
                 if (vData && vData.video_id) playerLoadedVideoId = vData.video_id;
             } catch(e) {}
 
+            // 【ホスト絶対権限 1: 曲変更・スキップ】違う動画なら強制ロードしてシーク
             if (data.videoId && data.videoId.length === 11 && data.videoId !== playerLoadedVideoId) {
                 window.currentSong = { videoId: data.videoId };
                 viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
+                resetStabilizationTimer();
                 return;
             }
 
-            if (!isVideoStable && !hostSeeked) return;
+            // 【ホスト絶対権限 2: 再生・停止と時間の同期】
+            // 安定待ち時間中（ロード直後やシーク直後）は処理をスキップしてバッファリングを優先
+            if (!isVideoStable) return;
 
             if (data.status === 1) { 
+                // ホストが再生中: クライアントが止まっていれば強制再生
                 if (state !== 1 && state !== 3) {
                     viewerYTPlayer.playVideo();
                 }
                 
-                const diff = hostCurrentTime - currentTime;
-                
-                if (hostSeeked || Math.abs(diff) >= 3.0) {
-                    viewerYTPlayer.setPlaybackRate(1.0);
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                // 時間のズレをチェック（2.0秒以上ズレていたら、強制シークでピッタリ合わせる）
+                const diff = Math.abs(data.time - currentTime);
+                if (diff > 2.0) {
+                    viewerYTPlayer.seekTo(data.time, true);
                     resetStabilizationTimer();
-                } else if (Math.abs(diff) >= 1.0 && Math.abs(diff) < 3.0) {
-                    viewerYTPlayer.setPlaybackRate(diff > 0 ? 1.05 : 0.95);
-                } else {
-                    viewerYTPlayer.setPlaybackRate(1.0);
                 }
             } else if (data.status === 2 || data.status === -1) { 
+                // ホストが停止中: クライアントが再生中なら強制停止
                 if (state === 1) {
                     viewerYTPlayer.pauseVideo();
-                    viewerYTPlayer.setPlaybackRate(1.0);
                 }
-                if (hostSeeked || Math.abs(hostCurrentTime - currentTime) > 1.0) {
-                    viewerYTPlayer.seekTo(hostCurrentTime, true);
+                // 停止位置がズレていれば合わせる（0.5秒以上のズレで補正）
+                if (Math.abs(data.time - currentTime) > 0.5) {
+                    viewerYTPlayer.seekTo(data.time, true);
+                    resetStabilizationTimer();
                 }
             }
         }
