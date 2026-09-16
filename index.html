@@ -197,6 +197,10 @@
                 <div class="flex items-center gap-2 bg-[#0e0e10] border border-gray-700 p-1.5 rounded-sm shrink-0 shadow-sm">
                     <span class="bg-gray-800 text-yellow-500 text-[9px] font-black tracking-widest px-2 py-1 rounded-sm border border-gray-700">THEME</span>
                     <input type="text" id="setting-theme" class="flex-1 bg-transparent outline-none text-xs text-white placeholder-gray-600 font-bold" placeholder="現在のテーマ・気分を入力して共有..." onchange="updateHostSettings()">
+                    <!-- ★追加：Xシェアボタン -->
+                    <button onclick="shareToX()" class="bg-black hover:bg-gray-900 border border-gray-700 text-white px-3 py-1 rounded-sm text-[10px] font-bold transition-colors flex items-center gap-1.5 shrink-0">
+                        <i class="fa-brands fa-x-twitter"></i> POST
+                    </button>
                 </div>
 
                 <div class="flex justify-between items-center shrink-0">
@@ -729,6 +733,18 @@
         }
 
         function copyURL(inputId) { document.getElementById(inputId).select(); document.execCommand("copy"); showToast("URLをコピーしました！"); }
+
+        // ★追加：X（旧Twitter）へのシェア機能
+        function shareToX() {
+            const themeText = document.getElementById('setting-theme').value || "BGM配信中";
+            const listenerUrl = document.getElementById('url-listener') ? document.getElementById('url-listener').value : "";
+            
+            const text = `🎵 Remote Jukeboxで同時視聴中！\nテーマ: ${themeText}\n\n👇 リスナー参加はこちらから！\n`;
+            const hashtags = "RemoteJukebox";
+            
+            const shareUrl = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(listenerUrl)}&hashtags=${encodeURIComponent(hashtags)}`;
+            window.open(shareUrl, '_blank', 'width=600,height=400');
+        }
 
         function renderHostHistory() {
             const list = document.getElementById('setup-history-list');
