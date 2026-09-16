@@ -421,7 +421,7 @@
             reconnectTimeout = setTimeout(() => {
                 if (currentRoomId && (!listenerConn || !listenerConn.open)) {
                      reconnectAttempts++;
-                     showToast(`自動再接続を試みています... (${reconnectAttempts}回目)`, "info");
+                     // showToast(`自動再接続を試みています... (${reconnectAttempts}回目)`, "info");
                      if (peer) {
                          peer.destroy();
                          peer = null;
@@ -434,7 +434,7 @@
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 if (currentRoomId && (!listenerConn || !listenerConn.open)) {
-                    showToast("画面復帰を検知。再接続します...", "info");
+                    // showToast("画面復帰を検知。再接続します...", "info");
                     if (peer) {
                         peer.destroy();
                         peer = null;
@@ -551,7 +551,7 @@ function generateId() { return Math.random().toString(36).substring(2, 9); }
             history = history.filter(h => h.roomId !== roomId);
             localStorage.setItem('jukebox_remote_history', JSON.stringify(history));
             renderPortalHistory();
-            showToast("履歴を削除しました");
+            // showToast("履歴を削除しました");
         }
 
         function joinFromPortalHistory(roomId) {
@@ -561,7 +561,10 @@ function generateId() { return Math.random().toString(36).substring(2, 9); }
 
         function joinFromPortal() {
             const roomId = document.getElementById('portal-room-id').value.trim();
-            if(!roomId) return showToast("ルームIDを入力してください", "error");
+            if(!roomId) {
+                // showToast("ルームIDを入力してください", "error");
+                return;
+            }
             joinRoom(roomId);
         }
 
@@ -599,7 +602,7 @@ function generateId() { return Math.random().toString(36).substring(2, 9); }
         
         function closePasswordModal() {
             hidePasswordModal();
-            showToast("接続をキャンセルしました", "info");
+            // showToast("接続をキャンセルしました", "info");
             if (pendingConnection) pendingConnection.close();
             showPortal();
         }
@@ -735,7 +738,7 @@ function generateId() { return Math.random().toString(36).substring(2, 9); }
                         if(peer) peer.destroy();
                         return;
                     }
-                    if(data.type === 'error') { showToast(data.msg, "error"); return; }
+                    if(data.type === 'error') { /* showToast(data.msg, "error"); */ return; }
                     
                     if(data.type === 'remote_alert') {
                         showRemoteTopNotification(data.msg);
@@ -795,7 +798,7 @@ function generateId() { return Math.random().toString(36).substring(2, 9); }
                     }
                     
                     if (data.type === 'auth_required') {
-                         showToast("操作にはパスワード認証が必要です", "error");
+                         // showToast("操作にはパスワード認証が必要です", "error");
                          pendingConnection = listenerConn;
                          showPasswordModal();
                     }
@@ -980,7 +983,7 @@ function switchRemoteLayer(layer) {
         function sendRemoteCommand(cmd, action = null, targetId = null) {
             if(listenerConn && listenerConn.open) {
                 listenerConn.send({ type: 'remote_cmd', cmd: cmd, action: action, targetId: targetId });
-                if(cmd !== 'manage') showToast("コマンドを送信しました");
+                // if(cmd !== 'manage') showToast("コマンドを送信しました");
             }
         }
 
@@ -1038,21 +1041,19 @@ function switchRemoteLayer(layer) {
         }
 
         function sendRemoteRequest() {
-            const url = document.getElementById('remote-url').value;
-            if(!url) return;
-            const vid = extractVideoId(url);
+            // ～～中略～～
             if(vid) {
                 listenerConn.send({ type: 'request', videoId: vid, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
                 document.getElementById('remote-url').value = '';
-                showToast("追加しました！");
+                // showToast("追加しました！");
             } else {
-                showToast("無効なYouTube URLです", "error");
+                // showToast("無効なYouTube URLです", "error");
             }
         }
 
         function reRequestRemote(videoId) {
             listenerConn.send({ type: 'request', videoId: videoId, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
-            showToast("再リクエストを追加しました");
+            // showToast("再リクエストを追加しました");
         }
 
         function requestRemoteCamera() {
@@ -1591,7 +1592,7 @@ function handleSyncPlayback(data) {
             if(input) {
                 input.select();
                 document.execCommand("copy");
-                showToast("URLをコピーしました！");
+                // showToast("URLをコピーしました！");
             }
         }
         
