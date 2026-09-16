@@ -217,7 +217,7 @@
             <!-- Jukeboxレイヤー -->
             <div id="remote-wp-layer" class="absolute inset-0 layer-visible bg-black">
                 <div id="remote-youtube-player-wrapper" class="w-full h-full">
-                    <div id="remote-youtube-player" class="w-full h-full pointer-events-auto"></div>
+                    <div id="remote-youtube-player" class="w-full h-full pointer-events-none"></div>
                 </div>
                 <!-- 初回タップ用オーバーレイ -->
                 <div id="remote-youtube-overlay" class="absolute inset-0 z-20 cursor-pointer bg-black/80 flex flex-col items-center justify-center text-white transition-colors duration-300" onclick="handleOverlayClick()">
@@ -1124,6 +1124,37 @@ function handleSyncPlayback(data) {
                 }
             }
         }
+
+        // ★追加：ホストの絶対時間を監視・強制同期するループ（1秒に1回）
+        setInterval(() => {
+            if (!isWatchPartyEnabled || !viewerYTPlayer || typeof viewerYTPlayer.getPlayerState !== 'function' || !currentSong || !currentSong.videoId) return;
+            if (hostCurrentStatus === -1 || !isVideoStable) return;
+
+            const state = viewerYTPlayer.getPlayerState();
+            const currentTime = viewerYTPlayer.getCurrentTime();
+
+            // 最新のホストの予想時間を計算
+            let expectedTime = hostCurrentTime;
+            if (hostCurrentStatus === 1) {
+                expectedTime += (Date.now() - lastHostTimeReceivedAt) / 1000;
+            }
+
+            // 【強制】状態の同期（ローカルで勝手に停止・再生がズレた場合の補正）
+            if (hostCurrentStatus === 1 && state !== 1 && state !== 3) {
+                viewerYTPlayer.playVideo();
+            } else if (hostCurrentStatus === 2 && state === 1) {
+                viewerYTPlayer.pauseVideo();
+            }
+
+            // 【強制】時間の同期（ローカルが重くて時間がズレた場合の補正）
+            if (hostCurrentStatus === 1 && Math.abs(currentTime - expectedTime) > 2.0) {
+                viewerYTPlayer.seekTo(expectedTime, true);
+                resetStabilizationTimer();
+            } else if (hostCurrentStatus === 2 && Math.abs(currentTime - expectedTime) > 0.5) {
+                viewerYTPlayer.seekTo(expectedTime, true);
+                resetStabilizationTimer();
+            }
+        }, 1000);
 
         function triggerTTS(chatObj) {
             let ttsOn = false;
