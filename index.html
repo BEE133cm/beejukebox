@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #0e0e10; color: #e4e4e7; overscroll-behavior-y: none; }
         
@@ -280,16 +281,22 @@
 
             <!-- Column 2: Queue -->
             <div id="host-col-2" class="hidden lg:flex flex-col w-full lg:w-3/12 h-full border-b lg:border-b-0 lg:border-r border-gray-800 bg-[#0e0e10]">
-                <div class="h-1/2 flex flex-col border-b border-gray-800 p-2.5">
+                <!-- ★追加：承認待ちプール (手動セレクトモード用) -->
+                <div id="host-pool-container" class="hidden flex flex-col border-b border-gray-800 p-2.5 max-h-[30%]">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-1.5 mb-2 shrink-0">
+                        <h3 class="text-[10px] font-black text-yellow-500 tracking-widest uppercase"><i class="fa-solid fa-inbox"></i> 承認待ち</h3>
+                        <span class="text-[9px] bg-yellow-900/50 text-yellow-500 px-1.5 py-0.5 rounded-sm font-bold border border-yellow-700/50" id="pool-badge">0</span>
+                    </div>
+                    <div id="host-pool-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0"></div>
+                </div>
+
+                <!-- 既存のキュー（Sortableの対象にするために高さをflex-1に調整） -->
+                <div class="flex-1 flex flex-col border-b border-gray-800 p-2.5 min-h-0">
                     <div class="flex justify-between items-center border-b border-gray-800 pb-1.5 mb-2 shrink-0">
                         <h3 class="text-[10px] font-black text-gray-400 tracking-widest uppercase"><i class="fa-solid fa-list-ul"></i> REQUEST QUEUE</h3>
                         <span class="text-[9px] bg-gray-800 px-1.5 py-0.5 rounded-sm text-gray-300 font-bold border border-gray-700" id="queue-badge">0</span>
                     </div>
                     <div id="host-queue-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0"></div>
-                </div>
-                <div class="h-1/2 flex flex-col p-2.5">
-                    <h3 class="text-[10px] font-black text-gray-400 border-b border-gray-800 pb-1.5 mb-2 shrink-0 tracking-widest uppercase"><i class="fa-regular fa-clock"></i> HISTORY</h3>
-                    <div id="host-history-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0"></div>
                 </div>
             </div>
 
@@ -368,6 +375,15 @@
                                 <h3 class="text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-gear"></i> BASIC CONFIG</h3>
                                 <div><label class="block text-[9px] text-gray-500 mb-0.5">HOST NAME</label><input type="text" id="setting-host-name" class="w-full p-1.5 text-xs" onchange="updateHostSettings()"></div>
                                 <div><label class="block text-[9px] text-gray-500 mb-0.5">MAX DURATION (MIN, 0=UNLIMITED)</label><input type="number" id="setting-duration" value="10" class="w-full p-1.5 text-xs" onchange="updateHostSettings()"></div>
+                                <div class="pt-2">
+                                    <label class="flex items-center justify-between cursor-pointer">
+                                        <span class="text-[9px] font-bold text-yellow-500">リクエストを自動でキューに入れる</span>
+                                        <div class="relative inline-flex items-center">
+                                            <input type="checkbox" id="setting-auto-approve" checked onchange="updateHostSettings()" class="sr-only peer">
+                                            <div class="w-8 h-4 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-yellow-500"></div>
+                                        </div>
+                                    </label>
+                                </div>
                             </div>
                             <div class="space-y-2.5">
                                 <h3 class="text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-link"></i> SHARED URLs</h3>
@@ -395,6 +411,9 @@
         
         let hostPassword = ''; 
         let queue = [];
+        let requestPool = []; // ★追加：承認待ちプール
+        let isAutoApprove = true; // ★追加：自動承認モードのフラグ
+        let sortableQueue = null; // ★追加：SortableJS用
         let bgmQueue = [];
         let historyQueue = [];
         let chatHistory = []; 
@@ -984,24 +1003,35 @@
                 const song = {
                     id: generateId(), videoId: data.videoId, title: "取得中...", requester: data.requester, requesterReal: data.requesterReal, isAnon: data.isAnon, isRemote: data.isRemote || false
                 };
-                queue.push(song);
-                showToast(`REQ: ${song.requester}`);
-                showHostNews(`<i class="fa-solid fa-music text-indigo-400"></i> <span class="text-white">REQ:</span> ${data.requesterReal}`);
-                
-                Object.values(connectedListeners).forEach(p => {
-                    if (p.isRemote && p.conn.open) p.conn.send({type: 'remote_alert', msg: `<i class="fa-solid fa-music"></i> リクエスト追加: <b>${data.requesterReal}</b>`});
-                });
+
+                // ★修正：自動承認がON、またはリモコンからのリクエストなら即キューへ。OFFならプールへ。
+                if (isAutoApprove || song.isRemote) {
+                    queue.push(song);
+                    showToast(`REQ: ${song.requester}`);
+                    showHostNews(`<i class="fa-solid fa-music text-indigo-400"></i> <span class="text-white">REQ:</span> ${data.requesterReal}`);
+                    Object.values(connectedListeners).forEach(p => {
+                        if (p.isRemote && p.conn.open) p.conn.send({type: 'remote_alert', msg: `<i class="fa-solid fa-music"></i> リクエスト追加: <b>${data.requesterReal}</b>`});
+                    });
+                } else {
+                    requestPool.push(song);
+                    showToast(`承認待ち: ${song.requester}`, "info");
+                    Object.values(connectedListeners).forEach(p => {
+                        if (p.isRemote && p.conn.open) p.conn.send({type: 'remote_alert', msg: `<i class="fa-solid fa-inbox"></i> 承認待ち追加: <b>${data.requesterReal}</b>`});
+                    });
+                }
 
                 updateUI();
-                updateCloudRoomState(); // キュー追加をクラウドへ
+                updateCloudRoomState();
                 
                 fetchYouTubeTitle(song.videoId).then(title => {
                     const qItem = queue.find(q => q.id === song.id);
+                    const pItem = requestPool.find(p => p.id === song.id);
                     if(qItem) { qItem.title = title; updateUI(); updateCloudRoomState(); }
+                    if(pItem) { pItem.title = title; updateUI(); updateCloudRoomState(); }
                 });
 
                 if(!currentSong || currentSong.isBGM) {
-                    if(player && typeof player.getPlayerState === 'function') playNext();
+                    if((isAutoApprove || song.isRemote) && player && typeof player.getPlayerState === 'function') playNext();
                 }
             }
             else if(data.type === 'cancel') {
@@ -1226,6 +1256,10 @@
             hostTheme = document.getElementById('setting-theme').value;
             durationLimit = parseInt(document.getElementById('setting-duration').value) * 60;
             if(isNaN(durationLimit)) durationLimit = 0;
+            // ★追加：自動承認のトグル状態を保存
+            const autoApproveEl = document.getElementById('setting-auto-approve');
+            if(autoApproveEl) isAutoApprove = autoApproveEl.checked;
+            updateUI(); // プールの表示/非表示を切り替えるため
             updateCloudRoomState();
         }
 
@@ -1254,6 +1288,8 @@
                     status: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1 ? 'playing' : 'paused') : 'paused',
                     currentSong: stateCurrentSong,
                     queue: queue,
+                    requestPool: requestPool, // ★追加：プールをクラウドへ
+                    isAutoApprove: isAutoApprove, // ★追加：承認モードをクラウドへ
                     historyQueue: historyQueue,
                     chatHistory: chatHistory,
                     participants: safeParticipants,
@@ -1540,6 +1576,46 @@
                 }
             });
 
+            // ★追加：プールの表示処理
+            const pContainer = document.getElementById('host-pool-container');
+            const pList = document.getElementById('host-pool-list');
+            const pBadge = document.getElementById('pool-badge');
+            
+            if (pContainer) {
+                // 自動承認モードがOFF、またはプールに曲がある時だけ表示
+                if (!isAutoApprove || requestPool.length > 0) {
+                    pContainer.classList.remove('hidden');
+                    pContainer.classList.add('flex');
+                } else {
+                    pContainer.classList.remove('flex');
+                    pContainer.classList.add('hidden');
+                }
+            }
+
+            if (pList) {
+                pList.innerHTML = '';
+                if(pBadge) pBadge.textContent = requestPool.length;
+                requestPool.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-yellow-950/20 p-2 rounded-sm border border-yellow-900/30 text-[10px] mb-1.5 shadow-sm";
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-yellow-700 font-black w-4 text-center"><i class="fa-solid fa-clock"></i></span>
+                            <div class="truncate">
+                                <p class="text-yellow-100 truncate font-bold">${p.title}</p>
+                                <p class="text-[9px] text-yellow-600 truncate mt-0.5"><i class="fa-solid fa-user"></i> ${p.requesterReal || p.requester}</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-1 flex-shrink-0">
+                            <button onclick="approveRequest('${p.id}')" class="text-green-500 hover:text-green-400 bg-green-950/50 px-2 py-1 rounded transition-colors"><i class="fa-solid fa-check"></i> 許可</button>
+                            <button onclick="rejectRequest('${p.id}')" class="text-red-500 hover:text-red-400 bg-red-950/50 px-2 py-1 rounded transition-colors"><i class="fa-solid fa-xmark"></i> 拒否</button>
+                        </div>
+                    `;
+                    pList.appendChild(div);
+                });
+            }
+
+            // ★変更：キュー表示処理（D&D用のクラスを追加）
             const qList = document.getElementById('host-queue-list');
             const qBadge = document.getElementById('queue-badge');
             if(qList) {
@@ -1548,19 +1624,36 @@
                 
                 queue.forEach((q, idx) => {
                     const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-[#18181b] p-2 rounded-sm border border-gray-800 text-[10px] mb-1.5 shadow-sm";
+                    // ★ Sortable 用の ID (data-id) とドラッグハンドルクラス (cursor-grab) を追加
+                    div.className = "flex items-center justify-between bg-[#18181b] p-2 rounded-sm border border-gray-800 text-[10px] mb-1.5 shadow-sm sortable-item cursor-grab active:cursor-grabbing";
+                    div.setAttribute('data-id', q.id);
                     div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-gray-600 font-black w-4 text-center">${idx+1}</span>
+                        <div class="flex items-center gap-2 overflow-hidden pointer-events-none">
+                            <span class="text-gray-600 font-black w-4 text-center"><i class="fa-solid fa-grip-vertical"></i></span>
                             <div class="truncate">
                                 <p class="text-gray-300 truncate font-bold">${q.title}</p>
                                 <p class="text-[9px] text-gray-500 truncate mt-0.5"><i class="fa-solid fa-user"></i> ${q.requesterReal || q.requester} ${q.isRemote ? '<span class="text-yellow-600 ml-1 font-bold">ADMIN</span>' : ''}</p>
                             </div>
                         </div>
-                        <button onclick="removeQueue('${q.id}')" class="text-gray-600 hover:text-red-500 px-2 flex-shrink-0 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                        <button onclick="removeQueue('${q.id}')" class="text-gray-600 hover:text-red-500 px-2 flex-shrink-0 transition-colors z-10 relative"><i class="fa-solid fa-xmark"></i></button>
                     `;
                     qList.appendChild(div);
                 });
+
+                // ★追加：SortableJSの初期化（まだされてなければ）
+                if (!sortableQueue && window.Sortable) {
+                    sortableQueue = new Sortable(qList, {
+                        animation: 150,
+                        ghostClass: 'opacity-50',
+                        onEnd: function (evt) {
+                            // ドラッグ＆ドロップ完了後に配列を並び替える
+                            const item = queue.splice(evt.oldIndex, 1)[0];
+                            queue.splice(evt.newIndex, 0, item);
+                            updateCloudRoomState(); // Firebaseに新しい並び順を同期
+                            updateUI(); // 一応再描画
+                        },
+                    });
+                }
             }
 
             const hostHist = document.getElementById('host-history-list');
@@ -1614,6 +1707,27 @@
         }
 
         function removeQueue(id) { queue = queue.filter(q => q.id !== id); updateUI(); updateCloudRoomState(); }
+        // ★追加：承認と拒否の関数
+        function approveRequest(id) {
+            const req = requestPool.find(p => p.id === id);
+            if (req) {
+                requestPool = requestPool.filter(p => p.id !== id);
+                queue.push(req);
+                showToast(`承認しました: ${req.title}`);
+                updateUI();
+                updateCloudRoomState();
+                if(!currentSong || currentSong.isBGM) {
+                    if(player && typeof player.getPlayerState === 'function') playNext();
+                }
+            }
+        }
+        function rejectRequest(id) {
+            requestPool = requestPool.filter(p => p.id !== id);
+            showToast("リクエストを拒否しました");
+            updateUI();
+            updateCloudRoomState();
+        }
+
         function removeBGM(idx) { bgmQueue.splice(idx, 1); saveLocalSettings(); updateUI(); }
 
         function saveLocalSettings() {
