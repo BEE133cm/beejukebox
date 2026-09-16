@@ -485,6 +485,7 @@
         }
 
         window.onload = () => {
+            loadYouTubeAPI(); // ←★この1行を絶対に追加してください★
             loadListenerSettings();
 
             const savedName = localStorage.getItem('jukebox_guest_name');
