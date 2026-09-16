@@ -326,6 +326,16 @@
                                 </div>
                             </label>
                         </div>
+                        <div class="border-t border-gray-800 pt-3 mt-4">
+                            <h3 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-link"></i> 共有URL一覧</h3>
+                            <div class="space-y-2.5">
+                                <div><label class="block text-[9px] font-bold text-gray-400 mb-0.5">LISTENER (VIEWER)</label><div class="flex gap-1.5"><input type="text" id="remote-url-listener" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30 rounded-sm"><button onclick="copyURL('remote-url-listener')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold shadow-sm">COPY</button></div></div>
+                                <div><label class="block text-[9px] font-bold text-green-600 mb-0.5">CAMERA PORTAL</label><div class="flex gap-1.5"><input type="text" id="remote-url-camera" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30 rounded-sm"><button onclick="copyURL('remote-url-camera')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold shadow-sm">COPY</button></div></div>
+                                <div><label class="block text-[9px] font-bold text-blue-600 mb-0.5">OBS (CAM + JUKEBOX)</label><div class="flex gap-1.5"><input type="text" id="remote-url-obs-cam" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30 rounded-sm"><button onclick="copyURL('remote-url-obs-cam')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold shadow-sm">COPY</button></div></div>
+                                <div><label class="block text-[9px] font-bold text-gray-600 mb-0.5">OBS (JUKEBOX ONLY)</label><div class="flex gap-1.5"><input type="text" id="remote-url-obs" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30 rounded-sm"><button onclick="copyURL('remote-url-obs')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold shadow-sm">COPY</button></div></div>
+                                <div><label class="block text-[9px] font-bold text-purple-600 mb-0.5">CHAT DASHBOARD</label><div class="flex gap-1.5"><input type="text" id="remote-url-chat" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30 rounded-sm"><button onclick="copyURL('remote-url-chat')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold shadow-sm">COPY</button></div></div>
+                            </div>
+                        </div>
                         <div class="border-t border-gray-800 pt-3 mt-4 text-center">
                             <button onclick="disconnectAndGoToPortal()" class="bg-gray-800 border border-gray-600 hover:bg-gray-700 text-gray-300 text-xs py-2 px-4 rounded transition-colors">ポータル画面へ戻る</button>
                         </div>
@@ -542,6 +552,8 @@ function generateId() { return Math.random().toString(36).substring(2, 9); }
             // ★追加：Firebaseの同期をスタート
             if (window.db) startCloudSync();
             else window.addEventListener('firebase-auth-ready', startCloudSync, { once: true });
+
+            generateURLs(); // ★追加：URL一覧を生成してセットする
             
             const url = new URL(window.location);
             url.searchParams.set('remote', currentRoomId);
@@ -1463,6 +1475,35 @@ function handleSyncPlayback(data) {
             return null;
         }
         // ★★★ ここまで追加 ★★★
+        function generateURLs() {
+            const base = window.location.href.split('?')[0].split('#')[0];
+            const baseUrlPath = base.substring(0, base.lastIndexOf('/') + 1);
+
+            const elListener = document.getElementById('remote-url-listener');
+            if(elListener) elListener.value = `${baseUrlPath}listener.html?host=${currentRoomId}`;
+
+            const elCamera = document.getElementById('remote-url-camera');
+            if(elCamera) elCamera.value = `${baseUrlPath}camera.html?cam=${currentRoomId}`;
+
+            const elObsCam = document.getElementById('remote-url-obs-cam');
+            if(elObsCam) elObsCam.value = `${baseUrlPath}OBS.html?obs_cam=${currentRoomId}`;
+
+            const elObs = document.getElementById('remote-url-obs');
+            if(elObs) elObs.value = `${baseUrlPath}OBS.html?obs=${currentRoomId}`;
+
+            const elChat = document.getElementById('remote-url-chat');
+            if(elChat) elChat.value = `${baseUrlPath}chat.html?room=${currentRoomId}`;
+        }
+
+        function copyURL(inputId) {
+            const input = document.getElementById(inputId);
+            if(input) {
+                input.select();
+                document.execCommand("copy");
+                showToast("URLをコピーしました！");
+            }
+        }
+        
     </script>
 </body>
 </html>
