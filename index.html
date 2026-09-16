@@ -1232,7 +1232,8 @@
                 }));
 
                 let stateCurrentSong = currentSong ? { ...currentSong } : null;
-                if (stateCurrentSong && player && typeof player.getVideoData === 'function') {
+                // ★修正: プレイリストBGMの時だけ実際のIDを取得し、通常リクエスト時は元のID（正規の11文字）を信じる
+                if (stateCurrentSong && stateCurrentSong.listId && player && typeof player.getVideoData === 'function') {
                     try {
                         const vData = player.getVideoData();
                         if(vData && vData.video_id) stateCurrentSong.videoId = vData.video_id;
