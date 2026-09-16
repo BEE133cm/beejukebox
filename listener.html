@@ -58,8 +58,8 @@
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
 
-        .layer-hidden { opacity: 0; pointer-events: none; z-index: 0; }
-        .layer-visible { opacity: 1; pointer-events: auto; z-index: 10; }
+        .layer-hidden { opacity: 0; pointer-events: none; z-index: 0; visibility: hidden; }
+        .layer-visible { opacity: 1; pointer-events: auto; z-index: 10; visibility: visible; }
         
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
         details > summary { list-style: none; }
@@ -103,6 +103,40 @@
             .chat-backdrop { display: none !important; }
         }
     </style>
+    <!-- Firebase Initialization -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const myFirebaseConfig = {
+          apiKey: "AIzaSyCxE0jwT0tuvsEvMWTS4SH9FYTLdYzlIvM",
+          authDomain: "beejukebox-94ad8.firebaseapp.com",
+          projectId: "beejukebox-94ad8",
+          storageBucket: "beejukebox-94ad8.firebasestorage.app",
+          messagingSenderId: "902266249398",
+          appId: "1:902266249398:web:8de3ff1d14ea5eef224617"
+        };
+        const appId = 'jukebox-app';
+
+        try {
+            const app = initializeApp(myFirebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            window.db = db;
+            window.appId = appId;
+            window.doc = doc;
+            window.onSnapshot = onSnapshot;
+
+            async function initFirebase() {
+                try {
+                    await signInAnonymously(auth);
+                    window.dispatchEvent(new Event('firebase-auth-ready'));
+                } catch (e) { console.error("Firebase Auth Error:", e); }
+            }
+            initFirebase();
+        } catch (e) { console.error("Firebase Setup Error:", e); }
+    </script>
 </head>
 <body class="p-0 overflow-hidden relative">
 
@@ -500,6 +534,9 @@
                 if(params.has('host')) {
                     currentRoomId = params.get('host');
                     initListener();
+                    // ★追加：Firebaseの同期をスタート
+                    if (window.db) startCloudSync();
+                    else window.addEventListener('firebase-auth-ready', startCloudSync, { once: true });
                 } else {
                     document.body.innerHTML = '<div class="banned-overlay"><h1 class="text-3xl mb-4 text-red-500">エラー</h1><p class="text-gray-300">ルームIDが指定されていません。URLを確認してください。</p></div>';
                 }
