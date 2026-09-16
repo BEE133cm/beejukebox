@@ -849,15 +849,23 @@
             const tabWp = document.getElementById('remote-tab-wp');
 
             if(layer === 'cam') {
-                camLayer.classList.replace('layer-hidden', 'layer-visible');
-                wpLayer.classList.replace('layer-visible', 'layer-hidden');
+                // Streamタブを開いた時
+                camLayer.classList.remove('layer-hidden');
+                camLayer.classList.add('layer-visible');
+                wpLayer.classList.remove('layer-visible');
+                wpLayer.classList.add('layer-hidden');
+                
                 tabCam.classList.add('bg-red-600', 'text-white');
                 tabCam.classList.remove('bg-gray-700', 'text-gray-400');
                 tabWp.classList.add('bg-gray-700', 'text-gray-400');
                 tabWp.classList.remove('bg-indigo-600', 'text-white');
             } else {
-                wpLayer.classList.replace('layer-hidden', 'layer-visible');
-                camLayer.classList.replace('layer-visible', 'layer-hidden');
+                // Jukeboxタブを開いた時
+                wpLayer.classList.remove('layer-hidden');
+                wpLayer.classList.add('layer-visible');
+                camLayer.classList.remove('layer-visible');
+                camLayer.classList.add('layer-hidden');
+                
                 tabWp.classList.add('bg-indigo-600', 'text-white');
                 tabWp.classList.remove('bg-gray-700', 'text-gray-400');
                 tabCam.classList.add('bg-gray-700', 'text-gray-400');
