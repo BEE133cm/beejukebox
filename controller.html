@@ -197,6 +197,15 @@
 
         <!-- 映像エリア (上部固定) -->
         <div id="remote-video-area" class="relative w-full bg-black shrink-0 z-20 flex justify-center overflow-hidden" style="aspect-ratio: 16/9;">
+            <!-- NowPlaying帯 -->
+            <div class="absolute top-0 left-0 w-full bg-gradient-to-b from-black/90 to-transparent pt-1.5 pb-4 px-3 z-30 flex items-center gap-2 pointer-events-none">
+                <div class="marquee-container h-4 flex-1">
+                    <div class="marquee-content font-bold text-white text-[11px] leading-tight flex items-center gap-2 drop-shadow-md">
+                        <span id="remote-now-playing">接続待ち...</span>
+                        <span id="remote-now-requester" class="text-indigo-300 font-normal"></span>
+                    </div>
+                </div>
+            </div>
 
             <!-- Streamレイヤー -->
             <div id="remote-cam-layer" class="absolute inset-0 layer-hidden bg-black z-20" style="display: none;">
