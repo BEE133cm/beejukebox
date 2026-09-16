@@ -1082,13 +1082,7 @@ function switchRemoteLayer(layer) {
                 const overlay = document.getElementById('remote-youtube-overlay');
                 if(overlay) overlay.style.display = 'none'; 
                 isWpOverlayActive = false;
-                
-                const wpToggle = document.getElementById('toggle-remote-wp-mute');
-                if (wpToggle && wpToggle.checked) {
-                    showToast("音声をONにして視聴を開始しました！");
-                } else {
-                    showToast("視聴を開始しました！");
-                }
+                // ★視聴開始時のトースト通知を完全に削除しました
             }
         }
 
