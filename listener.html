@@ -305,19 +305,19 @@
                     <button onclick="switchListenerLayer('wp')" id="tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
                 </div>
 
-                <!-- Jukebox音量バー (WPタブ選択時かつ横画面時のみ表示) -->
-                <div class="hidden landscape:flex flex-1 max-w-[150px] mx-4 items-center">
-                    <div id="wp-volume-container" class="hidden items-center gap-2 w-full transition-opacity duration-300">
+                <!-- 右側グループ：Jukebox音量バー ＋ 設定ボタン -->
+                <div class="flex items-center gap-3">
+                    <!-- Jukebox音量バー (初期状態から表示。横画面時のみ出現) -->
+                    <div id="wp-volume-container" class="hidden landscape:flex items-center gap-1.5 w-[120px] transition-opacity duration-300">
                         <span class="text-[10px] text-gray-400 font-bold whitespace-nowrap"><i class="fa-solid fa-volume-high"></i> 🎵音量</span>
                         <input type="range" id="wp-volume-slider" min="0" max="100" value="100" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="changeWpVolume(this.value)">
                     </div>
-                </div>
 
-                <!-- 設定モーダル呼び出しボタン -->
-                <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white shrink-0" title="設定">
-                    <i class="fa-solid fa-gear"></i>
-                </button>
-            </div>
+                    <!-- 設定モーダル呼び出しボタン -->
+                    <button onclick="document.getElementById('listener-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white shrink-0" title="設定">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                </div>
 
         </div> <!-- 左ペイン終了 -->
 
@@ -834,9 +834,10 @@
                 tabCam.classList.remove('bg-gray-700', 'text-gray-400');
                 tabWp.classList.add('bg-gray-700', 'text-gray-400');
                 tabWp.classList.remove('bg-indigo-600', 'text-white');
+                
+                // ★追加：Stream時は確実に非表示にする
                 if(volContainer) {
-                    volContainer.classList.add('hidden');
-                    volContainer.classList.remove('flex');
+                    volContainer.style.display = 'none'; 
                 }
             } else {
                 wpLayer.classList.replace('layer-hidden', 'layer-visible');
@@ -845,9 +846,10 @@
                 tabWp.classList.remove('bg-gray-700', 'text-gray-400');
                 tabCam.classList.add('bg-gray-700', 'text-gray-400');
                 tabCam.classList.remove('bg-red-600', 'text-white');
+                
+                // ★追加：Jukebox時は元の表示設定（横画面なら表示）に戻す
                 if(volContainer) {
-                    volContainer.classList.remove('hidden');
-                    volContainer.classList.add('flex');
+                    volContainer.style.display = ''; 
                 }
             }
         }
