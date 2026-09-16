@@ -1289,7 +1289,8 @@ function handleSyncPlayback(data) {
 
         function renderListenerState(state) {
             window.currentSong = state.currentSong || null;
-            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, hostTheme, isLive, cameraApprovalMode, participants } = state;
+            // ★修正：hostTheme を theme: hostTheme に変更して正しくデータを受け取る
+            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, theme: hostTheme, isLive, cameraApprovalMode, participants } = state;
 
             // ローカル変数の確実な更新
             currentSong = currentSongData || null;
