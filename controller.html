@@ -1293,9 +1293,29 @@ function handleSyncPlayback(data) {
                 if(typeof initRemoteYouTubePlayer === 'function') initRemoteYouTubePlayer();
             }
 
-            if(serverChatHistory) {
-                chatHistory = serverChatHistory;
-                renderChatList('remote-chat-list', chatHistory, true);
+            if (serverChatHistory) {
+                if (!window.isChatInitialized) {
+                    // 初回読み込み時は履歴を更新するだけで読み上げ・通知はしない
+                    chatHistory = serverChatHistory;
+                    renderChatList('remote-chat-list', chatHistory, true);
+                    window.isChatInitialized = true;
+                } else {
+                    // 2回目以降は、新しいチャット（現在の chatHistory にないID）を探す
+                    const newChats = serverChatHistory.filter(newC => !chatHistory.some(oldC => oldC.id === newC.id));
+                    chatHistory = serverChatHistory;
+                    
+                    if (newChats.length > 0) {
+                        renderChatList('remote-chat-list', chatHistory, true);
+                        newChats.forEach(chat => {
+                            // 自分が送信したチャット以外なら上部にポップアップ通知を出す
+                            if (chat.senderReal !== "配信管理者") {
+                                showRemoteTopNotification(`<i class="fa-solid fa-comment-dots text-gray-400"></i> <span class="text-gray-300 text-xs">${chat.senderReal}</span><br>${chat.text}`);
+                            }
+                            // 読み上げ処理（TTSがONならここで発火）
+                            triggerTTS(chat);
+                        });
+                    }
+                }
             }
 
             const playingEl = document.getElementById('remote-now-playing');
