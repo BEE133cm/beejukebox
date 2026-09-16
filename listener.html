@@ -1210,7 +1210,13 @@ function handleSyncPlayback(data) {
         }
 
         function sendRequest() {
-            const url = document.getElementById('listener-url').value;
+            const urlInput = document.getElementById('listener-url');
+            // ★追加：受付停止中は弾く
+            if (urlInput && urlInput.disabled) {
+                return showToast("現在リクエスト受付を停止しています", "error");
+            }
+            
+            const url = urlInput.value;
             const name = document.getElementById('listener-name').value.trim();
             const isAnon = document.getElementById('listener-anon').checked;
             if(!name) return showToast("あなたの名前を入力してください！", "error");
@@ -1289,11 +1295,43 @@ function handleSyncPlayback(data) {
 
         function renderListenerState(state) {
             window.currentSong = state.currentSong || null;
-            // ★修正：hostTheme を theme: hostTheme に変更して正しくデータを受け取る
-            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, theme: hostTheme, isLive, cameraApprovalMode, participants } = state;
+            // ★修正：isRequestStopped を受け取る
+            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, theme: hostTheme, isLive, cameraApprovalMode, participants, isRequestStopped } = state;
 
             // ローカル変数の確実な更新
             currentSong = currentSongData || null;
+
+            // ★追加：リクエスト受付停止状態のUI反映
+            const reqUrlInput = document.getElementById('listener-url');
+            const reqSendBtn = reqUrlInput ? reqUrlInput.nextElementSibling : null;
+            const reqTitle = document.querySelector('#listener-menu-details h3'); // 「リクエストはこちらから！」の文字
+            
+            if (reqUrlInput && reqSendBtn && reqTitle) {
+                if (isRequestStopped) {
+                    reqUrlInput.disabled = true;
+                    reqUrlInput.classList.add('opacity-50', 'cursor-not-allowed');
+                    reqUrlInput.placeholder = "現在リクエスト受付を停止しています";
+                    reqUrlInput.value = "";
+                    
+                    reqSendBtn.disabled = true;
+                    reqSendBtn.classList.replace('bg-red-600', 'bg-gray-600');
+                    reqSendBtn.classList.replace('hover:bg-red-500', 'cursor-not-allowed');
+                    
+                    reqTitle.innerHTML = '<i class="fa-solid fa-ban text-red-400"></i> 現在リクエスト受付停止中です';
+                    reqTitle.classList.replace('text-indigo-400', 'text-red-400');
+                } else {
+                    reqUrlInput.disabled = false;
+                    reqUrlInput.classList.remove('opacity-50', 'cursor-not-allowed');
+                    reqUrlInput.placeholder = "https://youtu.be/...";
+                    
+                    reqSendBtn.disabled = false;
+                    reqSendBtn.classList.replace('bg-gray-600', 'bg-red-600');
+                    reqSendBtn.classList.replace('cursor-not-allowed', 'hover:bg-red-500');
+                    
+                    reqTitle.innerHTML = '<i class="fa-solid fa-arrow-down text-indigo-400"></i> リクエストはこちらから！ <button onclick="document.getElementById(\'tutorial-modal\').classList.remove(\'hidden\')" class="bg-gray-700 text-gray-300 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-2"><i class="fa-solid fa-question"></i></button>';
+                    reqTitle.classList.replace('text-red-400', 'text-indigo-400');
+                }
+            }
 
             // データ受信時にもAPIロード状態をチェックしてYouTube枠を強制生成
             if (currentSong && currentSong.videoId && !viewerYTPlayer && window.YT && window.YT.Player) {
