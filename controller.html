@@ -34,8 +34,8 @@
 
         .youtube-hidden { position: absolute; width: 1px; height: 1px; top: -9999px; left: -9999px; }
         
-        .layer-hidden { opacity: 0; pointer-events: none; z-index: 0; visibility: hidden; }
-        .layer-visible { opacity: 1; pointer-events: auto; z-index: 10; visibility: visible; }
+        .layer-hidden { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -10 !important; transform: translateX(-100%) !important; }
+        .layer-visible { opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; z-index: 10 !important; transform: translateX(0) !important; }
         
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 12px); }
 
