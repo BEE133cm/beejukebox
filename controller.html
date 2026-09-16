@@ -1327,10 +1327,15 @@ function handleSyncPlayback(data) {
 
         function renderRemoteState(state) {
             window.currentSong = state.currentSong || null;
-            // ★修正：hostTheme を theme: hostTheme に変更して正しくデータを受け取る
-            const { queue, historyQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, theme: hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
+            // ★追加：requestPool と isAutoApprove を受け取る
+            const { queue, requestPool, isAutoApprove, historyQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, theme: hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
             
             const toggleEl = document.getElementById('remote-cam-approval-toggle');
+            if (toggleEl) toggleEl.checked = serverCamAppMode;
+            
+            // ★追加：自動承認トグルの更新
+            const autoApproveEl = document.getElementById('remote-auto-approve-toggle');
+            if (autoApproveEl && isAutoApprove !== undefined) autoApproveEl.checked = isAutoApprove;
             if (toggleEl) toggleEl.checked = serverCamAppMode;
 
             // ローカル変数の確実な更新
@@ -1430,33 +1435,89 @@ function handleSyncPlayback(data) {
             window.remoteBannedUsers = bannedUsers;
             renderParticipantList(document.getElementById('remote-participant-list'));
 
+            // ★追加：プールの表示処理
+            const pContainer = document.getElementById('remote-pool-container');
+            const pList = document.getElementById('remote-pool-list');
+            const pBadge = document.getElementById('remote-pool-badge');
+            
+            if (pContainer) {
+                if (!isAutoApprove || (requestPool && requestPool.length > 0)) {
+                    pContainer.classList.remove('hidden');
+                    pContainer.classList.add('flex');
+                } else {
+                    pContainer.classList.add('hidden');
+                    pContainer.classList.remove('flex');
+                }
+            }
+
+            if (pList && requestPool) {
+                pList.innerHTML = '';
+                if(pBadge) pBadge.textContent = requestPool.length;
+                requestPool.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between bg-yellow-900/20 p-2 rounded border border-yellow-700/50 mb-1";
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="text-yellow-600 font-bold w-4 text-center"><i class="fa-solid fa-clock"></i></span>
+                            <div class="truncate">
+                                <p class="text-yellow-100 truncate font-bold text-xs">${p.title}</p>
+                                <p class="text-[9px] text-yellow-600 truncate mt-0.5"><i class="fa-solid fa-user"></i> ${p.requesterReal || p.requester}</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-1 flex-shrink-0">
+                            <button onclick="handleRemotePool('approve', '${p.id}')" class="text-green-500 hover:text-green-400 bg-green-950/50 px-2 py-1 rounded transition-colors"><i class="fa-solid fa-check"></i></button>
+                            <button onclick="handleRemotePool('reject', '${p.id}')" class="text-red-500 hover:text-red-400 bg-red-950/50 px-2 py-1 rounded transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    `;
+                    pList.appendChild(div);
+                });
+            }
+
+            // ★変更：キュー表示処理（D&D用のクラスを追加）
             const countEl = document.getElementById('remote-queue-count');
-            if(countEl) countEl.textContent = queue.length;
+            if(countEl) countEl.textContent = queue ? queue.length : 0;
             
             const qList = document.getElementById('remote-queue-list');
-            if(qList) {
+            if(qList && queue) {
                 qList.innerHTML = '';
                 queue.forEach((q, idx) => {
                     const div = document.createElement('div');
-                    div.className = "flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700 text-sm mb-1";
+                    // ★ Sortable 用の ID とドラッグハンドルクラスを追加
+                    div.className = "flex items-center justify-between bg-gray-800 p-2 rounded border border-gray-700 mb-1 sortable-item cursor-grab active:cursor-grabbing";
+                    div.setAttribute('data-id', q.id);
                     const dispName = q.isAnon ? '184(匿名)' : q.requesterReal;
                     const isCrown = q.isRemote ? '(<i class="fa-solid fa-crown text-yellow-400"></i>)' : '';
                     div.innerHTML = `
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="text-gray-500 font-bold w-4">${idx+1}</span>
+                        <div class="flex items-center gap-2 overflow-hidden pointer-events-none">
+                            <span class="text-gray-500 font-bold w-4 text-center"><i class="fa-solid fa-grip-vertical"></i></span>
                             <div class="truncate">
-                                <p class="text-gray-200 truncate font-medium">${q.title}</p>
-                                <p class="text-[10px] text-gray-400 truncate"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
+                                <p class="text-gray-200 truncate font-medium text-xs">${q.title}</p>
+                                <p class="text-[9px] text-gray-400 truncate mt-0.5"><i class="fa-solid fa-user"></i> ${dispName} ${isCrown}</p>
                             </div>
                         </div>
+                        <button onclick="sendRemoteCommand('manage', 'cancel_req', '${q.id}')" class="text-red-400 hover:text-red-300 text-lg px-2 flex-shrink-0 transition-transform active:scale-90 z-10 relative"><i class="fa-solid fa-xmark"></i></button>
                     `;
-                    const btn = document.createElement('button');
-                    btn.className = "text-red-400 hover:text-red-300 text-xs px-2 border border-red-500/50 rounded flex-shrink-0 transition-transform active:scale-90";
-                    btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-                    btn.onclick = () => sendRemoteCommand('manage', 'cancel_req', q.id);
-                    div.appendChild(btn);
                     qList.appendChild(div);
                 });
+
+                // ★追加：SortableJSの初期化（コントローラーから並び替えをホストに送信）
+                if (!sortableQueue && window.Sortable) {
+                    sortableQueue = new Sortable(qList, {
+                        animation: 150,
+                        ghostClass: 'opacity-50',
+                        onEnd: function (evt) {
+                            // 並び替え後のIDの順番を配列にして取得
+                            const items = qList.querySelectorAll('.sortable-item');
+                            const newOrderIds = Array.from(items).map(item => item.getAttribute('data-id'));
+                            
+                            // 新しい順番のIDリストをホストに送信
+                            if(listenerConn && listenerConn.open) {
+                                listenerConn.send({ type: 'remote_cmd', cmd: 'manage', action: 'reorder_queue', targetId: newOrderIds });
+                                showToast("曲の順番を入れ替えました");
+                            }
+                        },
+                    });
+                }
             }
 
             const hList = document.getElementById('remote-history-list');
