@@ -625,7 +625,8 @@
         }
 
         function renderDashboardState(state) {
-            const { queue, historyQueue, chatHistory: serverChatHistory, currentSong, hostTheme, participants, bannedUsers } = state;
+            // ★修正：hostTheme を theme: hostTheme に変更して正しくデータを受け取る
+            const { queue, historyQueue, chatHistory: serverChatHistory, currentSong, theme: hostTheme, participants, bannedUsers } = state;
             
             // チャットとTTS処理
             if (serverChatHistory) {
