@@ -890,11 +890,18 @@
                 hostSeeked = true;
             }
 
-            hostCurrentTime = data.time; 
+                       hostCurrentTime = data.time; 
             hostCurrentStatus = data.status;
             lastHostTimeReceivedAt = Date.now();
 
-            if (data.videoId && data.videoId !== (currentSong ? currentSong.videoId : "")) {
+            // プレイヤーが実際に読み込んでいる動画のIDを直接確認する
+            let playerLoadedVideoId = "";
+            try {
+                const vData = viewerYTPlayer.getVideoData();
+                if (vData && vData.video_id) playerLoadedVideoId = vData.video_id;
+            } catch(e) {}
+
+            if (data.videoId && data.videoId !== playerLoadedVideoId) {
                 currentSong = { videoId: data.videoId };
                 viewerYTPlayer.loadVideoById({videoId: data.videoId, startSeconds: data.time});
                 resetStabilizationTimer();
