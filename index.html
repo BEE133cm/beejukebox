@@ -376,6 +376,7 @@
                                 <div><label class="block text-[9px] font-bold text-green-600 mb-0.5">CAMERA PORTAL</label><div class="flex gap-1.5"><input type="text" id="url-camera" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30"><button onclick="copyURL('url-camera')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button></div></div>
                                 <div><label class="block text-[9px] font-bold text-blue-600 mb-0.5">OBS (CAM + JUKEBOX)</label><div class="flex gap-1.5"><input type="text" id="url-obs-cam" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30"><button onclick="copyURL('url-obs-cam')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button></div></div>
                                 <div><label class="block text-[9px] font-bold text-gray-600 mb-0.5">OBS (JUKEBOX ONLY)</label><div class="flex gap-1.5"><input type="text" id="url-obs" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30"><button onclick="copyURL('url-obs')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button></div></div>
+                                <div><label class="block text-[9px] font-bold text-purple-600 mb-0.5">CHAT DASHBOARD</label><div class="flex gap-1.5"><input type="text" id="url-chat" readonly class="flex-1 p-1 text-[10px] text-gray-400 border-gray-800 bg-gray-900/30"><button onclick="copyURL('url-chat')" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded-sm text-[9px] font-bold">COPY</button></div></div>
                             </div>
                         </div>
                     </div>
@@ -674,8 +675,8 @@
             const elObsCam = document.getElementById('url-obs-cam');
             if(elObsCam) elObsCam.value = `${baseUrlPath}OBS.html?obs_cam=${currentRoomId}`;
 
-            const elObs = document.getElementById('url-obs');
-            if(elObs) elObs.value = `${baseUrlPath}OBS.html?obs=${currentRoomId}`;
+            const elChat = document.getElementById('url-chat');
+            if(elChat) elChat.value = `${baseUrlPath}chat.html?room=${currentRoomId}`;
         }
 
         function copyURL(inputId) { document.getElementById(inputId).select(); document.execCommand("copy"); showToast("URLをコピーしました！"); }
