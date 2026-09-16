@@ -391,6 +391,16 @@
                                         </div>
                                     </label>
                                 </div>
+                                <!-- ★追加：リクエスト受付停止トグル -->
+                                <div class="pt-2 border-t border-gray-800 mt-2">
+                                    <label class="flex items-center justify-between cursor-pointer">
+                                        <span class="text-[9px] font-bold text-red-500"><i class="fa-solid fa-ban"></i> リスナーからのリクエスト受付を停止</span>
+                                        <div class="relative inline-flex items-center">
+                                            <input type="checkbox" id="setting-request-stop" onchange="updateHostSettings()" class="sr-only peer">
+                                            <div class="w-8 h-4 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-red-500"></div>
+                                        </div>
+                                    </label>
+                                </div>
                             </div>
                             <div class="space-y-2.5">
                                 <h3 class="text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-link"></i> SHARED URLs</h3>
@@ -420,6 +430,7 @@
         let queue = [];
         let requestPool = []; // ★追加：承認待ちプール
         let isAutoApprove = true; // ★追加：自動承認モードのフラグ
+        let isRequestStopped = false; // ★追加：リクエスト受付停止フラグ
         let sortableQueue = null; // ★追加：SortableJS用
         let bgmQueue = [];
         let historyQueue = [];
@@ -1308,9 +1319,13 @@
             const autoApproveEl = document.getElementById('setting-auto-approve');
             if(autoApproveEl) {
                 isAutoApprove = autoApproveEl.checked;
-                localStorage.setItem('jukebox_auto_approve', isAutoApprove); // ★追加：ブラウザにも記憶させる
+                localStorage.setItem('jukebox_auto_approve', isAutoApprove); 
             }
-            updateUI(); // プールの表示/非表示を切り替えるため
+            // ★追加：受付停止のトグル状態を保存
+            const reqStopEl = document.getElementById('setting-request-stop');
+            if(reqStopEl) isRequestStopped = reqStopEl.checked;
+
+            updateUI(); 
             updateCloudRoomState();
         }
 
@@ -1339,8 +1354,9 @@
                     status: player && typeof player.getPlayerState === 'function' ? (player.getPlayerState() === 1 ? 'playing' : 'paused') : 'paused',
                     currentSong: stateCurrentSong,
                     queue: queue,
-                    requestPool: requestPool, // ★追加：プールをクラウドへ
-                    isAutoApprove: isAutoApprove, // ★追加：承認モードをクラウドへ
+                    requestPool: requestPool, 
+                    isAutoApprove: isAutoApprove, 
+                    isRequestStopped: isRequestStopped, // ★追加：受付停止フラグをクラウドへ
                     historyQueue: historyQueue,
                     chatHistory: chatHistory,
                     participants: safeParticipants,
