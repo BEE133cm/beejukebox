@@ -239,10 +239,16 @@
                     <div>
                         <h4 class="text-xs font-bold text-gray-500 mb-3 uppercase">コメント設定</h4>
                         <div class="space-y-4">
+                            <!-- ★修正：名前変更UIの追加 -->
                             <div>
-                                <input type="text" id="listener-name" placeholder="入室時に入力した名前" readonly class="w-full bg-gray-900/50 border border-gray-700 rounded p-2 text-gray-400 text-xs focus:outline-none cursor-not-allowed">
+                                <label class="block text-[10px] text-gray-400 mb-1">表示名 (※変更は7日に1回まで)</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="listener-name" placeholder="お名前" class="w-full bg-[#0e0e10] border border-gray-700 rounded p-2 text-white text-xs focus:outline-none focus:border-indigo-500">
+                                    <button onclick="requestNameChange()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 rounded text-xs font-bold transition-colors whitespace-nowrap">変更</button>
+                                </div>
+                                <p id="name-change-msg" class="text-[9px] text-red-400 mt-1 hidden"></p>
                             </div>
-                            <div class="flex justify-between items-center">
+                            <div class="flex justify-between items-center border-t border-gray-800 pt-3">
                                 <span class="text-gray-300 text-sm font-bold"><i class="fa-solid fa-user-secret"></i> 匿名(184)にする</span>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" id="listener-anon" class="sr-only peer">
@@ -1181,16 +1187,54 @@ function handleSyncPlayback(data) {
 
         function sendProfileUpdate() {
             if(!listenerConn || !listenerConn.open) return;
-            let name = document.getElementById('listener-name').value.trim() || "名無し";
+            // ★修正：ここは表示用の名前（localStorageから読み込み）を使う
+            let name = localStorage.getItem('jukebox_guest_name') || "名無し";
             const isAnon = document.getElementById('listener-anon').checked;
-            localStorage.setItem('jukebox_guest_name', name);
             localStorage.setItem('jukebox_guest_anon', isAnon);
             
             listenerConn.send({ type: 'update_profile', name: name, isRemote: false, isObs: false, uuid: myGuestUUID });
         }
 
-        const nameInput = document.getElementById('listener-name');
-        if(nameInput) nameInput.addEventListener('change', () => sendProfileUpdate());
+        // ★追加：名前変更の要求と制限の判定
+        function requestNameChange() {
+            const newName = document.getElementById('listener-name').value.trim();
+            const msgEl = document.getElementById('name-change-msg');
+            msgEl.classList.add('hidden');
+
+            if (!newName) {
+                msgEl.textContent = "名前を入力してください";
+                msgEl.classList.remove('hidden');
+                return;
+            }
+
+            const lastChangeStr = localStorage.getItem('jukebox_name_changed_at');
+            const now = Date.now();
+            const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+            if (lastChangeStr) {
+                const lastChange = parseInt(lastChangeStr, 10);
+                const elapsed = now - lastChange;
+
+                if (elapsed < SEVEN_DAYS_MS) {
+                    const remainingMs = SEVEN_DAYS_MS - elapsed;
+                    const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+                    msgEl.textContent = `あと ${remainingDays} 日間は名前を変更できません`;
+                    msgEl.classList.remove('hidden');
+                    // 名前を入力欄を元の名前に戻す
+                    document.getElementById('listener-name').value = localStorage.getItem('jukebox_guest_name');
+                    return;
+                }
+            }
+
+            // 変更許可：新しい名前と日付を保存してホストに通知
+            localStorage.setItem('jukebox_guest_name', newName);
+            localStorage.setItem('jukebox_name_changed_at', now.toString());
+            
+            showToast(`名前を「${newName}」に変更しました！`);
+            sendProfileUpdate();
+        }
+
+        // ★変更：テキストボックスのチェンジイベントでの自動送信を削除し、匿名化トグルのみ残す
         const anonInput = document.getElementById('listener-anon');
         if(anonInput) anonInput.addEventListener('change', () => sendProfileUpdate());
 
