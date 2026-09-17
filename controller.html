@@ -282,11 +282,15 @@
             <div class="flex-1 relative overflow-hidden">
                 <!-- 💬 コメント タブ -->
                 <div id="remote-menu-content-chat" class="absolute inset-0 flex flex-col">
-                    <div id="remote-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto pb-4 relative z-10"></div>
+                    <!-- ★修正：flex-1 に h-0 を追加してスクロール領域を確保し、中身が下から詰まるように mt-auto 用の空divを入れる -->
+                    <div id="remote-chat-list" class="flex-1 p-3 space-y-1 overflow-y-auto h-0 pb-4 relative z-10 flex flex-col">
+                        <div class="mt-auto"></div>
+                    </div>
                     <!-- チャット入力フローティング -->
                     <div id="remote-chat-backdrop" class="chat-backdrop" onclick="closeRemoteChatInput()"></div>
                     <div id="remote-chat-input-container" class="flex-shrink-0 px-3 py-2 bg-[#18181b] border-t border-gray-800 flex gap-2 items-center chat-input-container relative z-20 pb-safe">
                         <input type="text" id="remote-chat-input" name="dummy-remote-chat" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" onfocus="focusRemoteChatInput()" onblur="blurRemoteChatInputDelay()" onkeypress="if(event.key === 'Enter') sendChatRequest()" class="flex-1 bg-[#27272a] text-white text-sm rounded-full px-4 py-2 border-none outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-500" placeholder="チャットを送信">
+                        <!-- ★修正：()が抜けていたりしたバグを修正、明示的に sendChatRequest() を呼ぶように統一 -->
                         <button onclick="sendChatRequest()" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center font-bold shrink-0 transition-colors shadow"><i class="fa-solid fa-paper-plane"></i></button>
                     </div>
                 </div>
@@ -411,11 +415,23 @@
             'text-yellow-400', 'text-orange-400'
         ];
         
-        // ★追加：自分の色を取得（なければランダムに割り当てて保存）
-        let myNameColor = localStorage.getItem('jukebox_name_color');
-        if (!myNameColor || !NAME_COLORS.includes(myNameColor)) {
-            myNameColor = NAME_COLORS[Math.floor(Math.random() * NAME_COLORS.length)];
-            localStorage.setItem('jukebox_name_color', myNameColor);
+        let myNameColor = 'text-gray-400';
+
+        // ハッシュ関数（文字列を数値に変換）
+        function simpleHash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash |= 0; 
+            }
+            return Math.abs(hash);
+        }
+
+        // 部屋に参加した時に色を決定するための関数を定義
+        function setMyColorForRoom(roomId) {
+            // 自分のUUIDと部屋IDを組み合わせた文字列のハッシュから色を決定
+            const hash = simpleHash(myGuestUUID + roomId);
+            myNameColor = NAME_COLORS[hash % NAME_COLORS.length];
         }
 
         let pendingConnection = null;
@@ -603,6 +619,7 @@ function generateId() { return Math.random().toString(36).substring(2, 9); }
 
         function joinRoom(roomId) {
             currentRoomId = roomId;
+            setMyColorForRoom(currentRoomId); // ★追加：ここで自分の色を計算する
             showView('remote-view');
             document.body.classList.remove('bg-[#111827]');
             document.body.classList.add('p-0', 'overflow-hidden');
