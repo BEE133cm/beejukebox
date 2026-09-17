@@ -375,14 +375,18 @@
             </details>
 
             <!-- チャットリスト領域 (アコーディオン開閉時に隠れるラッパー) -->
-            <div id="listener-chat-area-wrapper" class="flex-1 flex flex-col min-h-0 relative">
+            <!-- ★修正：h-0 を追加して flex-1 の高さを確実に親の枠内に押し込める -->
+            <div id="listener-chat-area-wrapper" class="flex-1 flex flex-col h-0 relative">
                 <!-- 接続ステータス -->
-                <div id="listener-status" class="absolute top-2 left-0 w-full text-center text-[10px] text-yellow-500 animate-pulse pointer-events-none">ルームに接続中...</div>
+                <div id="listener-status" class="absolute top-2 left-0 w-full text-center text-[10px] text-yellow-500 animate-pulse pointer-events-none z-20">ルームに接続中...</div>
 
                 <!-- フローティング用のバックドロップ（チャット履歴領域のみ暗くする） -->
                 <div id="listener-chat-backdrop" class="chat-backdrop" onclick="closeChatInput()"></div>
 
-                <div id="listener-chat-list" class="flex-1 p-3 space-y-3 overflow-y-auto min-h-0 flex flex-col justify-end pb-4 pt-6 relative z-10">
+                <!-- ★修正：flex-col の方向を維持しつつ、子要素を下から積むための mt-auto を内部に入れる構成に変更 -->
+                <div id="listener-chat-list" class="flex-1 p-3 space-y-1 overflow-y-auto h-full flex flex-col relative z-10 pb-4 pt-8">
+                    <!-- 下からの配置にするためのスペーサー -->
+                    <div class="mt-auto flex-shrink-0"></div>
                     <!-- Chat messages here -->
                 </div>
 
@@ -1344,16 +1348,18 @@ function handleSyncPlayback(data) {
             const container = document.getElementById(containerId);
             if(!container) return;
 
-            container.innerHTML = '';
+            // ★修正：mt-auto 用の空divを維持したまま、チャット要素だけを入れ替える
+            container.innerHTML = '<div class="mt-auto flex-shrink-0"></div>';
+            
             chats.forEach(c => {
                 const div = document.createElement('div');
-                div.className = "text-[12px] leading-relaxed flex items-center justify-between group py-1 border-b border-gray-800/40";
+                div.className = "text-[12px] leading-relaxed flex items-center justify-between group py-1 border-b border-gray-800/40 flex-shrink-0";
                 
-                // ★修正：表示名とバッジ
+                // 表示名とバッジ
                 const dispName = (c.isAnon && !isPrivileged) ? '184(匿名)' : c.senderReal;
                 const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400 mr-1"></i>' : '';
                 
-                // ★修正：管理者は黄色、匿名はグレー、その他は持っているカラーを適用
+                // 管理者は黄色、匿名はグレー、その他は持っているカラーを適用
                 let nameColor = 'text-gray-400';
                 if (c.isRemote) nameColor = 'text-yellow-400';
                 else if (!c.isAnon && c.color) nameColor = c.color;
@@ -1365,10 +1371,13 @@ function handleSyncPlayback(data) {
                     </div>
                 `;
                 
-                // リスナー画面では削除ボタンは不要なのでそのまま追加
                 container.appendChild(div);
             });
-            container.scrollTop = container.scrollHeight;
+            
+            // ★修正：描画が完了してから確実にスクロールさせるために setTimeout を使用
+            setTimeout(() => {
+                container.scrollTop = container.scrollHeight;
+            }, 10);
         }
 
         function renderListenerState(state) {
