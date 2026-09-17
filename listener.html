@@ -1285,30 +1285,78 @@ function handleSyncPlayback(data) {
             return match ? match[1] : null;
         }
 
-        // --- ★追加：アプリ内検索機能 (CORSプロキシ + Invidious API) ---
-        // CORS回避プロキシと、安定しているInvidiousインスタンスの組み合わせ
-        const INVIDIOUS_INSTANCES = [
-            "https://vid.puffyan.us",
-            "https://invidious.jing.rocks",
-            "https://invidious.nerdvpn.de"
-        ];
-
+        // --- ★追加：アプリ内検索機能 (Apify Public API) ---
+        // CORSエラーが起きず、APIキー不要で叩けるパブリックエンドポイントを利用
         async function searchYouTube(query) {
-            for (const instance of INVIDIOUS_INSTANCES) {
-                try {
-                    // ★ CORSプロキシ (corsproxy.io) を通してリクエストを送る
-                    const targetUrl = `${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video&sort_by=relevance`;
-                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-                    
-                    const response = await fetch(proxyUrl);
-                    if (!response.ok) continue;
-                    const data = await response.json();
-                    if (data && data.length > 0) return data;
-                } catch (error) {
-                    console.warn(`Search failed on proxy for ${instance}`, error);
+            try {
+                // Piped APIの別の公開インスタンス (CORS制限が緩いものを直接叩く)
+                // ※うまくいかなかったら複数インスタンスを巡回する方式に戻します
+                const apiUrl = `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=videos`;
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    throw new Error("検索サーバーが応答しませんでした");
                 }
+                
+                const data = await response.json();
+                if (data && data.items && data.items.length > 0) {
+                    return data.items;
+                } else {
+                    return []; // 結果なし
+                }
+            } catch (error) {
+                console.error("Search API Error:", error);
+                throw error;
             }
-            throw new Error("すべての検索サーバーが応答しませんでした");
+        }
+
+        function renderSearchResults(results) {
+            const container = document.getElementById('search-results-container');
+            const listEl = document.getElementById('search-results-list');
+            if(!container || !listEl) return;
+
+            listEl.innerHTML = '';
+            
+            if (results.length === 0) {
+                 listEl.innerHTML = '<p class="text-xs text-gray-500 p-2 text-center">見つかりませんでした</p>';
+                 container.classList.remove('hidden');
+                 return;
+            }
+            
+            // 上位10件だけ表示 (Piped APIのデータ構造に合わせる)
+            results.slice(0, 10).forEach(item => {
+                const div = document.createElement('div');
+                div.className = "flex gap-2 p-1.5 hover:bg-gray-800 rounded-sm cursor-pointer transition-colors border border-transparent hover:border-gray-700 items-center group";
+                
+                // サムネイル画像のURLを取得 (Pipedの場合は .thumbnail)
+                const thumbUrl = item.thumbnail || '';
+                // videoIdを取得 (Pipedの場合はURLから抽出するか、URL属性から切り取る)
+                const videoId = item.url ? item.url.replace('/watch?v=', '') : '';
+                
+                div.innerHTML = `
+                    <div class="w-16 h-9 bg-gray-900 flex-shrink-0 rounded-sm overflow-hidden relative">
+                        <img src="${thumbUrl}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[10px] text-gray-200 font-bold truncate leading-tight group-hover:text-indigo-300 transition-colors">${item.title}</p>
+                        <p class="text-[8px] text-gray-500 truncate mt-0.5">${item.uploaderName}</p>
+                    </div>
+                    <div class="text-[10px] text-gray-600 px-1"><i class="fa-solid fa-plus"></i></div>
+                `;
+                
+                div.onclick = () => {
+                    if (videoId) {
+                        executeRequest(videoId);
+                        closeSearchResults();
+                    } else {
+                        showToast("動画IDが取得できませんでした", "error");
+                    }
+                };
+                
+                listEl.appendChild(div);
+            });
+
+            container.classList.remove('hidden');
         }
 
         function renderSearchResults(results) {
