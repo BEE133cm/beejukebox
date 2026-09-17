@@ -204,18 +204,52 @@
                     <!-- 中略: NOWや映像ONボタンの行 -->
                 </div>
 
+                <!-- ★追加：ホスト用カメラ設定モーダル -->
+                <div id="host-cam-settings-modal" class="hidden fixed inset-0 z-[6000] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div class="bg-[#18181b] border border-indigo-500/50 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center relative">
+                        <button onclick="document.getElementById('host-cam-settings-modal').classList.add('hidden')" class="absolute top-3 right-3 text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                        <h3 class="text-sm font-bold text-gray-200 mb-4 border-b border-gray-700 pb-2"><i class="fa-solid fa-gear"></i> STREAM SETTINGS</h3>
+                        <div class="space-y-4 text-left">
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 mb-1">RESOLUTION (解像度)</label>
+                                <select id="host-cam-resolution" onchange="applyHostCamConstraints()" class="w-full bg-[#0e0e10] border border-gray-700 text-white text-xs p-2 rounded-sm outline-none focus:border-indigo-500">
+                                    <option value="1080">1080p (FHD)</option>
+                                    <option value="720" selected>720p (HD)</option>
+                                    <option value="480">480p (SD)</option>
+                                    <option value="360">360p (Low)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-400 mb-1">BITRATE (画質・通信量)</label>
+                                <select id="host-cam-bitrate" onchange="applyHostCamBitrate()" class="w-full bg-[#0e0e10] border border-gray-700 text-white text-xs p-2 rounded-sm outline-none focus:border-indigo-500">
+                                    <option value="0">自動設定</option>
+                                    <option value="4000">4000 kbps (高画質)</option>
+                                    <option value="2500" selected>2500 kbps (標準)</option>
+                                    <option value="1000">1000 kbps (軽量)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <button onclick="document.getElementById('host-cam-settings-modal').classList.add('hidden')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-sm text-xs transition-colors">閉じる</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- ★修正：PiP（ワイプ）＆ 横画面対応メディアステージ -->
-                <div id="media-stage" class="relative w-full aspect-video lg:aspect-auto lg:flex lg:flex-row lg:gap-2 shrink-0 bg-black lg:bg-transparent rounded-sm">
+                <!-- lg:relative を追加し、PC版で内部の absolute 位置指定が media-stage を基準にするように修正 -->
+                <div id="media-stage" class="relative w-full aspect-video lg:aspect-auto lg:flex lg:flex-row lg:gap-2 shrink-0 bg-black lg:bg-transparent rounded-sm lg:relative">
                     
                     <!-- JUKEBOX -->
-                    <div id="wrapper-jukebox" class="absolute inset-0 z-10 cursor-default transition-all duration-300 lg:!static lg:!w-full lg:!h-full lg:!flex-1 lg:!border lg:!border-gray-700 lg:!shadow-inner lg:!rounded-sm lg:!overflow-hidden lg:!transform-none" onclick="swapMedia('jukebox')">
+                    <!-- lg:!static から lg:!relative に変更 -->
+                    <div id="wrapper-jukebox" class="absolute inset-0 z-10 cursor-default transition-all duration-300 lg:!relative lg:!w-full lg:!h-full lg:!flex-1 lg:!border lg:!border-gray-700 lg:!shadow-inner lg:!rounded-sm lg:!overflow-hidden lg:!transform-none" onclick="swapMedia('jukebox')">
                         <div class="absolute top-1 left-1 bg-indigo-600/90 border border-indigo-400 px-1.5 py-0.5 text-[9px] font-bold z-30 text-white rounded-sm tracking-wider pointer-events-none">JUKEBOX</div>
                         <div id="overlay-jukebox" class="hidden absolute inset-0 z-40 bg-transparent lg:hidden"></div>
                         <div id="youtube-player-container" class="w-full h-full"><div id="youtube-player"></div></div>
                     </div>
 
                     <!-- STREAM -->
-                    <div id="wrapper-stream" class="absolute bottom-2 right-2 w-[30%] aspect-video z-20 border border-gray-500 shadow-xl cursor-pointer hover:scale-105 bg-black rounded-sm transition-all duration-300 flex items-center justify-center overflow-hidden lg:!static lg:!w-full lg:!h-full lg:!flex-1 lg:!border lg:!border-gray-700 lg:!shadow-inner lg:!cursor-default lg:!transform-none lg:!scale-100" onclick="swapMedia('stream')">
+                    <!-- lg:!static から lg:!relative に変更 -->
+                    <div id="wrapper-stream" class="absolute bottom-2 right-2 w-[30%] aspect-video z-20 border border-gray-500 shadow-xl cursor-pointer hover:scale-105 bg-black rounded-sm transition-all duration-300 flex items-center justify-center overflow-hidden lg:!relative lg:!w-full lg:!h-full lg:!flex-1 lg:!border lg:!border-gray-700 lg:!shadow-inner lg:!cursor-default lg:!transform-none lg:!scale-100" onclick="swapMedia('stream')">
                         <div class="absolute top-1 left-1 bg-red-600/90 border border-red-400 px-1.5 py-0.5 text-[9px] font-bold z-30 text-white rounded-sm tracking-wider pointer-events-none">STREAM</div>
                         <div id="overlay-stream" class="absolute inset-0 z-40 bg-transparent lg:hidden"></div>
                         <span id="host-stream-offline" class="text-gray-700 text-[9px] font-black tracking-widest z-0 pointer-events-none">OFFLINE</span>
@@ -223,42 +257,30 @@
                     </div>
                 </div>
 
-                <!-- ★追加：スマホカメラ配信開始ボタン -->
-                <button id="btn-start-local-cam" onclick="toggleHostLocalCamera()" class="w-full bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 font-bold py-2 rounded-sm text-[10px] transition-colors shadow flex items-center justify-center gap-1.5 mt-1 shrink-0">
-                    <i class="fa-solid fa-camera"></i> スマホカメラで配信開始
-                </button>
+                <!-- ★修正：配信前コントロール (ボタン＆設定ギア) -->
+                <div id="cam-pre-controls" class="flex gap-1.5 shrink-0 mt-1">
+                    <button id="btn-start-local-cam" onclick="toggleHostLocalCamera()" class="flex-1 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 font-bold py-2 rounded-sm text-[10px] transition-colors shadow flex items-center justify-center gap-1.5 tracking-wider uppercase">
+                        <i class="fa-solid fa-video"></i> Stream Start
+                    </button>
+                    <button onclick="document.getElementById('host-cam-settings-modal').classList.remove('hidden')" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 font-bold px-3 py-2 rounded-sm text-[12px] transition-colors shadow flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                </div>
 
-                <!-- ★追加：カメラコントロールパネル（配信中のみ表示） -->
-                <div id="host-cam-controls" class="hidden flex-col gap-1.5 bg-[#18181b] border border-gray-700 p-2 rounded-sm mt-1 shrink-0 shadow-sm">
-                    <div class="flex items-center justify-between border-b border-gray-800 pb-1 mb-0.5">
-                        <span class="text-[9px] font-bold text-red-400"><i class="fa-solid fa-video"></i> LOCAL CAMERA</span>
-                        <!-- 音量メーター -->
-                        <div class="flex items-center gap-1">
-                            <span class="text-[8px] text-gray-500">MIC</span>
-                            <div id="host-cam-vu" class="flex items-end gap-[1px] h-3 w-8"></div>
-                        </div>
+                <!-- ★修正：配信中コントロールパネル（1列スマート表示） -->
+                <div id="host-cam-controls" class="hidden items-center justify-between bg-[#18181b] border border-gray-700 p-1.5 rounded-sm mt-1 shrink-0 shadow-sm gap-1.5">
+                    <div class="flex items-center gap-1.5 bg-[#0e0e10] border border-gray-800 px-2 py-1 rounded-sm shrink-0">
+                        <span class="text-[8px] font-bold text-red-400 tracking-wider">LIVE</span>
+                        <div id="host-cam-vu" class="flex items-end gap-[1px] h-3 w-6"></div>
                     </div>
-                    <div class="flex gap-1.5">
-                        <button onclick="toggleHostCamAudio()" id="btn-host-cam-audio" class="flex-1 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors"><i class="fa-solid fa-microphone"></i> 音声ON</button>
-                        <button onclick="toggleHostCamVideo()" id="btn-host-cam-video" class="flex-1 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors"><i class="fa-solid fa-video"></i> 映像ON</button>
-                        <button onclick="switchHostCamera()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-1.5 rounded-sm transition-colors" title="カメラ反転"><i class="fa-solid fa-rotate"></i></button>
-                        <button onclick="toggleHostCamPreview()" id="btn-host-cam-preview" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-1.5 rounded-sm transition-colors" title="プレビューを隠す"><i class="fa-solid fa-eye-slash"></i></button>
+                    <div class="flex flex-1 justify-center gap-1">
+                        <button onclick="toggleHostCamAudio()" id="btn-host-cam-audio" class="w-8 h-7 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[12px] rounded-sm transition-colors flex items-center justify-center" title="マイクON/OFF"><i class="fa-solid fa-microphone"></i></button>
+                        <button onclick="toggleHostCamVideo()" id="btn-host-cam-video" class="w-8 h-7 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[12px] rounded-sm transition-colors flex items-center justify-center" title="カメラON/OFF"><i class="fa-solid fa-video"></i></button>
+                        <button onclick="switchHostCamera()" class="w-8 h-7 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-sm transition-colors flex items-center justify-center" title="カメラ反転"><i class="fa-solid fa-rotate"></i></button>
+                        <button onclick="toggleHostCamPreview()" id="btn-host-cam-preview" class="w-8 h-7 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-sm transition-colors flex items-center justify-center" title="プレビュー表示切替"><i class="fa-solid fa-eye"></i></button>
+                        <button onclick="document.getElementById('host-cam-settings-modal').classList.remove('hidden')" class="w-8 h-7 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-sm transition-colors flex items-center justify-center" title="設定"><i class="fa-solid fa-gear"></i></button>
                     </div>
-                    <div class="flex gap-1.5">
-                        <select id="host-cam-resolution" onchange="applyHostCamConstraints()" class="flex-1 bg-[#0e0e10] border border-gray-700 text-gray-300 text-[9px] p-1 rounded-sm outline-none">
-                            <option value="1080">1080p</option>
-                            <option value="720" selected>720p</option>
-                            <option value="480">480p</option>
-                            <option value="360">360p</option>
-                        </select>
-                        <select id="host-cam-bitrate" onchange="applyHostCamBitrate()" class="flex-1 bg-[#0e0e10] border border-gray-700 text-gray-300 text-[9px] p-1 rounded-sm outline-none">
-                            <option value="0">ビットレート自動</option>
-                            <option value="4000">4000 kbps (高画質)</option>
-                            <option value="2500" selected>2500 kbps (標準)</option>
-                            <option value="1000">1000 kbps (軽量)</option>
-                        </select>
-                    </div>
-                    <button onclick="toggleHostLocalCamera()" class="w-full bg-red-950 hover:bg-red-900 text-red-400 border border-red-800 font-bold py-1.5 rounded-sm text-[10px] transition-colors mt-0.5"><i class="fa-solid fa-stop"></i> 配信を終了する</button>
+                    <button onclick="toggleHostLocalCamera()" class="w-8 h-7 bg-red-950 hover:bg-red-900 text-red-400 border border-red-800 rounded-sm text-[12px] transition-colors shrink-0 flex items-center justify-center" title="配信終了"><i class="fa-solid fa-power-off"></i></button>
                 </div>
 
                 <div id="mobile-controls-container" class="lg:hidden flex flex-col gap-2 shrink-0 mt-1">
@@ -2136,8 +2158,9 @@
         }
 
         async function toggleHostLocalCamera() {
-            const startBtn = document.getElementById('btn-start-local-cam');
+            const preControls = document.getElementById('cam-pre-controls');
             const controlPanel = document.getElementById('host-cam-controls');
+            const btn = document.getElementById('btn-start-local-cam');
             
             if (localHostStream) {
                 // 停止処理
@@ -2152,24 +2175,28 @@
                     previewVid.classList.add('hidden');
                     document.getElementById('host-stream-offline').classList.remove('hidden');
                 }
-                startBtn.classList.remove('hidden');
+                preControls.classList.remove('hidden');
+                preControls.classList.add('flex');
                 controlPanel.classList.replace('flex', 'hidden');
+                
+                btn.innerHTML = '<i class="fa-solid fa-video"></i> Stream Start';
             } else {
                 // 開始処理
                 try {
-                    startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 起動中...';
+                    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> STARTING...';
                     await startCameraWithFacingMode();
                     
-                    startBtn.classList.add('hidden');
+                    preControls.classList.add('hidden');
+                    preControls.classList.remove('flex');
                     controlPanel.classList.replace('hidden', 'flex');
-                    startBtn.innerHTML = '<i class="fa-solid fa-camera"></i> スマホカメラで配信開始';
                     
-                    // 配信開始したら自動的にワイプからメイン画面に切り替える（スマホのみ）
+                    btn.innerHTML = '<i class="fa-solid fa-video"></i> Stream Start'; // 戻しておく
+                    
                     if (window.innerWidth < 1024 && isJukeboxMain) swapMedia('stream');
                 } catch (e) {
                     console.error("Camera error:", e);
                     showToast("カメラ起動失敗。権限を確認してください", "error");
-                    startBtn.innerHTML = '<i class="fa-solid fa-camera"></i> スマホカメラで配信開始';
+                    btn.innerHTML = '<i class="fa-solid fa-video"></i> Stream Start';
                 }
             }
         }
@@ -2190,11 +2217,11 @@
                 track.enabled = !track.enabled;
                 const btn = document.getElementById('btn-host-cam-audio');
                 if(track.enabled) {
-                    btn.innerHTML = '<i class="fa-solid fa-microphone"></i> 音声ON';
-                    btn.className = "flex-1 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                    btn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+                    btn.className = "w-8 h-7 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[12px] rounded-sm transition-colors flex items-center justify-center";
                 } else {
-                    btn.innerHTML = '<i class="fa-solid fa-microphone-slash"></i> 音声OFF';
-                    btn.className = "flex-1 bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                    btn.innerHTML = '<i class="fa-solid fa-microphone-slash"></i>';
+                    btn.className = "w-8 h-7 bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-800 text-[12px] rounded-sm transition-colors flex items-center justify-center";
                 }
             }
         }
@@ -2206,11 +2233,11 @@
                 track.enabled = !track.enabled;
                 const btn = document.getElementById('btn-host-cam-video');
                 if(track.enabled) {
-                    btn.innerHTML = '<i class="fa-solid fa-video"></i> 映像ON';
-                    btn.className = "flex-1 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                    btn.innerHTML = '<i class="fa-solid fa-video"></i>';
+                    btn.className = "w-8 h-7 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[12px] rounded-sm transition-colors flex items-center justify-center";
                 } else {
-                    btn.innerHTML = '<i class="fa-solid fa-video-slash"></i> 映像OFF';
-                    btn.className = "flex-1 bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                    btn.innerHTML = '<i class="fa-solid fa-video-slash"></i>';
+                    btn.className = "w-8 h-7 bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-800 text-[12px] rounded-sm transition-colors flex items-center justify-center";
                 }
             }
         }
@@ -2228,7 +2255,7 @@
                 btn.classList.replace('text-gray-300', 'text-indigo-400');
             }
         }
-
+        
         async function applyHostCamConstraints() {
             if (!localHostStream) return;
             const res = document.getElementById('host-cam-resolution').value;
