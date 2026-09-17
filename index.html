@@ -439,6 +439,21 @@
         let sortableQueue = null; // ★追加：SortableJS用
         let bgmQueue = [];
         let historyQueue = [];
+
+        // ★追加：チャットネームカラーの定義（ダークテーマに映えるネオン/パステル10色）
+        const NAME_COLORS = [
+            'text-red-400', 'text-pink-400', 'text-purple-400', 'text-indigo-400',
+            'text-blue-400', 'text-cyan-400', 'text-teal-400', 'text-green-400',
+            'text-yellow-400', 'text-orange-400'
+        ];
+        
+        // ★追加：自分の色を取得（なければランダムに割り当てて保存）
+        let myNameColor = localStorage.getItem('jukebox_name_color');
+        if (!myNameColor || !NAME_COLORS.includes(myNameColor)) {
+            myNameColor = NAME_COLORS[Math.floor(Math.random() * NAME_COLORS.length)];
+            localStorage.setItem('jukebox_name_color', myNameColor);
+        }
+
         let chatHistory = []; 
         let currentSong = null;
         let player = null;
@@ -1167,8 +1182,9 @@
                 stopBroadcastStream();
             }
             else if(data.type === 'chat') {
+                // ★修正：受信したチャットデータに color を含める（無ければデフォルト色）
                 const newChat = {
-                    id: generateId(), text: data.text, sender: data.sender, senderReal: data.senderReal, isAnon: data.isAnon, isRemote: data.isRemote, time: Date.now()
+                    id: generateId(), text: data.text, sender: data.sender, senderReal: data.senderReal, isAnon: data.isAnon, isRemote: data.isRemote, color: data.color || 'text-gray-400', time: Date.now()
                 };
                 
                 if(!chatHistory.some(c => c.id === newChat.id)) {
@@ -1957,7 +1973,8 @@
             const sender = `👑 ${hostName}`;
             const senderReal = hostName;
             
-            handleHostData({type: 'chat', text: text, sender: sender, senderReal: senderReal, isAnon: false, isRemote: true}, {peer: 'host-self'});
+            // ★修正：color: myNameColor を追加して送信
+            handleHostData({type: 'chat', text: text, sender: sender, senderReal: senderReal, isAnon: false, isRemote: true, color: myNameColor}, {peer: 'host-self'});
             document.getElementById(inputId).value = '';
         }
 
@@ -1974,20 +1991,25 @@
             container.innerHTML = '';
             chats.forEach(c => {
                 const div = document.createElement('div');
-                div.className = "text-[11px] bg-[#18181b] border border-gray-800 p-2 rounded-sm mb-1 flex justify-between group shadow-sm";
+                div.className = "text-[12px] leading-relaxed flex items-center justify-between group py-1 px-1.5 border-b border-gray-800/40 hover:bg-gray-800/30 rounded-sm";
                 
                 const dispName = c.isAnon ? '184(匿名)' : c.senderReal;
-                const badge = c.isRemote ? '<span class="text-yellow-600 mr-1 font-bold">ADMIN</span>' : '';
+                const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400 mr-1"></i>' : '';
+                
+                // 管理者は黄色、匿名はグレー、その他は割り当てられたパステル/ネオンカラー
+                let nameColor = 'text-gray-400';
+                if (c.isRemote) nameColor = 'text-yellow-400';
+                else if (!c.isAnon && c.color) nameColor = c.color;
                 
                 div.innerHTML = `
-                    <div class="flex-1 min-w-0">
-                        <span class="text-[9px] text-gray-500 font-bold block truncate mb-0.5">${badge}${dispName}</span>
-                        <p class="text-gray-300 break-all">${c.text}</p>
+                    <div class="flex-1 break-words min-w-0 mr-2">
+                        <span class="font-bold ${nameColor}">${badge}${dispName}:</span>
+                        <span class="text-gray-200 ml-1">${c.text}</span>
                     </div>
                 `;
                 const delBtn = document.createElement('button');
-                delBtn.className = "text-gray-700 hover:text-red-500 opacity-0 group-hover:opacity-100 px-2 transition-all flex-shrink-0";
-                delBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+                delBtn.className = "text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 px-1.5 py-0.5 transition-opacity flex-shrink-0";
+                delBtn.innerHTML = '<i class="fa-solid fa-trash-can text-[10px]"></i>';
                 delBtn.onclick = () => deleteChat(c.id);
                 div.appendChild(delBtn);
                 
