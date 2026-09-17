@@ -1092,12 +1092,21 @@ function switchRemoteLayer(layer) {
             return match ? match[1] : null;
         }
 
+        // ★修正：中略で壊れていた関数を完全に復元！
         function sendRemoteRequest() {
-            // ～～中略～～
+            const inputEl = document.getElementById('remote-url');
+            if(!inputEl) return;
+            const url = inputEl.value.trim();
+            if(!url) return;
+
+            const vid = extractVideoId(url);
+            
             if(vid) {
-                listenerConn.send({ type: 'request', videoId: vid, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
-                document.getElementById('remote-url').value = '';
-                // showToast("追加しました！");
+                if(listenerConn && listenerConn.open) {
+                    listenerConn.send({ type: 'request', videoId: vid, requester: `👑 配信管理者`, requesterReal: '配信管理者', isAnon: false, isRemote: true });
+                    inputEl.value = ''; // 成功したら入力をクリア
+                    // showToast("追加しました！");
+                }
             } else {
                 // showToast("無効なYouTube URLです", "error");
             }
