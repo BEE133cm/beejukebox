@@ -1285,26 +1285,67 @@ function handleSyncPlayback(data) {
             return match ? match[1] : null;
         }
 
-        // --- ★追加：アプリ内検索機能 (Piped API に変更) ---
-        // CORSが通りやすく安定しているPipedのパブリックインスタンス
-        const PIPED_INSTANCES = [
-            "https://pipedapi.kavin.rocks",
-            "https://pipedapi.tokhmi.xyz",
-            "https://pipedapi.syncpundit.io"
+        // --- ★追加：アプリ内検索機能 (CORSプロキシ + Invidious API) ---
+        // CORS回避プロキシと、安定しているInvidiousインスタンスの組み合わせ
+        const INVIDIOUS_INSTANCES = [
+            "https://vid.puffyan.us",
+            "https://invidious.jing.rocks",
+            "https://invidious.nerdvpn.de"
         ];
 
         async function searchYouTube(query) {
-            for (const instance of PIPED_INSTANCES) {
+            for (const instance of INVIDIOUS_INSTANCES) {
                 try {
-                    const response = await fetch(`${instance}/search?q=${encodeURIComponent(query)}&filter=videos`);
+                    // ★ CORSプロキシ (corsproxy.io) を通してリクエストを送る
+                    const targetUrl = `${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video&sort_by=relevance`;
+                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+                    
+                    const response = await fetch(proxyUrl);
                     if (!response.ok) continue;
                     const data = await response.json();
-                    if (data && data.items && data.items.length > 0) return data.items;
+                    if (data && data.length > 0) return data;
                 } catch (error) {
-                    console.warn(`Search failed on ${instance}`, error);
+                    console.warn(`Search failed on proxy for ${instance}`, error);
                 }
             }
             throw new Error("すべての検索サーバーが応答しませんでした");
+        }
+
+        function renderSearchResults(results) {
+            const container = document.getElementById('search-results-container');
+            const listEl = document.getElementById('search-results-list');
+            if(!container || !listEl) return;
+
+            listEl.innerHTML = '';
+            
+            // 上位10件だけ表示 (Invidious APIのデータ構造に合わせる)
+            results.slice(0, 10).forEach(item => {
+                const div = document.createElement('div');
+                div.className = "flex gap-2 p-1.5 hover:bg-gray-800 rounded-sm cursor-pointer transition-colors border border-transparent hover:border-gray-700 items-center group";
+                
+                // サムネイル（一番解像度が低いものを取得して軽くする）
+                const thumbUrl = item.videoThumbnails && item.videoThumbnails.length > 0 ? item.videoThumbnails[0].url : '';
+                
+                div.innerHTML = `
+                    <div class="w-16 h-9 bg-gray-900 flex-shrink-0 rounded-sm overflow-hidden relative">
+                        <img src="${thumbUrl}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[10px] text-gray-200 font-bold truncate leading-tight group-hover:text-indigo-300 transition-colors">${item.title}</p>
+                        <p class="text-[8px] text-gray-500 truncate mt-0.5">${item.author}</p>
+                    </div>
+                    <div class="text-[10px] text-gray-600 px-1"><i class="fa-solid fa-plus"></i></div>
+                `;
+                
+                div.onclick = () => {
+                    executeRequest(item.videoId);
+                    closeSearchResults();
+                };
+                
+                listEl.appendChild(div);
+            });
+
+            container.classList.remove('hidden');
         }
 
         function closeSearchResults() {
