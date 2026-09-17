@@ -127,6 +127,38 @@
         <span id="toast-msg"></span>
     </div>
 
+    <!-- ★★★ この下に追加 ★★★ -->
+    <!-- ホスト用カメラ設定モーダル -->
+    <div id="host-cam-settings-modal" class="hidden fixed inset-0 z-[6000] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-[#18181b] border border-indigo-500/50 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center relative">
+            <button onclick="document.getElementById('host-cam-settings-modal').classList.add('hidden')" class="absolute top-3 right-3 text-gray-400 hover:text-white bg-gray-800 rounded-full w-6 h-6 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="text-sm font-bold text-gray-200 mb-4 border-b border-gray-700 pb-2"><i class="fa-solid fa-video"></i> CAMERA SETTINGS</h3>
+            <div class="space-y-4 text-left">
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 mb-1">RESOLUTION (解像度)</label>
+                    <select id="host-cam-resolution" onchange="applyHostCamConstraints()" class="w-full bg-[#0e0e10] border border-gray-700 text-white text-xs p-2 rounded-sm outline-none focus:border-indigo-500">
+                        <option value="1080">1080p (FHD)</option>
+                        <option value="720" selected>720p (HD)</option>
+                        <option value="480">480p (SD)</option>
+                        <option value="360">360p (Low)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-400 mb-1">BITRATE (画質・通信量)</label>
+                    <select id="host-cam-bitrate" onchange="applyHostCamBitrate()" class="w-full bg-[#0e0e10] border border-gray-700 text-white text-xs p-2 rounded-sm outline-none focus:border-indigo-500">
+                        <option value="0">自動設定</option>
+                        <option value="4000">4000 kbps (高画質)</option>
+                        <option value="2500" selected>2500 kbps (標準)</option>
+                        <option value="1000">1000 kbps (軽量)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-6">
+                <button onclick="document.getElementById('host-cam-settings-modal').classList.add('hidden')" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-sm text-xs transition-colors">完了</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ================= 1. ルーム作成画面 ================= -->
     <div id="setup-view" class="w-full max-w-sm bg-[#18181b] border border-gray-700 p-6 shadow-2xl m-auto relative overflow-hidden rounded-sm">
         <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-600 to-indigo-400"></div>
@@ -2135,9 +2167,14 @@
             startAudioMeter(localHostStream);
         }
 
+        function showHostCamSettings() {
+            document.getElementById('host-cam-settings-modal').classList.remove('hidden');
+        }
+
         async function toggleHostLocalCamera() {
-            const startBtn = document.getElementById('btn-start-local-cam');
+            const preControls = document.getElementById('cam-pre-controls');
             const controlPanel = document.getElementById('host-cam-controls');
+            const btn = document.getElementById('btn-start-local-cam');
             
             if (localHostStream) {
                 // 停止処理
@@ -2152,24 +2189,28 @@
                     previewVid.classList.add('hidden');
                     document.getElementById('host-stream-offline').classList.remove('hidden');
                 }
-                startBtn.classList.remove('hidden');
+                preControls.classList.remove('hidden');
+                preControls.classList.add('flex');
                 controlPanel.classList.replace('flex', 'hidden');
+                
+                btn.innerHTML = '<i class="fa-solid fa-video"></i> Stream Start';
             } else {
                 // 開始処理
                 try {
-                    startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 起動中...';
+                    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> STARTING...';
                     await startCameraWithFacingMode();
                     
-                    startBtn.classList.add('hidden');
+                    preControls.classList.add('hidden');
+                    preControls.classList.remove('flex');
                     controlPanel.classList.replace('hidden', 'flex');
-                    startBtn.innerHTML = '<i class="fa-solid fa-camera"></i> スマホカメラで配信開始';
                     
-                    // 配信開始したら自動的にワイプからメイン画面に切り替える（スマホのみ）
+                    btn.innerHTML = '<i class="fa-solid fa-video"></i> Stream Start'; // 戻しておく
+                    
                     if (window.innerWidth < 1024 && isJukeboxMain) swapMedia('stream');
                 } catch (e) {
                     console.error("Camera error:", e);
                     showToast("カメラ起動失敗。権限を確認してください", "error");
-                    startBtn.innerHTML = '<i class="fa-solid fa-camera"></i> スマホカメラで配信開始';
+                    btn.innerHTML = '<i class="fa-solid fa-video"></i> Stream Start';
                 }
             }
         }
@@ -2190,11 +2231,11 @@
                 track.enabled = !track.enabled;
                 const btn = document.getElementById('btn-host-cam-audio');
                 if(track.enabled) {
-                    btn.innerHTML = '<i class="fa-solid fa-microphone"></i> 音声ON';
-                    btn.className = "flex-1 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                    btn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+                    btn.className = "w-8 h-7 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[12px] rounded-sm transition-colors flex items-center justify-center";
                 } else {
-                    btn.innerHTML = '<i class="fa-solid fa-microphone-slash"></i> 音声OFF';
-                    btn.className = "flex-1 bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                    btn.innerHTML = '<i class="fa-solid fa-microphone-slash"></i>';
+                    btn.className = "w-8 h-7 bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-800 text-[12px] rounded-sm transition-colors flex items-center justify-center";
                 }
             }
         }
@@ -2206,11 +2247,11 @@
                 track.enabled = !track.enabled;
                 const btn = document.getElementById('btn-host-cam-video');
                 if(track.enabled) {
-                    btn.innerHTML = '<i class="fa-solid fa-video"></i> 映像ON';
-                    btn.className = "flex-1 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                    btn.innerHTML = '<i class="fa-solid fa-video"></i>';
+                    btn.className = "w-8 h-7 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[12px] rounded-sm transition-colors flex items-center justify-center";
                 } else {
-                    btn.innerHTML = '<i class="fa-solid fa-video-slash"></i> 映像OFF';
-                    btn.className = "flex-1 bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                    btn.innerHTML = '<i class="fa-solid fa-video-slash"></i>';
+                    btn.className = "w-8 h-7 bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-800 text-[12px] rounded-sm transition-colors flex items-center justify-center";
                 }
             }
         }
@@ -2220,12 +2261,12 @@
             const btn = document.getElementById('btn-host-cam-preview');
             if(vid.style.opacity === '0') {
                 vid.style.opacity = '1';
-                btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
-                btn.classList.replace('text-indigo-400', 'text-gray-300');
+                btn.innerHTML = '<i class="fa-solid fa-eye"></i>';
+                btn.classList.replace('text-gray-500', 'text-gray-300');
             } else {
                 vid.style.opacity = '0';
-                btn.innerHTML = '<i class="fa-solid fa-eye"></i>';
-                btn.classList.replace('text-gray-300', 'text-indigo-400');
+                btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+                btn.classList.replace('text-gray-300', 'text-gray-500');
             }
         }
 
