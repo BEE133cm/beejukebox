@@ -372,6 +372,16 @@
                                 </div>
                             </label>
                         </div>
+                        
+                        <!-- ★追加：曲の長さ制限（MAX DURATION） -->
+                        <div class="border-t border-gray-800 pt-3 mt-4">
+                            <label class="block text-[10px] font-bold text-gray-400 mb-1"><i class="fa-solid fa-stopwatch text-indigo-400"></i> 再生時間の制限 (分 / 0で無制限)</label>
+                            <div class="flex gap-2">
+                                <input type="number" id="remote-duration-limit" value="10" min="0" class="flex-1 bg-[#18181b] border border-gray-700 rounded p-2 text-white text-xs outline-none focus:border-indigo-500">
+                                <button onclick="sendRemoteDurationUpdate()" class="bg-gray-700 hover:bg-gray-600 text-white px-3 rounded text-xs font-bold transition-colors">設定</button>
+                            </div>
+                        </div>
+
                         <div class="border-t border-gray-800 pt-3 mt-4">
                             <h3 class="text-xs font-bold text-gray-400 mb-2"><i class="fa-solid fa-link"></i> 共有URL一覧</h3>
                             <div class="space-y-2.5">
@@ -1059,6 +1069,18 @@ function switchRemoteLayer(layer) {
             }
         }
 
+        // ★追加：再生時間の制限をホストに送信する関数
+        function sendRemoteDurationUpdate() {
+            const minEl = document.getElementById('remote-duration-limit');
+            if(minEl && listenerConn && listenerConn.open) {
+                const minutes = parseInt(minEl.value);
+                if (!isNaN(minutes)) {
+                    listenerConn.send({ type: 'remote_cmd', cmd: 'manage', action: 'update_duration', targetId: minutes });
+                    showToast(`${minutes === 0 ? '無制限' : minutes + '分'} に設定しました`);
+                }
+            }
+        }
+
         function handleRemotePool(action, id) {
             if(listenerConn && listenerConn.open) {
                 listenerConn.send({ type: 'remote_cmd', cmd: 'manage', action: action === 'approve' ? 'approve_req' : 'reject_req', targetId: id });
@@ -1390,10 +1412,16 @@ function handleSyncPlayback(data) {
 
         function renderRemoteState(state) {
             window.currentSong = state.currentSong || null;
-            // ★追加：isRequestStopped を受け取るように修正
-            const { queue, requestPool, isAutoApprove, isRequestStopped, historyQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, theme: hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
+            // ★修正：isRequestStopped と durationLimit を受け取るように修正
+            const { queue, requestPool, isAutoApprove, isRequestStopped, durationLimit, historyQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, theme: hostTheme, isLive, cameraApprovalMode: serverCamAppMode, participants, bannedUsers } = state;
             
             const toggleEl = document.getElementById('remote-cam-approval-toggle');
+            
+            // ★追加：現在のホスト側の長さ制限を受信して表示に反映（フォーカス中でない場合のみ）
+            const durationEl = document.getElementById('remote-duration-limit');
+            if (durationEl && durationLimit !== undefined && document.activeElement !== durationEl) {
+                durationEl.value = Math.floor(durationLimit / 60); // 秒から分に変換して表示
+            }
             if (toggleEl) toggleEl.checked = serverCamAppMode;
             
             // ★追加：自動承認トグルの更新
