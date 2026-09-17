@@ -6,7 +6,7 @@
     <title>Remote Jukebox - Controller</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="[https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css](https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css)">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #0e0e10; color: white; overscroll-behavior-y: none; }
@@ -239,10 +239,17 @@
                 <button onclick="switchRemoteLayer('cam')" id="remote-tab-cam" class="px-4 py-1.5 rounded-full bg-gray-700 text-gray-400 text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-video"></i> Stream</button>
                 <button onclick="switchRemoteLayer('wp')" id="remote-tab-wp" class="px-4 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"><i class="fa-solid fa-music"></i> Jukebox</button>
             </div>
-            <!-- 設定モーダル呼び出しボタン -->
-            <button onclick="document.getElementById('remote-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
-                <i class="fa-solid fa-gear"></i>
-            </button>
+            
+            <!-- ★追加：右側にXシェアボタンとギアマークを並べる -->
+            <div class="flex items-center gap-2">
+                <button onclick="shareToX()" class="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center shadow transition-colors hover:bg-gray-900 border border-gray-700" title="Xでシェア">
+                    <i class="fa-brands fa-x-twitter"></i>
+                </button>
+                <!-- 設定モーダル呼び出しボタン -->
+                <button onclick="document.getElementById('remote-settings-modal').classList.remove('hidden')" class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 flex items-center justify-center shadow transition-colors hover:bg-gray-600 hover:text-white" title="設定">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+            </div>
         </div>
 
         <!-- 基本コントロール (テーマ入力 & 再生ボタン) -->
@@ -1618,6 +1625,19 @@ function handleSyncPlayback(data) {
             }
         }
         
+        // ★追加：X（旧Twitter）へのシェア機能
+        function shareToX() {
+            const themeText = document.getElementById('remote-input-theme').value || window.hostTheme || "BGM配信中";
+            // コントローラー画面では、表示用のリスナーURL入力欄のIDを正しく取得
+            const listenerUrl = document.getElementById('remote-url-listener') ? document.getElementById('remote-url-listener').value : "";
+            
+            const text = `🎵 Remote Jukeboxで同時視聴中！\nテーマ: ${themeText}\n\n👇 リスナー参加はこちらから！\n`;
+            const hashtags = "RemoteJukebox";
+            
+            const shareUrl = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(listenerUrl)}&hashtags=${encodeURIComponent(hashtags)}`;
+            window.open(shareUrl, '_blank', 'width=600,height=400');
+        }
+
     </script>
 </body>
 </html>
