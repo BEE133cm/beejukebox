@@ -344,30 +344,15 @@
                 <!-- アコーディオンの中身 (チャットを隠して表示) -->
                 <div class="p-4 space-y-6 bg-[#111827] border-t border-gray-800 h-full overflow-y-auto pb-32">
                     
-                    <!-- ① リクエスト送信 ＆ 検索 -->
-                    <div class="space-y-3 relative z-20">
+                    <!-- ① リクエスト送信 -->
+                    <div class="space-y-3">
                         <h3 class="text-xs font-bold text-indigo-400 flex items-center gap-1">
                             <i class="fa-solid fa-arrow-down text-indigo-400"></i> リクエストはこちらから！
                             <button onclick="document.getElementById('tutorial-modal').classList.remove('hidden')" class="bg-gray-700 text-gray-300 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-2"><i class="fa-solid fa-question"></i></button>
                         </h3>
-                        <div class="flex flex-col gap-2 relative">
-                            <div class="flex gap-1.5">
-                                <input type="text" id="listener-url" onkeypress="if(event.key === 'Enter') handleRequestOrSearch()" placeholder="曲名で検索、またはURLをペースト..." class="flex-1 bg-[#0e0e10] border border-gray-700 rounded-sm p-2 text-white text-xs outline-none focus:border-indigo-500 transition-colors shadow-inner">
-                                <button onclick="handleRequestOrSearch()" id="btn-request-submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 w-12 rounded-sm text-xs font-bold transition-colors flex items-center justify-center shadow-sm">
-                                    <i class="fa-solid fa-magnifying-glass"></i>
-                                </button>
-                            </div>
-                            
-                            <!-- ★追加：検索結果のリスト表示領域（最初は非表示） -->
-                            <div id="search-results-container" class="hidden absolute top-full left-0 w-full mt-1 bg-[#18181b] border border-gray-700 rounded-sm shadow-2xl z-50 flex flex-col max-h-[40vh] overflow-hidden">
-                                <div class="flex justify-between items-center bg-[#27272a] p-1.5 border-b border-gray-700 shrink-0">
-                                    <span class="text-[10px] font-bold text-gray-300 ml-1"><i class="fa-brands fa-youtube text-red-500 mr-1"></i>検索結果</span>
-                                    <button onclick="closeSearchResults()" class="text-gray-400 hover:text-white w-6 h-6 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-                                <div id="search-results-list" class="flex-1 overflow-y-auto p-1.5 space-y-1 bg-[#0e0e10]">
-                                    <!-- 検索結果がここに入ります -->
-                                </div>
-                            </div>
+                        <div class="flex gap-2">
+                            <input type="text" id="listener-url" placeholder="https://youtu.be/..." class="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white text-xs outline-none focus:border-indigo-500">
+                            <button onclick="sendRequest()" class="bg-red-600 hover:bg-red-500 text-white px-4 rounded text-xs font-bold transition-colors">送信</button>
                         </div>
                     </div>
 
@@ -1278,219 +1263,33 @@ function handleSyncPlayback(data) {
         }
 
         function extractVideoId(url) {
-            if (!url) return null;
-            // 単なる11桁のIDが直接渡された場合も許容する
-            if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
             const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/);
             return match ? match[1] : null;
         }
 
-        // --- ★追加：アプリ内検索機能 (Apify Public API) ---
-        // CORSエラーが起きず、APIキー不要で叩けるパブリックエンドポイントを利用
-        async function searchYouTube(query) {
-            try {
-                // Piped APIの別の公開インスタンス (CORS制限が緩いものを直接叩く)
-                // ※うまくいかなかったら複数インスタンスを巡回する方式に戻します
-                const apiUrl = `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=videos`;
-                const response = await fetch(apiUrl);
-                
-                if (!response.ok) {
-                    throw new Error("検索サーバーが応答しませんでした");
-                }
-                
-                const data = await response.json();
-                if (data && data.items && data.items.length > 0) {
-                    return data.items;
-                } else {
-                    return []; // 結果なし
-                }
-            } catch (error) {
-                console.error("Search API Error:", error);
-                throw error;
-            }
-        }
-
-        function renderSearchResults(results) {
-            const container = document.getElementById('search-results-container');
-            const listEl = document.getElementById('search-results-list');
-            if(!container || !listEl) return;
-
-            listEl.innerHTML = '';
-            
-            if (results.length === 0) {
-                 listEl.innerHTML = '<p class="text-xs text-gray-500 p-2 text-center">見つかりませんでした</p>';
-                 container.classList.remove('hidden');
-                 return;
+        function sendRequest() {
+            const urlInput = document.getElementById('listener-url');
+            // ★追加：受付停止中は弾く
+            if (urlInput && urlInput.disabled) {
+                return showToast("現在リクエスト受付を停止しています", "error");
             }
             
-            // 上位10件だけ表示 (Piped APIのデータ構造に合わせる)
-            results.slice(0, 10).forEach(item => {
-                const div = document.createElement('div');
-                div.className = "flex gap-2 p-1.5 hover:bg-gray-800 rounded-sm cursor-pointer transition-colors border border-transparent hover:border-gray-700 items-center group";
-                
-                // サムネイル画像のURLを取得 (Pipedの場合は .thumbnail)
-                const thumbUrl = item.thumbnail || '';
-                // videoIdを取得 (Pipedの場合はURLから抽出するか、URL属性から切り取る)
-                const videoId = item.url ? item.url.replace('/watch?v=', '') : '';
-                
-                div.innerHTML = `
-                    <div class="w-16 h-9 bg-gray-900 flex-shrink-0 rounded-sm overflow-hidden relative">
-                        <img src="${thumbUrl}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-[10px] text-gray-200 font-bold truncate leading-tight group-hover:text-indigo-300 transition-colors">${item.title}</p>
-                        <p class="text-[8px] text-gray-500 truncate mt-0.5">${item.uploaderName}</p>
-                    </div>
-                    <div class="text-[10px] text-gray-600 px-1"><i class="fa-solid fa-plus"></i></div>
-                `;
-                
-                div.onclick = () => {
-                    if (videoId) {
-                        executeRequest(videoId);
-                        closeSearchResults();
-                    } else {
-                        showToast("動画IDが取得できませんでした", "error");
-                    }
-                };
-                
-                listEl.appendChild(div);
-            });
-
-            container.classList.remove('hidden');
-        }
-
-        function renderSearchResults(results) {
-            const container = document.getElementById('search-results-container');
-            const listEl = document.getElementById('search-results-list');
-            if(!container || !listEl) return;
-
-            listEl.innerHTML = '';
-            
-            // 上位10件だけ表示 (Invidious APIのデータ構造に合わせる)
-            results.slice(0, 10).forEach(item => {
-                const div = document.createElement('div');
-                div.className = "flex gap-2 p-1.5 hover:bg-gray-800 rounded-sm cursor-pointer transition-colors border border-transparent hover:border-gray-700 items-center group";
-                
-                // サムネイル（一番解像度が低いものを取得して軽くする）
-                const thumbUrl = item.videoThumbnails && item.videoThumbnails.length > 0 ? item.videoThumbnails[0].url : '';
-                
-                div.innerHTML = `
-                    <div class="w-16 h-9 bg-gray-900 flex-shrink-0 rounded-sm overflow-hidden relative">
-                        <img src="${thumbUrl}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-[10px] text-gray-200 font-bold truncate leading-tight group-hover:text-indigo-300 transition-colors">${item.title}</p>
-                        <p class="text-[8px] text-gray-500 truncate mt-0.5">${item.author}</p>
-                    </div>
-                    <div class="text-[10px] text-gray-600 px-1"><i class="fa-solid fa-plus"></i></div>
-                `;
-                
-                div.onclick = () => {
-                    executeRequest(item.videoId);
-                    closeSearchResults();
-                };
-                
-                listEl.appendChild(div);
-            });
-
-            container.classList.remove('hidden');
-        }
-
-        function closeSearchResults() {
-            const container = document.getElementById('search-results-container');
-            if(container) container.classList.add('hidden');
-        }
-
-        async function handleRequestOrSearch() {
-            const inputEl = document.getElementById('listener-url');
-            if (inputEl && inputEl.disabled) return showToast("現在リクエスト受付を停止しています", "error");
-            
-            const name = document.getElementById('listener-name').value.trim();
-            if(!name) return showToast("設定から名前を入力してください！", "error");
-
-            const inputVal = inputEl.value.trim();
-            if(!inputVal) return;
-
-            const btn = document.getElementById('btn-request-submit');
-            
-            // URLっぽい場合は今まで通り直接リクエスト
-            const vid = extractVideoId(inputVal);
-            if (vid) {
-                executeRequest(vid);
-                return;
-            }
-
-            // URLじゃなければ検索を実行
-            try {
-                if(btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-                const results = await searchYouTube(inputVal);
-                renderSearchResults(results);
-            } catch (e) {
-                showToast("検索に失敗しました。時間をおいて試してください", "error");
-            } finally {
-                if(btn) btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i>';
-            }
-        }
-
-        function renderSearchResults(results) {
-            const container = document.getElementById('search-results-container');
-            const listEl = document.getElementById('search-results-list');
-            if(!container || !listEl) return;
-
-            listEl.innerHTML = '';
-            
-            // 上位10件だけ表示 (Piped APIのデータ構造に合わせる)
-            results.slice(0, 10).forEach(item => {
-                const div = document.createElement('div');
-                div.className = "flex gap-2 p-1.5 hover:bg-gray-800 rounded-sm cursor-pointer transition-colors border border-transparent hover:border-gray-700 items-center group";
-                
-                // サムネイル画像のURLを取得 (Pipedの場合は .thumbnail)
-                const thumbUrl = item.thumbnail || '';
-                // videoIdを取得 (Pipedの場合はURLから抽出するか、URL属性から切り取る)
-                const videoId = item.url ? item.url.replace('/watch?v=', '') : '';
-                
-                div.innerHTML = `
-                    <div class="w-16 h-9 bg-gray-900 flex-shrink-0 rounded-sm overflow-hidden relative">
-                        <img src="${thumbUrl}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-[10px] text-gray-200 font-bold truncate leading-tight group-hover:text-indigo-300 transition-colors">${item.title}</p>
-                        <p class="text-[8px] text-gray-500 truncate mt-0.5">${item.uploaderName}</p>
-                    </div>
-                    <div class="text-[10px] text-gray-600 px-1"><i class="fa-solid fa-plus"></i></div>
-                `;
-                
-                div.onclick = () => {
-                    if (videoId) {
-                        executeRequest(videoId);
-                        closeSearchResults();
-                    } else {
-                        showToast("動画IDが取得できませんでした", "error");
-                    }
-                };
-                
-                listEl.appendChild(div);
-            });
-
-            container.classList.remove('hidden');
-        }
-
-        function executeRequest(videoId) {
+            const url = urlInput.value;
             const name = document.getElementById('listener-name').value.trim();
             const isAnon = document.getElementById('listener-anon').checked;
-            
+            if(!name) return showToast("あなたの名前を入力してください！", "error");
+            if(!url) return showToast("URLを入力してください！", "error");
+
             localStorage.setItem('jukebox_guest_name', name);
             localStorage.setItem('jukebox_guest_anon', isAnon);
 
-            if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'request', videoId: videoId, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
+            const vid = extractVideoId(url);
+            if(vid) {
+                listenerConn.send({ type: 'request', videoId: vid, requester: isAnon ? '184(匿名)' : name, requesterReal: name, isAnon: isAnon });
                 document.getElementById('listener-url').value = '';
                 showToast("リクエストを送信しました！");
-            } else {
-                showToast("ホストとの通信が切断されています", "error");
-            }
+            } else showToast("無効なYouTube URLです", "error");
         }
-        // --- ★追加ここまで ---
 
         function cancelRequest(id) {
             listenerConn.send({ type: 'cancel', id: id });
