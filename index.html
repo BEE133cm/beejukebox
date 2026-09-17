@@ -204,34 +204,61 @@
                     <!-- 中略: NOWや映像ONボタンの行 -->
                 </div>
 
-                <!-- ★修正：PiP（ワイプ）対応メディアステージ -->
-                <div id="media-stage" class="relative w-full aspect-video bg-black rounded-sm overflow-hidden shrink-0 shadow-inner group">
+                <!-- ★修正：PiP（ワイプ）＆ 横画面対応メディアステージ -->
+                <div id="media-stage" class="relative w-full aspect-video lg:aspect-auto lg:flex lg:flex-row lg:gap-2 shrink-0 bg-black lg:bg-transparent rounded-sm">
                     
-                    <!-- JUKEBOX (初期メイン) -->
-                    <div id="wrapper-jukebox" class="absolute inset-0 w-full h-full z-10 cursor-default transition-all duration-300 ease-in-out" onclick="swapMedia('jukebox')">
+                    <!-- JUKEBOX -->
+                    <div id="wrapper-jukebox" class="absolute inset-0 z-10 cursor-default transition-all duration-300 lg:!static lg:!w-full lg:!h-full lg:!flex-1 lg:!border lg:!border-gray-700 lg:!shadow-inner lg:!rounded-sm lg:!overflow-hidden lg:!transform-none" onclick="swapMedia('jukebox')">
                         <div class="absolute top-1 left-1 bg-indigo-600/90 border border-indigo-400 px-1.5 py-0.5 text-[9px] font-bold z-30 text-white rounded-sm tracking-wider pointer-events-none">JUKEBOX</div>
-                        <div id="overlay-jukebox" class="hidden absolute inset-0 z-40 bg-transparent"></div> <!-- サブ画面時のみクリック検知 -->
+                        <div id="overlay-jukebox" class="hidden absolute inset-0 z-40 bg-transparent lg:hidden"></div>
                         <div id="youtube-player-container" class="w-full h-full"><div id="youtube-player"></div></div>
                     </div>
 
-                    <!-- STREAM (初期サブ/ワイプ) -->
-                    <div id="wrapper-stream" class="absolute bottom-2 right-2 w-[30%] aspect-video z-20 border border-gray-500 shadow-xl cursor-pointer hover:scale-105 bg-black rounded-sm transition-all duration-300 ease-in-out flex items-center justify-center overflow-hidden" onclick="swapMedia('stream')">
+                    <!-- STREAM -->
+                    <div id="wrapper-stream" class="absolute bottom-2 right-2 w-[30%] aspect-video z-20 border border-gray-500 shadow-xl cursor-pointer hover:scale-105 bg-black rounded-sm transition-all duration-300 flex items-center justify-center overflow-hidden lg:!static lg:!w-full lg:!h-full lg:!flex-1 lg:!border lg:!border-gray-700 lg:!shadow-inner lg:!cursor-default lg:!transform-none lg:!scale-100" onclick="swapMedia('stream')">
                         <div class="absolute top-1 left-1 bg-red-600/90 border border-red-400 px-1.5 py-0.5 text-[9px] font-bold z-30 text-white rounded-sm tracking-wider pointer-events-none">STREAM</div>
-                        <div id="overlay-stream" class="absolute inset-0 z-40 bg-transparent"></div> <!-- サブ画面時のみクリック検知 -->
+                        <div id="overlay-stream" class="absolute inset-0 z-40 bg-transparent lg:hidden"></div>
                         <span id="host-stream-offline" class="text-gray-700 text-[9px] font-black tracking-widest z-0 pointer-events-none">OFFLINE</span>
-                        <video id="host-stream-preview" playsinline muted class="w-full h-full object-cover absolute inset-0 z-10 hidden pointer-events-none"></video>
+                        <video id="host-stream-preview" playsinline muted class="w-full h-full object-cover absolute inset-0 z-10 hidden pointer-events-none transition-opacity duration-300"></video>
                     </div>
                 </div>
 
-                <!-- ★追加：スマホカメラ配信ボタン -->
-                <div class="flex gap-2 shrink-0 mt-1">
-                    <button id="btn-host-local-cam" onclick="toggleHostLocalCamera()" class="flex-1 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 font-bold py-2 rounded-sm text-[10px] transition-colors shadow flex items-center justify-center gap-1.5">
-                        <i class="fa-solid fa-camera"></i> スマホカメラで配信開始
-                    </button>
-                    <!-- インカメ/外カメ切り替えボタン (配信中のみ表示) -->
-                    <button id="btn-host-switch-cam" onclick="switchHostCamera()" class="hidden bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 font-bold px-4 py-2 rounded-sm text-[12px] transition-colors shadow items-center justify-center">
-                        <i class="fa-solid fa-rotate"></i>
-                    </button>
+                <!-- ★追加：スマホカメラ配信開始ボタン -->
+                <button id="btn-start-local-cam" onclick="toggleHostLocalCamera()" class="w-full bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 font-bold py-2 rounded-sm text-[10px] transition-colors shadow flex items-center justify-center gap-1.5 mt-1 shrink-0">
+                    <i class="fa-solid fa-camera"></i> スマホカメラで配信開始
+                </button>
+
+                <!-- ★追加：カメラコントロールパネル（配信中のみ表示） -->
+                <div id="host-cam-controls" class="hidden flex-col gap-1.5 bg-[#18181b] border border-gray-700 p-2 rounded-sm mt-1 shrink-0 shadow-sm">
+                    <div class="flex items-center justify-between border-b border-gray-800 pb-1 mb-0.5">
+                        <span class="text-[9px] font-bold text-red-400"><i class="fa-solid fa-video"></i> LOCAL CAMERA</span>
+                        <!-- 音量メーター -->
+                        <div class="flex items-center gap-1">
+                            <span class="text-[8px] text-gray-500">MIC</span>
+                            <div id="host-cam-vu" class="flex items-end gap-[1px] h-3 w-8"></div>
+                        </div>
+                    </div>
+                    <div class="flex gap-1.5">
+                        <button onclick="toggleHostCamAudio()" id="btn-host-cam-audio" class="flex-1 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors"><i class="fa-solid fa-microphone"></i> 音声ON</button>
+                        <button onclick="toggleHostCamVideo()" id="btn-host-cam-video" class="flex-1 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors"><i class="fa-solid fa-video"></i> 映像ON</button>
+                        <button onclick="switchHostCamera()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-1.5 rounded-sm transition-colors" title="カメラ反転"><i class="fa-solid fa-rotate"></i></button>
+                        <button onclick="toggleHostCamPreview()" id="btn-host-cam-preview" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-1.5 rounded-sm transition-colors" title="プレビューを隠す"><i class="fa-solid fa-eye-slash"></i></button>
+                    </div>
+                    <div class="flex gap-1.5">
+                        <select id="host-cam-resolution" onchange="applyHostCamConstraints()" class="flex-1 bg-[#0e0e10] border border-gray-700 text-gray-300 text-[9px] p-1 rounded-sm outline-none">
+                            <option value="1080">1080p</option>
+                            <option value="720" selected>720p</option>
+                            <option value="480">480p</option>
+                            <option value="360">360p</option>
+                        </select>
+                        <select id="host-cam-bitrate" onchange="applyHostCamBitrate()" class="flex-1 bg-[#0e0e10] border border-gray-700 text-gray-300 text-[9px] p-1 rounded-sm outline-none">
+                            <option value="0">ビットレート自動</option>
+                            <option value="4000">4000 kbps (高画質)</option>
+                            <option value="2500" selected>2500 kbps (標準)</option>
+                            <option value="1000">1000 kbps (軽量)</option>
+                        </select>
+                    </div>
+                    <button onclick="toggleHostLocalCamera()" class="w-full bg-red-950 hover:bg-red-900 text-red-400 border border-red-800 font-bold py-1.5 rounded-sm text-[10px] transition-colors mt-0.5"><i class="fa-solid fa-stop"></i> 配信を終了する</button>
                 </div>
 
                 <div id="mobile-controls-container" class="lg:hidden flex flex-col gap-2 shrink-0 mt-1">
@@ -1944,7 +1971,12 @@
             if(listener && listener.conn.open) {
                 const call = peer.call(peerId, currentStreamToListeners);
                 listener.call = call;
-                setTimeout(() => applyBitrate(call, 2500), 1000); 
+                // ★修正：固定2500bpsではなく設定値を使用
+                const bpsEl = document.getElementById('host-cam-bitrate');
+                const bps = bpsEl ? parseInt(bpsEl.value) : 2500;
+                setTimeout(() => {
+                    if (bps > 0) applyBitrate(call, bps);
+                }, 1000); 
             }
         }
 
@@ -2038,6 +2070,7 @@
         // --- ピクチャー・イン・ピクチャー (PiP) の切り替え処理 ---
         let isJukeboxMain = true;
         function swapMedia(target) {
+            if (window.innerWidth >= 1024) return; // PCはスワップ無効（常に横並び）
             if (target === 'jukebox' && isJukeboxMain) return;
             if (target === 'stream' && !isJukeboxMain) return;
             
@@ -2045,43 +2078,49 @@
             
             const wJuke = document.getElementById('wrapper-jukebox');
             const wStream = document.getElementById('wrapper-stream');
-            const oJuke = document.getElementById('overlay-jukebox');
-            const oStream = document.getElementById('overlay-stream');
-
-            const mainClasses = "absolute inset-0 w-full h-full z-10 cursor-default".split(' ');
-            const subClasses = "absolute bottom-2 right-2 w-[30%] aspect-video z-20 border border-gray-500 shadow-xl cursor-pointer hover:scale-105 bg-black rounded-sm".split(' ');
+            
+            const mainClasses = ['absolute', 'inset-0', 'z-10', 'cursor-default'];
+            const subClasses = ['absolute', 'bottom-2', 'right-2', 'w-[30%]', 'aspect-video', 'z-20', 'border', 'border-gray-500', 'shadow-xl', 'cursor-pointer', 'hover:scale-105'];
 
             if (isJukeboxMain) {
-                wJuke.className = "transition-all duration-300 ease-in-out"; 
+                wJuke.classList.remove(...subClasses);
                 wJuke.classList.add(...mainClasses);
-                wStream.className = "transition-all duration-300 ease-in-out flex items-center justify-center overflow-hidden"; 
+                wStream.classList.remove(...mainClasses);
                 wStream.classList.add(...subClasses);
-                if(oJuke) oJuke.classList.add('hidden');
-                if(oStream) oStream.classList.remove('hidden');
+                document.getElementById('overlay-jukebox').classList.add('hidden');
+                document.getElementById('overlay-stream').classList.remove('hidden');
             } else {
-                wStream.className = "transition-all duration-300 ease-in-out flex items-center justify-center overflow-hidden"; 
+                wStream.classList.remove(...subClasses);
                 wStream.classList.add(...mainClasses);
-                wJuke.className = "transition-all duration-300 ease-in-out"; 
+                wJuke.classList.remove(...mainClasses);
                 wJuke.classList.add(...subClasses);
-                if(oStream) oStream.classList.add('hidden');
-                if(oJuke) oJuke.classList.remove('hidden');
+                document.getElementById('overlay-stream').classList.add('hidden');
+                document.getElementById('overlay-jukebox').classList.remove('hidden');
             }
         }
 
-        // --- スマホカメラによる直接配信処理 ---
+        // --- スマホカメラ配信 ＆ コントロール処理 ---
         let localHostStream = null;
         let usingFrontCamera = true;
+        let audioContext, analyser, microphone, dataArray, meterInterval;
 
         async function startCameraWithFacingMode() {
-            if(localHostStream) {
-                localHostStream.getTracks().forEach(t => t.stop());
-            }
+            if(localHostStream) localHostStream.getTracks().forEach(t => t.stop());
+            
+            const res = document.getElementById('host-cam-resolution') ? document.getElementById('host-cam-resolution').value : 720;
             const constraints = {
-                video: { facingMode: usingFrontCamera ? "user" : "environment" },
+                video: { facingMode: usingFrontCamera ? "user" : "environment", height: { ideal: parseInt(res) } },
                 audio: true
             };
+            
             localHostStream = await navigator.mediaDevices.getUserMedia(constraints);
             
+            // ミュート状態の引継ぎ
+            const btnAudio = document.getElementById('btn-host-cam-audio');
+            if(btnAudio && btnAudio.textContent.includes('OFF')) localHostStream.getAudioTracks()[0].enabled = false;
+            const btnVideo = document.getElementById('btn-host-cam-video');
+            if(btnVideo && btnVideo.textContent.includes('OFF')) localHostStream.getVideoTracks()[0].enabled = false;
+
             const previewVid = document.getElementById('host-stream-preview');
             if(previewVid) {
                 previewVid.srcObject = localHostStream;
@@ -2090,18 +2129,22 @@
                 document.getElementById('host-stream-offline').classList.add('hidden');
                 previewVid.play().catch(e=>{});
             }
+            
             broadcastStreamToListeners(localHostStream);
+            setTimeout(() => applyHostCamBitrate(), 1500);
+            startAudioMeter(localHostStream);
         }
 
         async function toggleHostLocalCamera() {
-            const btn = document.getElementById('btn-host-local-cam');
-            const switchBtn = document.getElementById('btn-host-switch-cam');
+            const startBtn = document.getElementById('btn-start-local-cam');
+            const controlPanel = document.getElementById('host-cam-controls');
             
             if (localHostStream) {
                 // 停止処理
                 localHostStream.getTracks().forEach(t => t.stop());
                 localHostStream = null;
                 stopBroadcastStream();
+                stopAudioMeter();
                 
                 const previewVid = document.getElementById('host-stream-preview');
                 if(previewVid) {
@@ -2109,28 +2152,24 @@
                     previewVid.classList.add('hidden');
                     document.getElementById('host-stream-offline').classList.remove('hidden');
                 }
-                btn.innerHTML = '<i class="fa-solid fa-camera"></i> スマホカメラで配信開始';
-                btn.classList.replace('bg-red-600', 'bg-gray-800');
-                btn.classList.replace('text-white', 'text-gray-300');
-                switchBtn.classList.replace('flex', 'hidden');
+                startBtn.classList.remove('hidden');
+                controlPanel.classList.replace('flex', 'hidden');
             } else {
                 // 開始処理
                 try {
-                    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 起動中...';
+                    startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 起動中...';
                     await startCameraWithFacingMode();
                     
-                    btn.innerHTML = '<i class="fa-solid fa-stop"></i> カメラ配信を停止';
-                    btn.classList.replace('bg-gray-800', 'bg-red-600');
-                    btn.classList.replace('text-gray-300', 'text-white');
-                    switchBtn.classList.replace('hidden', 'flex');
+                    startBtn.classList.add('hidden');
+                    controlPanel.classList.replace('hidden', 'flex');
+                    startBtn.innerHTML = '<i class="fa-solid fa-camera"></i> スマホカメラで配信開始';
                     
-                    // 配信開始したら自動的にワイプからメイン画面に切り替える（親切設計）
-                    if (isJukeboxMain) swapMedia('stream');
-                    
+                    // 配信開始したら自動的にワイプからメイン画面に切り替える（スマホのみ）
+                    if (window.innerWidth < 1024 && isJukeboxMain) swapMedia('stream');
                 } catch (e) {
                     console.error("Camera error:", e);
-                    showToast("カメラの起動に失敗しました。ブラウザのカメラ権限を確認してください。", "error");
-                    btn.innerHTML = '<i class="fa-solid fa-camera"></i> スマホカメラで配信開始';
+                    showToast("カメラ起動失敗。権限を確認してください", "error");
+                    startBtn.innerHTML = '<i class="fa-solid fa-camera"></i> スマホカメラで配信開始';
                 }
             }
         }
@@ -2141,9 +2180,127 @@
             try {
                 await startCameraWithFacingMode();
                 showToast("カメラを切り替えました");
-            } catch(e) {
-                showToast("カメラの切り替えに失敗しました", "error");
+            } catch(e) { showToast("カメラの切り替えに失敗", "error"); }
+        }
+
+        function toggleHostCamAudio() {
+            if(!localHostStream) return;
+            const track = localHostStream.getAudioTracks()[0];
+            if(track) {
+                track.enabled = !track.enabled;
+                const btn = document.getElementById('btn-host-cam-audio');
+                if(track.enabled) {
+                    btn.innerHTML = '<i class="fa-solid fa-microphone"></i> 音声ON';
+                    btn.className = "flex-1 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                } else {
+                    btn.innerHTML = '<i class="fa-solid fa-microphone-slash"></i> 音声OFF';
+                    btn.className = "flex-1 bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                }
             }
+        }
+
+        function toggleHostCamVideo() {
+            if(!localHostStream) return;
+            const track = localHostStream.getVideoTracks()[0];
+            if(track) {
+                track.enabled = !track.enabled;
+                const btn = document.getElementById('btn-host-cam-video');
+                if(track.enabled) {
+                    btn.innerHTML = '<i class="fa-solid fa-video"></i> 映像ON';
+                    btn.className = "flex-1 bg-green-900/50 text-green-500 border border-green-800 hover:bg-green-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                } else {
+                    btn.innerHTML = '<i class="fa-solid fa-video-slash"></i> 映像OFF';
+                    btn.className = "flex-1 bg-red-900/50 text-red-400 border border-red-800 hover:bg-red-800 text-[10px] font-bold py-1.5 rounded-sm transition-colors";
+                }
+            }
+        }
+
+        function toggleHostCamPreview() {
+            const vid = document.getElementById('host-stream-preview');
+            const btn = document.getElementById('btn-host-cam-preview');
+            if(vid.style.opacity === '0') {
+                vid.style.opacity = '1';
+                btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+                btn.classList.replace('text-indigo-400', 'text-gray-300');
+            } else {
+                vid.style.opacity = '0';
+                btn.innerHTML = '<i class="fa-solid fa-eye"></i>';
+                btn.classList.replace('text-gray-300', 'text-indigo-400');
+            }
+        }
+
+        async function applyHostCamConstraints() {
+            if (!localHostStream) return;
+            const res = document.getElementById('host-cam-resolution').value;
+            const track = localHostStream.getVideoTracks()[0];
+            if(track) {
+                try {
+                    await track.applyConstraints({ height: { ideal: parseInt(res) } });
+                    showToast(res + "p に変更しました");
+                } catch(e) { showToast("解像度の変更に失敗しました", "error"); }
+            }
+        }
+
+        function applyHostCamBitrate() {
+            const bpsEl = document.getElementById('host-cam-bitrate');
+            const bitrateKbps = bpsEl ? parseInt(bpsEl.value) : 2500;
+            Object.values(connectedListeners).forEach(listener => {
+                if(listener.call && listener.call.peerConnection) {
+                    const senders = listener.call.peerConnection.getSenders();
+                    const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                    if (videoSender) {
+                        const params = videoSender.getParameters();
+                        if (!params.encodings) params.encodings = [{}];
+                        if (bitrateKbps === 0) delete params.encodings[0].maxBitrate;
+                        else params.encodings[0].maxBitrate = bitrateKbps * 1000;
+                        videoSender.setParameters(params).catch(e=>{});
+                    }
+                }
+            });
+            showToast("ビットレート設定を適用しました");
+        }
+
+        function startAudioMeter(stream) {
+            try {
+                if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if(audioContext.state === 'suspended') audioContext.resume();
+                
+                const audioTracks = stream.getAudioTracks();
+                if (audioTracks.length === 0) return;
+
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(analyser);
+                analyser.fftSize = 256;
+                const bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength);
+                
+                const meterContainer = document.getElementById('host-cam-vu');
+                if(meterContainer) {
+                    meterContainer.innerHTML = '<div class="w-[3px] bg-gray-700 transition-all duration-75 h-[20%]"></div><div class="w-[3px] bg-gray-700 transition-all duration-75 h-[40%]"></div><div class="w-[3px] bg-gray-700 transition-all duration-75 h-[60%]"></div><div class="w-[3px] bg-gray-700 transition-all duration-75 h-[80%]"></div><div class="w-[3px] bg-gray-700 transition-all duration-75 h-[100%]"></div>';
+                    const bars = meterContainer.children;
+                    
+                    if(meterInterval) clearInterval(meterInterval);
+                    meterInterval = setInterval(() => {
+                        analyser.getByteFrequencyData(dataArray);
+                        let sum = 0;
+                        for(let i=0; i<bufferLength; i++) sum += dataArray[i];
+                        let volumeLevel = Math.min(5, Math.floor((sum / bufferLength) / 15)); 
+                        
+                        for(let i=0; i<5; i++) {
+                            if (i < volumeLevel) bars[i].classList.replace('bg-gray-700', i > 3 ? 'bg-red-500' : 'bg-green-500');
+                            else bars[i].className = `w-[3px] bg-gray-700 transition-colors duration-75 h-[${(i+1)*20}%]`;
+                        }
+                    }, 100);
+                }
+            } catch(e) { console.warn("Audio meter setup failed:", e); }
+        }
+
+        function stopAudioMeter() {
+            if(meterInterval) clearInterval(meterInterval);
+            if(microphone) microphone.disconnect();
+            const meterContainer = document.getElementById('host-cam-vu');
+            if(meterContainer) meterContainer.innerHTML = '';
         }
     </script>
 </body>
