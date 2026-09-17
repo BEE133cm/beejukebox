@@ -404,8 +404,22 @@
             localStorage.setItem('jukebox_uuid', myGuestUUID);
         }
 
+        // ★追加：チャットネームカラーの定義
+        const NAME_COLORS = [
+            'text-red-400', 'text-pink-400', 'text-purple-400', 'text-indigo-400',
+            'text-blue-400', 'text-cyan-400', 'text-teal-400', 'text-green-400',
+            'text-yellow-400', 'text-orange-400'
+        ];
+        
+        // ★追加：自分の色を取得（なければランダムに割り当てて保存）
+        let myNameColor = localStorage.getItem('jukebox_name_color');
+        if (!myNameColor || !NAME_COLORS.includes(myNameColor)) {
+            myNameColor = NAME_COLORS[Math.floor(Math.random() * NAME_COLORS.length)];
+            localStorage.setItem('jukebox_name_color', myNameColor);
+        }
+
         let pendingConnection = null;
-        let chatHistory = []; 
+        let chatHistory = [];
         let currentSong = null;
         let isWatchPartyEnabled = true;
         
@@ -989,7 +1003,8 @@ function switchRemoteLayer(layer) {
             if(!text) return;
 
             if(listenerConn && listenerConn.open) {
-                listenerConn.send({ type: 'chat', text, sender: "👑 配信管理者", senderReal: "配信管理者", isAnon: false, isRemote: true });
+                // ★修正：color: myNameColor を追加（コントローラーは isRemote=true なので実際は黄色になる）
+                listenerConn.send({ type: 'chat', text, sender: "👑 配信管理者", senderReal: "配信管理者", isAnon: false, isRemote: true, color: myNameColor });
                 document.getElementById(inputId).value = '';
                 closeRemoteChatInput();
             }
@@ -1260,19 +1275,26 @@ function handleSyncPlayback(data) {
             container.innerHTML = '';
             chats.forEach(c => {
                 const div = document.createElement('div');
-                div.className = "text-[13px] leading-relaxed flex group";
+                div.className = "text-[12px] leading-relaxed flex items-center justify-between group py-1 border-b border-gray-800/40";
+                
+                // ★修正：表示名とバッジ
                 const dispName = (c.isAnon && !isPrivileged) ? '184(匿名)' : c.senderReal;
-                const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400"></i> ' : '';
-                const nameColor = c.isRemote ? 'text-yellow-400' : 'text-indigo-400';
+                const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400 mr-1"></i>' : '';
+                
+                // ★修正：管理者は黄色、匿名はグレー、その他は持っているカラーを適用
+                let nameColor = 'text-gray-400';
+                if (c.isRemote) nameColor = 'text-yellow-400';
+                else if (!c.isAnon && c.color) nameColor = c.color;
+                
                 div.innerHTML = `
-                    <div class="flex-1 break-words">
-                        <span class="font-bold ${nameColor} mr-1">${badge}${dispName}:</span>
-                        <span class="text-gray-100">${c.text}</span>
+                    <div class="flex-1 break-words min-w-0 mr-2">
+                        <span class="font-bold ${nameColor}">${badge}${dispName}:</span>
+                        <span class="text-gray-200 ml-1">${c.text}</span>
                     </div>
                 `;
                 if (isPrivileged) {
                     const delBtn = document.createElement('button');
-                    delBtn.className = "text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 px-2 transition-opacity flex-shrink-0";
+                    delBtn.className = "text-red-500 hover:text-red-400 opacity-0 group-hover:opacity-100 px-1.5 transition-opacity flex-shrink-0";
                     delBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
                     delBtn.onclick = () => deleteChat(c.id);
                     div.appendChild(delBtn);
