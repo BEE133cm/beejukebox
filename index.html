@@ -891,7 +891,7 @@
                         const data = docSnap.data();
                         if (data.queue) queue = data.queue;
                         
-                        // ★追加：リロード時にプールと自動承認設定が消えないようにFirebaseから復元する
+                        // リロード時にプールと自動承認設定が消えないようにFirebaseから復元する
                         if (data.requestPool) requestPool = data.requestPool;
                         if (data.isAutoApprove !== undefined) {
                             isAutoApprove = data.isAutoApprove;
@@ -913,7 +913,15 @@
                 }).catch(e => console.warn("Firebase Get Error:", e));
             }
 
+            // ★追加：既存のPeerがあれば破棄（二重起動防止）
+            if (peer) {
+                peer.destroy();
+            }
+
             peer = new Peer(`jukebox-${currentRoomId}`);
+
+            // ★追加：ホスト側のPeer生存維持用タイマー
+            let peerKeepAliveInterval = null;
 
             peer.on('open', (id) => {
                 document.getElementById('status-dot').classList.replace('bg-yellow-500', 'bg-green-500');
@@ -923,7 +931,16 @@
                 
                 loadYouTubeAPI(); 
 
-                // 定期的な死活監視
+                // ★追加：ホスト自身のサーバー接続を定期的に確認・維持する
+                if (peerKeepAliveInterval) clearInterval(peerKeepAliveInterval);
+                peerKeepAliveInterval = setInterval(() => {
+                    if (peer && peer.disconnected && !peer.destroyed) {
+                        console.warn("Host Peer connection lost. Trying to reconnect...");
+                        peer.reconnect();
+                    }
+                }, 30000);
+
+                // 定期的な死活監視（リスナーのPing確認）
                 setInterval(() => {
                     const now = Date.now();
                     Object.values(connectedListeners).forEach(p => {
@@ -946,6 +963,17 @@
                 }, 10000);
             });
 
+            // ★追加：サーバーから切断された時の自動リカバリー
+            peer.on('disconnected', () => {
+                console.warn("Host PeerJS Disconnected. Trying to reconnect in background...");
+                // 3秒後に再接続を試みる
+                setTimeout(() => {
+                    if (peer && peer.disconnected && !peer.destroyed) {
+                        peer.reconnect();
+                    }
+                }, 3000);
+            });
+
             peer.on('error', (err) => {
                 document.getElementById('status-dot').classList.replace('bg-green-500', 'bg-red-500');
                 document.getElementById('status-dot').classList.replace('shadow-[0_0_5px_rgba(34,197,94,0.8)]', 'shadow-[0_0_5px_rgba(239,68,68,0.8)]');
@@ -953,6 +981,15 @@
                 const errTxt = document.getElementById('error-text');
                 errTxt.textContent = err.type;
                 errTxt.classList.remove('hidden');
+
+                // ★追加：致命的なエラーの場合は再構築を試みる
+                if (err.type === 'network' || err.type === 'disconnected' || err.type === 'server-error') {
+                    setTimeout(() => {
+                        if (!peer || peer.disconnected || peer.destroyed) {
+                            initHost(); // 初期化からやり直す
+                        }
+                    }, 5000);
+                }
             });
 
             peer.on('connection', (conn) => {
