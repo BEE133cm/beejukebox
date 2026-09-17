@@ -200,8 +200,23 @@
                     <input type="text" id="setting-theme" class="flex-1 bg-transparent outline-none text-xs text-white placeholder-gray-600 font-bold" placeholder="現在のテーマ・気分を入力して共有..." onchange="updateHostSettings()">
                 </div>
 
+                <!-- ★修正：Xシェアボタンと映像ON/OFFボタンを復活 -->
                 <div class="flex justify-between items-center shrink-0">
-                    <!-- 中略: NOWや映像ONボタンの行 -->
+                    <div class="hidden lg:flex items-center gap-2 overflow-hidden flex-1 mr-4 bg-[#0e0e10] border border-gray-700 p-1.5 rounded-sm shadow-sm">
+                        <span class="text-[9px] font-black text-red-500 tracking-widest shrink-0"><i class="fa-solid fa-play"></i> NOW:</span>
+                        <div class="marquee-container h-4 flex-1">
+                            <div class="marquee-content host-now-playing-text font-bold text-[10px] text-gray-100 tracking-wide">BGM停止中</div>
+                        </div>
+                        <span class="host-now-requester-text text-gray-500 font-normal text-[10px] shrink-0 ml-2">---</span>
+                    </div>
+                    <div class="flex justify-end items-center gap-1.5 lg:shrink-0 w-full lg:w-auto">
+                        <button onclick="shareToX()" class="text-[13px] bg-black hover:bg-gray-900 border border-gray-700 text-white w-7 h-7 rounded-sm flex items-center justify-center transition-colors shadow-sm" title="Xでシェア">
+                            <i class="fa-brands fa-x-twitter"></i>
+                        </button>
+                        <button onclick="toggleLightMode()" id="btn-light-mode" class="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 h-7 rounded-sm transition-colors flex items-center gap-1.5 font-bold shadow-sm">
+                            <i class="fa-solid fa-video"></i> 映像ON
+                        </button>
+                    </div>
                 </div>
 
                 <!-- ★追加：ホスト用カメラ設定モーダル -->
@@ -248,8 +263,8 @@
                     </div>
 
                     <!-- STREAM -->
-                    <!-- lg:!static から lg:!relative に変更 -->
-                    <div id="wrapper-stream" class="absolute bottom-2 right-2 w-[30%] aspect-video z-20 border border-gray-500 shadow-xl cursor-pointer hover:scale-105 bg-black rounded-sm transition-all duration-300 flex items-center justify-center overflow-hidden lg:!relative lg:!w-full lg:!h-full lg:!flex-1 lg:!border lg:!border-gray-700 lg:!shadow-inner lg:!cursor-default lg:!transform-none lg:!scale-100" onclick="swapMedia('stream')">
+                    <!-- ★修正：lg:!relative をやめて lg:!static に戻し、flexレイアウト内で綺麗に並ぶように調整 -->
+                    <div id="wrapper-stream" class="absolute bottom-2 right-2 w-[30%] aspect-video z-20 border border-gray-500 shadow-xl cursor-pointer hover:scale-105 bg-black rounded-sm transition-all duration-300 flex items-center justify-center overflow-hidden lg:!static lg:!w-full lg:!h-full lg:!flex-1 lg:!border lg:!border-gray-700 lg:!shadow-inner lg:!cursor-default lg:!transform-none lg:!scale-100" onclick="swapMedia('stream')">
                         <div class="absolute top-1 left-1 bg-red-600/90 border border-red-400 px-1.5 py-0.5 text-[9px] font-bold z-30 text-white rounded-sm tracking-wider pointer-events-none">STREAM</div>
                         <div id="overlay-stream" class="absolute inset-0 z-40 bg-transparent lg:hidden"></div>
                         <span id="host-stream-offline" class="text-gray-700 text-[9px] font-black tracking-widest z-0 pointer-events-none">OFFLINE</span>
