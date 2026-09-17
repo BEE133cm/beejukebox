@@ -360,18 +360,17 @@
                     <div class="grid grid-cols-2 gap-3 pt-4 border-t border-gray-800/60">
                         <div>
                             <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">順番待ち (<span id="listener-queue-count">0</span>)</h3>
-                            <div id="listener-queue-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px]"></div>
+                            <!-- ★修正：横画面時に長くなるように tailwind の landscape クラスを追加 -->
+                            <div id="listener-queue-list" class="space-y-1.5 max-h-48 landscape:max-h-[40vh] overflow-y-auto text-[10px]"></div>
                         </div>
                         <div>
                             <h3 class="text-[10px] font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">再生履歴</h3>
-                            <div id="listener-history-list" class="space-y-1.5 max-h-32 overflow-y-auto text-[10px] text-gray-500"></div>
+                            <!-- ★修正：横画面時に長くなるように tailwind の landscape クラスを追加 -->
+                            <div id="listener-history-list" class="space-y-1.5 max-h-48 landscape:max-h-[40vh] overflow-y-auto text-[10px] text-gray-500"></div>
                         </div>
                     </div>
 
-                    <!-- 最下部余白用バージョン表記 -->
-                    <div class="pt-8 text-center text-gray-700 text-[10px]">
-                        v1.0.41
-                    </div>
+                    <!-- ★修正：バージョン表記は削除しました -->
 
                 </div>
             </details>
@@ -1362,8 +1361,11 @@ function handleSyncPlayback(data) {
 
         function renderListenerState(state) {
             window.currentSong = state.currentSong || null;
-            // ★修正：isRequestStopped を受け取る
-            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, isPlaying, theme: hostTheme, isLive, cameraApprovalMode, participants, isRequestStopped } = state;
+            // ★修正：isRequestStopped を受け取る ＆ isPlayingの判定を status(playing/paused) から計算するように修正
+            const { queue: serverQueue, historyQueue: serverHistQueue, chatHistory: serverChatHistory, currentSong: currentSongData, status, theme: hostTheme, isLive, cameraApprovalMode, participants, isRequestStopped } = state;
+            
+            // 波形を動かすための再生状態フラグ
+            const isPlaying = (status === 'playing');
 
             // ローカル変数の確実な更新
             currentSong = currentSongData || null;
