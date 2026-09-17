@@ -907,13 +907,20 @@
                             const tInput = document.getElementById('setting-theme');
                             if(tInput) tInput.value = hostTheme;
                         }
+
+                        // ★追加：保存された再生時間を復元
+                        if (data.durationLimit !== undefined) {
+                            durationLimit = data.durationLimit;
+                            const durInput = document.getElementById('setting-duration');
+                            if(durInput) durInput.value = Math.floor(durationLimit / 60);
+                        }
                     }
                     updateUI();
                     updateCloudRoomState(); // 初期化直後にクラウドに上書きして状態を確定
                 }).catch(e => console.warn("Firebase Get Error:", e));
             }
 
-            // ★追加：既存のPeerがあれば破棄（二重起動防止）
+            // 既存のPeerがあれば破棄（二重起動防止）
             if (peer) {
                 peer.destroy();
             }
@@ -1218,7 +1225,15 @@
                         if (el) el.checked = data.targetId;
                         toggleCamApproval();
                     }
-                    // ★追加：プールと並び替えのコマンド受信処理
+                    // ★追加：コントローラーからの再生時間制限（MAX DURATION）の変更を受信
+                    else if (data.action === 'update_duration') {
+                        durationLimit = data.targetId * 60; // 分を秒に変換してセット
+                        const el = document.getElementById('setting-duration');
+                        if (el) el.value = data.targetId;
+                        updateCloudRoomState();
+                        showToast(`再生時間制限を ${data.targetId === 0 ? '無制限' : data.targetId + '分'} に変更しました`);
+                    }
+                    // プールと並び替えのコマンド受信処理
                     else if (data.action === 'toggle_auto_approve') {
                         isAutoApprove = data.targetId;
                         const el = document.getElementById('setting-auto-approve');
@@ -1500,6 +1515,7 @@
                     requestPool: requestPool, 
                     isAutoApprove: isAutoApprove, 
                     isRequestStopped: isRequestStopped, // ★追加：受付停止フラグをクラウドへ
+                    durationLimit: durationLimit, // ★追加：コントローラーに現在の設定時間を同期
                     historyQueue: historyQueue,
                     chatHistory: chatHistory,
                     participants: safeParticipants,
