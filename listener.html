@@ -1348,7 +1348,7 @@ function handleSyncPlayback(data) {
             const container = document.getElementById(containerId);
             if(!container) return;
 
-            // ★修正：mt-auto 用の空divを維持したまま、チャット要素だけを入れ替える
+            // mt-auto 用の空divを維持したまま、チャット要素だけを入れ替える
             container.innerHTML = '<div class="mt-auto flex-shrink-0"></div>';
             
             chats.forEach(c => {
@@ -1359,10 +1359,13 @@ function handleSyncPlayback(data) {
                 const dispName = (c.isAnon && !isPrivileged) ? '184(匿名)' : c.senderReal;
                 const badge = c.isRemote ? '<i class="fa-solid fa-crown text-yellow-400 mr-1"></i>' : '';
                 
-                // 管理者は黄色、匿名はグレー、その他は持っているカラーを適用
+                // ★修正：管理者は黄色、それ以外（匿名であっても）は持っているカラーを適用
                 let nameColor = 'text-gray-400';
-                if (c.isRemote) nameColor = 'text-yellow-400';
-                else if (!c.isAnon && c.color) nameColor = c.color;
+                if (c.isRemote) {
+                    nameColor = 'text-yellow-400';
+                } else if (c.color) {
+                    nameColor = c.color; // 匿名かどうかに関わらず色を適用
+                }
                 
                 div.innerHTML = `
                     <div class="flex-1 break-words min-w-0 mr-2">
@@ -1374,7 +1377,7 @@ function handleSyncPlayback(data) {
                 container.appendChild(div);
             });
             
-            // ★修正：描画が完了してから確実にスクロールさせるために setTimeout を使用
+            // 描画が完了してから確実にスクロールさせる
             setTimeout(() => {
                 container.scrollTop = container.scrollHeight;
             }, 10);
